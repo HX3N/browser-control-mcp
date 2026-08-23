@@ -3,7 +3,7 @@
   "version": "1.5.0",
   "private": true,
   "scripts": {
-    "postinstall": "npm install --prefix mcp-server && npm install --prefix firefox-extension",
+    "postinstall": "cd mcp-server && npm install && cd .. && cd firefox-extension && npm install",
     "build": "nx run-many --target=build --all --parallel"
   },
   "devDependencies": {
