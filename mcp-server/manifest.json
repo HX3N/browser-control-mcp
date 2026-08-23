@@ -3,18 +3,18 @@
     "name": "browser-control-firefox",
     "version": "1.5.2",
     "display_name": "Firefox Control",
-    "description": "Control Mozilla Firefox: tabs, history and web content (privacy aware)",
-    "long_description": "This MCP server provides AI assistants with access to the browser's tab management, browsing history, page search, and webpage text content through a local MCP (Model Context Protocol) connection.\n\nBefore accessing any webpage content, explicit user consent is required for each domain through browser-side permissions.\n\n**Note:** This extension requires a separate Firefox add-on component, which is available at [https://addons.mozilla.org/en-US/firefox/addon/browser-control-mcp/](https://addons.mozilla.org/en-US/firefox/addon/browser-control-mcp/). Start by installing the Firefox add-on, then copy the secret key from the add-on settings page (it will open automatically) and paste it into this extension's configuration.",
+    "description": "Control Mozilla Firefox: tabs, history, web content and page interaction",
+    "long_description": "This MCP server provides AI assistants with access to the browser's tab management, browsing history, page search, webpage text content, and direct page interaction through a local MCP (Model Context Protocol) connection.\n\nHow much of the web the server may touch is chosen in the extension's toolbar popup: every page except a domain deny list, or only the tabs and sites the user authorized. Clicking, typing and JavaScript execution are separate switches that can be turned off at any time, and every interaction is drawn on the page so the user can see what is being touched.\n\n**Note:** This extension requires a separate Firefox add-on component. This is a fork with page interaction added, so the add-on has to be built from the fork's repository rather than installed from addons.mozilla.org. Build it, load it, then copy the secret key from the add-on settings page and paste it into this extension's configuration.",
     "author": {
         "name": "eyalzh",
         "url": "https://github.com/eyalzh"
     },
     "repository": {
         "type": "git",
-        "url": "https://github.com/eyalzh/browser-control-mcp"
+        "url": "https://github.com/HX3N/browser-control-mcp"
     },
-    "support": "https://github.com/eyalzh/browser-control-mcp/issues",
-    "documentation": "https://github.com/eyalzh/browser-control-mcp",
+    "support": "https://github.com/HX3N/browser-control-mcp/issues",
+    "documentation": "https://github.com/HX3N/browser-control-mcp",
     "license": "MIT",
     "keywords": [
         "browser",
@@ -86,6 +86,42 @@
         {
             "name": "capture-tab-screenshot",
             "description": "Capture a screenshot of the visible area of a browser tab (requires per-tab user consent)"
+        },
+        {
+            "name": "get-page-snapshot",
+            "description": "List the interactive elements of a tab, each stamped with a ref the interaction tools accept"
+        },
+        {
+            "name": "click-page-element",
+            "description": "Click an element in a browser tab, by snapshot ref or CSS selector"
+        },
+        {
+            "name": "type-into-page-element",
+            "description": "Type text into an input, textarea or contenteditable element, optionally submitting the form"
+        },
+        {
+            "name": "press-key-in-tab",
+            "description": "Dispatch a key press such as Enter, Tab or Escape in a browser tab"
+        },
+        {
+            "name": "scroll-browser-tab",
+            "description": "Scroll a browser tab by a distance, to its edges, or until an element is centred"
+        },
+        {
+            "name": "select-page-option",
+            "description": "Choose one or more options in a select element"
+        },
+        {
+            "name": "wait-for-page-element",
+            "description": "Wait until a CSS selector becomes visible, hidden, attached or detached"
+        },
+        {
+            "name": "execute-javascript-in-tab",
+            "description": "Run JavaScript in a browser tab and return the value of its last expression"
+        },
+        {
+            "name": "release-browser-tab",
+            "description": "Let go of the tabs this session was driving, removing the overlay and restoring the tab's icon"
         }
     ]
 }

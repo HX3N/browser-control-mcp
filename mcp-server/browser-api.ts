@@ -3,6 +3,12 @@ import type {
   ExtensionMessage,
   BrowserTab,
   BrowserHistoryItem,
+  ElementTarget,
+  ElementWaitExtensionMessage,
+  InteractionResultExtensionMessage,
+  PageSnapshotExtensionMessage,
+  ScriptResultExtensionMessage,
+  TabsReleasedExtensionMessage,
   ServerMessage,
   TabContentExtensionMessage,
   ServerMessageRequest,
@@ -17,6 +23,29 @@ const EXTENSION_RESPONSE_TIMEOUT_MS = 1000;
 // Capturing may foreground the tab, wait for it to paint, encode the image and transfer a
 // payload orders of magnitude larger than the other responses.
 const SCREENSHOT_RESPONSE_TIMEOUT_MS = 10000;
+// Interactions draw the overlay, hold it long enough to be seen, and only then act on the
+// page, so they never fit inside the default response budget.
+const INTERACTION_RESPONSE_TIMEOUT_MS = 15000;
+const WAIT_RESPONSE_GRACE_MS = 5000;
+// The extension grows its probe range on the same base port, so both sides converge without
+// any discovery protocol.
+const PORT_SCAN_RANGE = 16;
+
+function listen(host: string, port: number): Promise<WebSocket.Server> {
+  return new Promise((resolve, reject) => {
+    const server = new WebSocket.Server({ host, port });
+    const onError = (error: Error) => {
+      server.off("listening", onListening);
+      reject(error);
+    };
+    const onListening = () => {
+      server.off("error", onError);
+      resolve(server);
+    };
+    server.once("error", onError);
+    server.once("listening", onListening);
+  });
+}
 
 interface ExtensionRequestResolver<T extends ExtensionMessage["resource"]> {
   resource: T;
@@ -28,6 +57,7 @@ export class BrowserAPI {
   private ws: WebSocket | null = null;
   private wsServers: WebSocket.Server[] = [];
   private sharedSecret: string | null = null;
+  private boundPort: number | null = null;
 
   // Map to persist the request to the extension. It maps the request correlationId
   // to a resolver, fulfulling a promise created when sending a message to the extension.
@@ -45,28 +75,34 @@ export class BrowserAPI {
     }
     this.sharedSecret = secret;
 
-    if (await isPortInUse(port)) {
-      throw new Error(
-        `Configured port ${port} is already in use. Please configure a different port.`
-      );
-    }
-
     // Bind explicitly to both loopback addresses so Firefox connects regardless of how
     // it resolves "localhost". On Linux, getaddrinfo("localhost") often returns ::1
     // before 127.0.0.1; binding only to "localhost" then yields an IPv6-only listener
     // and IPv4 connect attempts get refused. Listening on 127.0.0.1 *and* ::1 keeps
     // the server loopback-only (unlike "::"/"0.0.0.0", which would expose external
     // interfaces), while accepting both IPv4 and IPv6 clients.
-    const hosts = process.env.CONTAINERIZED ? ["0.0.0.0"] : ["127.0.0.1", "::1"];
+    const hosts = ["127.0.0.1", "::1"];
 
-    for (const host of hosts) {
-      const wsServer = new WebSocket.Server({ host, port });
+    // Every concurrent client session starts its own copy of this server, so a taken base
+    // port is the normal case rather than a misconfiguration. Exiting here would be wrong.
+    const claimed = await this.claimPort(port, hosts);
+    if (!claimed) {
+      throw new Error(
+        `No free port for the extension connection between ${port} and ${
+          port + PORT_SCAN_RANGE - 1
+        }. Close some sessions, or set EXTENSION_PORT to another base port.`
+      );
+    }
 
-      console.error(`Starting WebSocket server on ${host}:${port}`);
+    const { port: boundPort, servers } = claimed;
+    this.boundPort = boundPort;
+
+    for (const wsServer of servers) {
+      console.error(`WebSocket server listening on port ${boundPort}`);
       wsServer.on("connection", async (connection) => {
         this.ws = connection;
 
-        console.error("WebSocket connection established on port", port);
+        console.error("WebSocket connection established on port", boundPort);
 
         this.ws.on("message", (message) => {
           const decoded = JSON.parse(message.toString());
@@ -83,11 +119,58 @@ export class BrowserAPI {
         });
       });
       wsServer.on("error", (error) => {
-        console.error(`WebSocket server error on ${host}:${port}:`, error);
+        console.error(`WebSocket server error on port ${boundPort}:`, error);
       });
 
       this.wsServers.push(wsServer);
     }
+  }
+
+  async releaseTabs(tabIds?: number[]): Promise<TabsReleasedExtensionMessage> {
+    const correlationId = this.sendMessageToExtension({
+      cmd: "release-tabs",
+      tabIds,
+    });
+    return await this.waitForResponse(
+      correlationId,
+      "tabs-released",
+      INTERACTION_RESPONSE_TIMEOUT_MS
+    );
+  }
+
+  // Two sessions can see the same port as free at the same moment, so a successful bind is
+  // the only reliable claim. Every host has to bind the same port or the pair is unusable.
+  private async claimPort(
+    basePort: number,
+    hosts: string[]
+  ): Promise<{ port: number; servers: WebSocket.Server[] } | null> {
+    for (let offset = 0; offset < PORT_SCAN_RANGE; offset++) {
+      const candidate = basePort + offset;
+      if (await isPortInUse(candidate)) {
+        continue;
+      }
+
+      const servers: WebSocket.Server[] = [];
+      let failed = false;
+      for (const host of hosts) {
+        try {
+          servers.push(await listen(host, candidate));
+        } catch (error) {
+          failed = true;
+          break;
+        }
+      }
+
+      if (failed) {
+        for (const server of servers) {
+          server.close();
+        }
+        continue;
+      }
+
+      return { port: candidate, servers };
+    }
+    return null;
   }
 
   close() {
@@ -98,13 +181,14 @@ export class BrowserAPI {
   }
 
   getSelectedPort() {
-    return this.wsServers[0]?.options.port;
+    return this.boundPort ?? undefined;
   }
 
-  async openTab(url: string): Promise<number | undefined> {
+  async openTab(url: string, cookieStoreId?: string): Promise<number | undefined> {
     const correlationId = this.sendMessageToExtension({
       cmd: "open-tab",
       url,
+      cookieStoreId,
     });
     const message = await this.waitForResponse(correlationId, "opened-tab-id");
     return message.tabId;
@@ -205,6 +289,160 @@ export class BrowserAPI {
       correlationId,
       "screenshot",
       SCREENSHOT_RESPONSE_TIMEOUT_MS
+    );
+  }
+
+  async pageSnapshot(
+    tabId: number,
+    maxElements: number,
+    interactiveOnly: boolean
+  ): Promise<PageSnapshotExtensionMessage> {
+    const correlationId = this.sendMessageToExtension({
+      cmd: "page-snapshot",
+      tabId,
+      maxElements,
+      interactiveOnly,
+    });
+    return await this.waitForResponse(
+      correlationId,
+      "page-snapshot",
+      INTERACTION_RESPONSE_TIMEOUT_MS
+    );
+  }
+
+  async clickElement(
+    tabId: number,
+    target: ElementTarget,
+    button: "left" | "middle" | "right",
+    clickCount: number
+  ): Promise<InteractionResultExtensionMessage> {
+    const correlationId = this.sendMessageToExtension({
+      cmd: "click-element",
+      tabId,
+      button,
+      clickCount,
+      ...target,
+    });
+    return await this.waitForResponse(
+      correlationId,
+      "interaction-result",
+      INTERACTION_RESPONSE_TIMEOUT_MS
+    );
+  }
+
+  async typeText(
+    tabId: number,
+    target: ElementTarget,
+    text: string,
+    clearFirst: boolean,
+    submit: boolean
+  ): Promise<InteractionResultExtensionMessage> {
+    const correlationId = this.sendMessageToExtension({
+      cmd: "type-text",
+      tabId,
+      text,
+      clearFirst,
+      submit,
+      ...target,
+    });
+    return await this.waitForResponse(
+      correlationId,
+      "interaction-result",
+      INTERACTION_RESPONSE_TIMEOUT_MS
+    );
+  }
+
+  async pressKey(
+    tabId: number,
+    key: string,
+    modifiers: ("Control" | "Shift" | "Alt" | "Meta")[],
+    target: ElementTarget
+  ): Promise<InteractionResultExtensionMessage> {
+    const correlationId = this.sendMessageToExtension({
+      cmd: "press-key",
+      tabId,
+      key,
+      modifiers,
+      ...target,
+    });
+    return await this.waitForResponse(
+      correlationId,
+      "interaction-result",
+      INTERACTION_RESPONSE_TIMEOUT_MS
+    );
+  }
+
+  async scrollPage(
+    tabId: number,
+    direction: "up" | "down" | "top" | "bottom" | "element",
+    amount: number | undefined,
+    target: ElementTarget
+  ): Promise<InteractionResultExtensionMessage> {
+    const correlationId = this.sendMessageToExtension({
+      cmd: "scroll-page",
+      tabId,
+      direction,
+      amount,
+      ...target,
+    });
+    return await this.waitForResponse(
+      correlationId,
+      "interaction-result",
+      INTERACTION_RESPONSE_TIMEOUT_MS
+    );
+  }
+
+  async selectOption(
+    tabId: number,
+    target: ElementTarget,
+    values: string[]
+  ): Promise<InteractionResultExtensionMessage> {
+    const correlationId = this.sendMessageToExtension({
+      cmd: "select-option",
+      tabId,
+      values,
+      ...target,
+    });
+    return await this.waitForResponse(
+      correlationId,
+      "interaction-result",
+      INTERACTION_RESPONSE_TIMEOUT_MS
+    );
+  }
+
+  async executeJs(
+    tabId: number,
+    code: string
+  ): Promise<ScriptResultExtensionMessage> {
+    const correlationId = this.sendMessageToExtension({
+      cmd: "execute-js",
+      tabId,
+      code,
+    });
+    return await this.waitForResponse(
+      correlationId,
+      "script-result",
+      INTERACTION_RESPONSE_TIMEOUT_MS
+    );
+  }
+
+  async waitForElement(
+    tabId: number,
+    selector: string,
+    state: "visible" | "hidden" | "attached" | "detached",
+    timeoutMs: number
+  ): Promise<ElementWaitExtensionMessage> {
+    const correlationId = this.sendMessageToExtension({
+      cmd: "wait-for-element",
+      tabId,
+      selector,
+      state,
+      timeoutMs,
+    });
+    return await this.waitForResponse(
+      correlationId,
+      "element-wait-result",
+      timeoutMs + WAIT_RESPONSE_GRACE_MS
     );
   }
 
