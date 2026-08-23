@@ -3,17 +3,22 @@
  */
 import {
   getSecret,
+  generateSecret,
   AVAILABLE_TOOLS,
   getAllToolSettings,
   setToolEnabled,
-  getDomainDenyList,
-  setDomainDenyList,
-  getPorts,
-  setPorts,
   getAuditLog,
   clearAuditLog,
   getToolNameById,
+  INTERACTION_TOOL_IDS,
 } from "./extension-config";
+import { localizeDocument, t } from "./i18n";
+
+// The popup owns these three, so listing them here as well would give the user two switches
+// for one setting.
+const POPUP_OWNED_TOOL_IDS: readonly string[] = INTERACTION_TOOL_IDS;
+
+const MASKED_SECRET = "••••••••-••••-••••-••••-••••••••••••";
 
 const secretDisplay = document.getElementById(
   "secret-display"
@@ -23,44 +28,84 @@ const statusElement = document.getElementById("status") as HTMLDivElement;
 const toolSettingsContainer = document.getElementById(
   "tool-settings-container"
 ) as HTMLDivElement;
-const domainDenyListTextarea = document.getElementById(
-  "domain-deny-list"
-) as HTMLTextAreaElement;
-const saveDomainListsButton = document.getElementById(
-  "save-domain-lists"
-) as HTMLButtonElement;
-const domainStatusElement = document.getElementById(
-  "domain-status"
-) as HTMLDivElement;
-const portsInput = document.getElementById("ports-input") as HTMLInputElement;
-const savePortsButton = document.getElementById("save-ports") as HTMLButtonElement;
-const portsStatusElement = document.getElementById("ports-status") as HTMLDivElement;
 const auditLogContainer = document.getElementById("audit-log-container") as HTMLDivElement;
 const clearAuditLogButton = document.getElementById("clear-audit-log") as HTMLButtonElement;
 const auditLogStatusElement = document.getElementById("audit-log-status") as HTMLDivElement;
+const revealSecretButton = document.getElementById(
+  "reveal-secret"
+) as HTMLButtonElement;
+const regenerateSecretButton = document.getElementById(
+  "regenerate-secret"
+) as HTMLButtonElement;
+
+let currentSecret = "";
+let isSecretRevealed = false;
+
+function renderSecret() {
+  if (!currentSecret) {
+    secretDisplay.classList.add("is-masked");
+    revealSecretButton.disabled = true;
+    copyButton.disabled = true;
+    return;
+  }
+  revealSecretButton.disabled = false;
+  copyButton.disabled = false;
+  secretDisplay.textContent = isSecretRevealed ? currentSecret : MASKED_SECRET;
+  secretDisplay.classList.toggle("is-masked", !isSecretRevealed);
+}
+
+function setSecretRevealed(revealed: boolean) {
+  isSecretRevealed = revealed;
+  renderSecret();
+}
+
+async function regenerateSecret(event: MouseEvent) {
+  if (!event.isTrusted) {
+    return;
+  }
+  try {
+    currentSecret = await generateSecret();
+    secretDisplay.style.color = "";
+    renderSecret();
+    await navigator.clipboard.writeText(currentSecret);
+
+    statusElement.textContent = t("optionsSecretRegenerated");
+    setTimeout(() => {
+      statusElement.textContent = "";
+    }, 5000);
+  } catch (error) {
+    console.error("Error regenerating the secret:", error);
+    statusElement.textContent = t("optionsSecretRegenerateFailed");
+    statusElement.style.color = "red";
+    setTimeout(() => {
+      statusElement.textContent = "";
+      statusElement.style.color = "";
+    }, 5000);
+  }
+}
 
 /**
  * Loads the secret from storage and displays it
  */
 async function loadSecret() {
   try {
-    const secret = await getSecret();
+    currentSecret = await getSecret();
 
-    // Check if secret exists
-    if (secret) {
-      secretDisplay.textContent = secret;
+    if (currentSecret) {
+      renderSecret();
     } else {
       secretDisplay.textContent =
-        "No secret found. Please reinstall the extension.";
+        t("optionsSecretMissing");
       secretDisplay.style.color = "red";
-      copyButton.disabled = true;
+      renderSecret();
     }
   } catch (error) {
     console.error("Error loading secret:", error);
+    currentSecret = "";
     secretDisplay.textContent =
-      "Error loading secret. Please check console for details.";
+      t("optionsSecretLoadFailed");
     secretDisplay.style.color = "red";
-    copyButton.disabled = true;
+    renderSecret();
   }
 }
 
@@ -72,26 +117,20 @@ async function copyToClipboard(event: MouseEvent) {
     return;
   }
   try {
-    const secret = secretDisplay.textContent;
-    if (
-      !secret ||
-      secret === "Loading..." ||
-      secret.includes("No secret found") ||
-      secret.includes("Error loading")
-    ) {
+    if (!currentSecret) {
       return;
     }
 
-    await navigator.clipboard.writeText(secret);
+    await navigator.clipboard.writeText(currentSecret);
 
     // Show success message
-    statusElement.textContent = "Secret copied to clipboard!";
+    statusElement.textContent = t("optionsSecretCopied");
     setTimeout(() => {
       statusElement.textContent = "";
     }, 3000);
   } catch (error) {
     console.error("Error copying to clipboard:", error);
-    statusElement.textContent = "Failed to copy to clipboard";
+    statusElement.textContent = t("optionsSecretCopyFailed");
     statusElement.style.color = "red";
     setTimeout(() => {
       statusElement.textContent = "";
@@ -110,7 +149,9 @@ async function createToolSettingsUI() {
   toolSettingsContainer.innerHTML = "";
 
   // Create a toggle switch for each tool
-  AVAILABLE_TOOLS.forEach((tool) => {
+  AVAILABLE_TOOLS.filter(
+    (tool) => !POPUP_OWNED_TOOL_IDS.includes(tool.id)
+  ).forEach((tool) => {
     const isEnabled = toolSettings[tool.id] !== false; // Default to true if not set
 
     const toolRow = document.createElement("div");
@@ -121,11 +162,11 @@ async function createToolSettingsUI() {
 
     const toolName = document.createElement("div");
     toolName.className = "tool-name";
-    toolName.textContent = tool.name;
+    toolName.textContent = t(tool.nameKey);
 
     const toolDescription = document.createElement("div");
     toolDescription.className = "tool-description";
-    toolDescription.textContent = tool.description;
+    toolDescription.textContent = t(tool.descriptionKey);
 
     labelContainer.appendChild(toolName);
     labelContainer.appendChild(toolDescription);
@@ -177,133 +218,6 @@ async function handleToolToggle(event: Event) {
 }
 
 /**
- * Loads the domain lists from storage and displays them
- */
-async function loadDomainLists() {
-  try {
-    // Load deny list
-    const denyList = await getDomainDenyList();
-    domainDenyListTextarea.value = denyList.join("\n");
-  } catch (error) {
-    console.error("Error loading domain lists:", error);
-    domainStatusElement.textContent =
-      "Error loading domain lists. Please check console for details.";
-    domainStatusElement.style.color = "red";
-    setTimeout(() => {
-      domainStatusElement.textContent = "";
-      domainStatusElement.style.color = "";
-    }, 3000);
-  }
-}
-
-/**
- * Saves the domain lists to storage
- */
-async function saveDomainLists(event: MouseEvent) {
-  if (!event.isTrusted) {
-    return;
-  }
-
-  try {
-    // Parse deny list (split by newlines and filter out empty lines)
-    const denyListText = domainDenyListTextarea.value.trim();
-    const denyList = denyListText
-      ? denyListText
-          .split("\n")
-          .map((domain) => domain.trim())
-          .filter(Boolean)
-      : [];
-
-    // Save to storage
-    await setDomainDenyList(denyList);
-
-    // Show success message
-    domainStatusElement.textContent = "Domain deny list saved successfully!";
-    domainStatusElement.style.color = "#4caf50";
-    setTimeout(() => {
-      domainStatusElement.textContent = "";
-      domainStatusElement.style.color = "";
-    }, 3000);
-  } catch (error) {
-    console.error("Error saving domain lists:", error);
-    domainStatusElement.textContent = "Failed to save domain lists";
-    domainStatusElement.style.color = "red";
-    setTimeout(() => {
-      domainStatusElement.textContent = "";
-      domainStatusElement.style.color = "";
-    }, 3000);
-  }
-}
-
-/**
- * Loads the ports from storage and displays them
- */
-async function loadPorts() {
-  try {
-    const ports = await getPorts();
-    portsInput.value = ports.join(", ");
-  } catch (error) {
-    console.error("Error loading ports:", error);
-    portsStatusElement.textContent =
-      "Error loading ports. Please check console for details.";
-    portsStatusElement.style.color = "red";
-    setTimeout(() => {
-      portsStatusElement.textContent = "";
-      portsStatusElement.style.color = "";
-    }, 3000);
-  }
-}
-
-/**
- * Saves the ports to storage
- */
-async function savePorts(event: MouseEvent) {
-  if (!event.isTrusted) {
-    return;
-  }
-
-  try {
-    // Parse ports (split by commas and filter out empty values)
-    const portsText = portsInput.value.trim();
-    const portStrings = portsText
-      ? portsText
-          .split(",")
-          .map((port) => port.trim())
-          .filter(Boolean)
-      : [];
-
-    // Validate and convert to numbers
-    const ports: number[] = [];
-    for (const portStr of portStrings) {
-      const port = parseInt(portStr, 10);
-      if (isNaN(port) || port < 1 || port > 65535) {
-        throw new Error(`Invalid port number: ${portStr}. Ports must be between 1 and 65535.`);
-      }
-      ports.push(port);
-    }
-
-    // Ensure at least one port is provided
-    if (ports.length === 0) {
-      throw new Error("At least one port must be specified.");
-    }
-
-    // Save to storage
-    await setPorts(ports);
-
-    // Reload the extension:
-    browser.runtime.reload();
-  } catch (error) {
-    console.error("Error saving ports:", error);
-    portsStatusElement.textContent = error instanceof Error ? error.message : "Failed to save ports";
-    portsStatusElement.style.color = "red";
-    setTimeout(() => {
-      portsStatusElement.textContent = "";
-      portsStatusElement.style.color = "";
-    }, 3000);
-  }
-}
-
-/**
  * Loads the audit log from storage and displays it
  */
 async function loadAuditLog() {
@@ -317,7 +231,7 @@ async function loadAuditLog() {
       // Show empty state
       const emptyDiv = document.createElement("div");
       emptyDiv.className = "audit-log-empty";
-      emptyDiv.textContent = "No tool usage recorded yet.";
+      emptyDiv.textContent = t("optionsAuditEmpty");
       auditLogContainer.appendChild(emptyDiv);
       return;
     }
@@ -330,7 +244,11 @@ async function loadAuditLog() {
     const thead = document.createElement("thead");
     const headerRow = document.createElement("tr");
     
-    const headers = ["Tool", "Timestamp", "Domain"];
+    const headers = [
+      t("optionsAuditColumnTool"),
+      t("optionsAuditColumnTime"),
+      t("optionsAuditColumnDomain"),
+    ];
     headers.forEach(headerText => {
       const th = document.createElement("th");
       th.textContent = headerText;
@@ -368,7 +286,7 @@ async function loadAuditLog() {
           urlCell.textContent = urlObj.hostname;
         } catch (e) {
           console.error("Invalid URL in audit log entry:", e);
-          urlCell.textContent = "Invalid URL";
+          urlCell.textContent = t("optionsAuditBadUrl");
         }
       } else {
         urlCell.textContent = "-";
@@ -383,7 +301,11 @@ async function loadAuditLog() {
     
   } catch (error) {
     console.error("Error loading audit log:", error);
-    auditLogContainer.innerHTML = '<div class="audit-log-empty">Error loading audit log. Please check console for details.</div>';
+    const failed = document.createElement("div");
+    failed.className = "audit-log-empty";
+    failed.textContent = t("optionsAuditLoadFailed");
+    auditLogContainer.innerHTML = "";
+    auditLogContainer.appendChild(failed);
   }
 }
 
@@ -402,7 +324,7 @@ async function handleClearAuditLog(event: MouseEvent) {
     await loadAuditLog();
     
     // Show success message
-    auditLogStatusElement.textContent = "Audit log cleared successfully!";
+    auditLogStatusElement.textContent = t("optionsAuditCleared");
     auditLogStatusElement.style.color = "#4caf50";
     setTimeout(() => {
       auditLogStatusElement.textContent = "";
@@ -410,7 +332,7 @@ async function handleClearAuditLog(event: MouseEvent) {
     }, 3000);
   } catch (error) {
     console.error("Error clearing audit log:", error);
-    auditLogStatusElement.textContent = "Failed to clear audit log";
+    auditLogStatusElement.textContent = t("optionsAuditClearFailed");
     auditLogStatusElement.style.color = "red";
     setTimeout(() => {
       auditLogStatusElement.textContent = "";
@@ -456,7 +378,7 @@ function showPermissionRequest(url: string) {
   domainElement.textContent = domain;
   
   // Update permission text for URL permission
-  permissionText.textContent = "This will allow the extension to interact with pages on this domain as requested by the MCP server.";
+  permissionText.textContent = t("optionsModalTextDomain");
 
   // Show modal and blur main content
   modal.classList.remove("hidden");
@@ -513,7 +435,7 @@ function showGlobalPermissionRequest(permissions: string[]) {
   domainElement.textContent = permissions.join(", ");
   
   // Update permission text for global permissions
-  permissionText.textContent = "This will allow the extension to use these browser capabilities as requested by the MCP server.";
+  permissionText.textContent = t("optionsModalTextFeature");
 
   // Show modal and blur main content
   modal.classList.remove("hidden");
@@ -576,14 +498,17 @@ function hidePermissionModal() {
 
 // Initialize the page
 copyButton.addEventListener("click", copyToClipboard);
-saveDomainListsButton.addEventListener("click", saveDomainLists);
-savePortsButton.addEventListener("click", savePorts);
+revealSecretButton.addEventListener("mouseenter", () => setSecretRevealed(true));
+revealSecretButton.addEventListener("mouseleave", () => setSecretRevealed(false));
+revealSecretButton.addEventListener("focus", () => setSecretRevealed(true));
+revealSecretButton.addEventListener("blur", () => setSecretRevealed(false));
+regenerateSecretButton.addEventListener("click", regenerateSecret);
 clearAuditLogButton.addEventListener("click", handleClearAuditLog);
 document.addEventListener("DOMContentLoaded", () => {
+  localizeDocument();
+  revealSecretButton.setAttribute("aria-label", t("optionsSecretShow"));
   loadSecret();
   createToolSettingsUI();
-  loadDomainLists();
-  loadPorts();
   loadAuditLog();
   initializeCollapsibleSections();
 
