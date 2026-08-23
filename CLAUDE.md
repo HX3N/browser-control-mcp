@@ -69,7 +69,7 @@ A monorepo with three components:
 | --- | --- |
 | `common/server-messages.ts` | Commands the server sends to the extension |
 | `common/extension-messages.ts` | Responses the extension sends back |
-| `mcp-server/server.ts` | MCP tool definitions (18 tools) |
+| `mcp-server/server.ts` | MCP tool definitions (19 tools) |
 | `mcp-server/browser-api.ts` | Request/response round trip with the extension |
 | `firefox-extension/background.ts` | Entry point, WebSocket clients, popup message channel |
 | `firefox-extension/message-handler.ts` | Executes every command |

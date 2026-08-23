@@ -56,6 +56,10 @@
             "description": "Open a new tab in the browser"
         },
         {
+            "name": "navigate-browser-tab",
+            "description": "Send an open tab to another URL, keeping the same tab"
+        },
+        {
             "name": "close-browser-tabs",
             "description": "Close tabs in the browser"
         },

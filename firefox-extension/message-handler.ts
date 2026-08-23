@@ -1,5 +1,6 @@
 import type {
   ClickElementServerMessage,
+  NavigateTabServerMessage,
   ElementTarget,
   ExtensionMessage,
   ExecuteJsServerMessage,
@@ -62,6 +63,8 @@ const HOLD_RELEASE_MS = 300_000;
 const STATUS_RESET_MS = 4000;
 const idleStatus = () => t("overlayIdle");
 
+const NAVIGATION_SETTLE_MS = 15_000;
+
 const DEFAULT_SNAPSHOT_LIMIT = 200;
 const MAX_SCRIPT_RESULT_LENGTH = 20_000;
 const DEFAULT_WAIT_TIMEOUT_MS = 5_000;
@@ -123,6 +126,9 @@ export class MessageHandler {
     switch (req.cmd) {
       case "open-tab":
         await this.openUrl(req.correlationId, req.url, req.cookieStoreId);
+        break;
+      case "navigate-tab":
+        await this.navigateTab(req);
         break;
       case "close-tabs":
         await this.closeTabs(req.correlationId, req.tabIds);
@@ -247,6 +253,65 @@ export class MessageHandler {
       resource: "opened-tab-id",
       correlationId,
       tabId: tab.id,
+    });
+  }
+
+  private async navigateTab(
+    req: NavigateTabServerMessage & { correlationId: string }
+  ): Promise<void> {
+    if (!req.url.startsWith("https://")) {
+      console.error("Invalid URL:", req.url);
+      throw new Error("Invalid URL");
+    }
+
+    if (await isDomainInDenyList(req.url)) {
+      throw new Error("Domain in user defined deny list");
+    }
+
+    await this.prepareTabAccess(req.tabId);
+    await this.attachOverlay(req.tabId, "read", t("overlayNavigate"));
+    await delay(INTERACTION_LEAD_MS);
+
+    const settling = this.waitForTabToSettle(req.tabId);
+    await browser.tabs.update(req.tabId, { url: req.url });
+    const settled = await settling;
+    const tab = await browser.tabs.get(req.tabId);
+
+    await this.client.sendResourceToServer({
+      resource: "tab-navigated",
+      correlationId: req.correlationId,
+      tabId: req.tabId,
+      url: tab.url ?? req.url,
+      title: tab.title ?? "",
+      settled,
+    });
+  }
+
+  // The tab the command lands on is still showing the old page for a moment, so a "complete"
+  // that arrives before the first "loading" belongs to the page being left behind.
+  private waitForTabToSettle(tabId: number): Promise<boolean> {
+    return new Promise((resolve) => {
+      let started = false;
+      const finish = (settled: boolean) => {
+        clearTimeout(timer);
+        browser.tabs.onUpdated.removeListener(onUpdated);
+        resolve(settled);
+      };
+      const onUpdated = (
+        updatedTabId: number,
+        changeInfo: browser.tabs._OnUpdatedChangeInfo
+      ) => {
+        if (updatedTabId !== tabId) {
+          return;
+        }
+        if (changeInfo.status === "loading") {
+          started = true;
+        } else if (changeInfo.status === "complete" && started) {
+          finish(true);
+        }
+      };
+      const timer = setTimeout(() => finish(false), NAVIGATION_SETTLE_MS);
+      browser.tabs.onUpdated.addListener(onUpdated, { properties: ["status"] });
     });
   }
 

@@ -1,4 +1,11 @@
+<div align="center">
+
 **English** | [한국어](./README.ko.md)
+
+</div>
+
+> [!IMPORTANT]
+> This repository is a fork of [eyalzh/browser-control-mcp](https://github.com/eyalzh/browser-control-mcp).
 
 # Browser Control MCP
 
@@ -9,8 +16,6 @@ browsing history, read web pages, and **click, type and run scripts on them dire
 
 The browser it is built and tested against is **[Zen Browser](https://zen-browser.app/), which is
 based on Firefox**. The extension APIs are Firefox's, so it runs on Firefox too.
-
-> This repository is a fork of [eyalzh/browser-control-mcp](https://github.com/eyalzh/browser-control-mcp).
 
 ## What changed from upstream
 
@@ -25,6 +30,7 @@ The tools the MCP server exposes.
 **Navigate and read**
 
 - Open and close tabs
+- `navigate-browser-tab` — send an open tab to another URL, so one tab is reused instead of piling up
 - List open tabs
 - Create tab groups with a name and a colour
 - Reorder tabs
@@ -66,10 +72,10 @@ Clicking the toolbar icon (or pressing `Alt+Shift+B`) opens the popup.
 
 ### The two access scopes
 
-| Mode                    | Behaviour                                                                                                                                                           |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Allowlist** (default) | Everything is blocked by default; the extension runs only in the sites on its list, plus tabs granted one at a time. A per-tab grant expires when the tab navigates or closes.  |
-| **Denylist**            | Runs in every page except the sites on its list.                                                                                                             |
+| Mode                    | Behaviour                                                                                                                                                                      |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Allowlist** (default) | Everything is blocked by default; the extension runs only in the sites on its list, plus tabs granted one at a time. A per-tab grant expires when the tab navigates or closes. |
+| **Denylist**            | Runs in every page except the sites on its list.                                                                                                                               |
 
 Allowlist being the default is deliberate. Rather than opening every page the moment the
 extension loads, it makes you widen the scope **explicitly** in the popup.
@@ -92,14 +98,7 @@ switched on its own in the popup, so the ones you find intrusive can stay off.
   session holds the tab.
 - **Status badge** — a small tag at the top centre naming the action in progress.
 
-The colour follows the action.
-
-| Colour | Action                                                 |
-| ------ | ------------------------------------------------------ |
-| Teal   | Reading the page, scrolling, or waiting for an element |
-| Pink   | Clicking or picking an option                          |
-| Purple | Typing text or pressing keys                           |
-| Orange | Running JavaScript                                     |
+The overlay colour follows the kind of action in progress.
 
 The overlay is injected DOM, so a navigation wipes it; it is drawn again once the new page
 finishes loading, for as long as the session still holds the tab.

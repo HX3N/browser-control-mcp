@@ -80,6 +80,9 @@
     "overlayReadingContent": {
         "message": "Reading the page"
     },
+    "overlayNavigate": {
+        "message": "Going to another page"
+    },
     "overlaySnapshot": {
         "message": "Scanning the page"
     },

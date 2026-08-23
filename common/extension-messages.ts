@@ -31,6 +31,14 @@ export interface OpenedTabIdExtensionMessage extends ExtensionMessageBase {
   tabId: number | undefined;
 }
 
+export interface TabNavigatedExtensionMessage extends ExtensionMessageBase {
+  resource: "tab-navigated";
+  tabId: number;
+  url: string;
+  title: string;
+  settled: boolean;
+}
+
 export interface BrowserHistoryItem {
   url?: string;
   title?: string;
@@ -135,6 +143,7 @@ export type ExtensionMessage =
   | TabContentExtensionMessage
   | TabsExtensionMessage
   | OpenedTabIdExtensionMessage
+  | TabNavigatedExtensionMessage
   | BrowserHistoryExtensionMessage
   | ReorderedTabsExtensionMessage
   | FindHighlightExtensionMessage

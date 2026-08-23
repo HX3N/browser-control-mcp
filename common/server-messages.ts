@@ -8,6 +8,12 @@ export interface OpenTabServerMessage extends ServerMessageBase {
   cookieStoreId?: string;
 }
 
+export interface NavigateTabServerMessage extends ServerMessageBase {
+  cmd: "navigate-tab";
+  tabId: number;
+  url: string;
+}
+
 export interface CloseTabsServerMessage extends ServerMessageBase {
   cmd: "close-tabs";
   tabIds: number[];
@@ -136,6 +142,7 @@ export interface ReleaseTabsServerMessage extends ServerMessageBase {
 
 export type ServerMessage =
   | OpenTabServerMessage
+  | NavigateTabServerMessage
   | CloseTabsServerMessage
   | GetTabListServerMessage
   | GetBrowserRecentHistoryServerMessage

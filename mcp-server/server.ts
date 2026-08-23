@@ -67,6 +67,38 @@ mcpServer.tool(
 );
 
 mcpServer.tool(
+  "navigate-browser-tab",
+  `
+    Send a tab that is already open to another URL, keeping the same tab.
+    Prefer this over open-browser-tab once a tab is being worked in: it keeps the session on one
+    tab instead of leaving a trail of them behind, and the tab keeps its container and its hold.
+    Clicking a link with click-page-element also stays in the tab; use this one when the address
+    is known up front or the destination is not reachable by a link.
+    The tool answers once the new page has finished loading, and element refs from an earlier
+    snapshot are gone, so take a new snapshot afterwards.
+  `,
+  {
+    tabId: z.number(),
+    url: z.string(),
+  },
+  async ({ tabId, url }) => {
+    const result = await browserApi.navigateTab(tabId, url);
+    const settledNotice = result.settled
+      ? ""
+      : " The page had not finished loading when this timed out, so it may still be settling.";
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Tab ${result.tabId} is now on ${result.url} ("${result.title}").${settledNotice}`,
+        },
+        ...dialogNotice(result),
+      ],
+    };
+  }
+);
+
+mcpServer.tool(
   "close-browser-tabs",
   "Close tabs in the user's browser by tab IDs",
   { tabIds: z.array(z.number()) },

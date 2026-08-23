@@ -14,6 +14,7 @@ import type {
   ServerMessageRequest,
   ExtensionError,
   ScreenshotExtensionMessage,
+  TabNavigatedExtensionMessage,
 } from "@browser-control-mcp/common";
 import { isPortInUse } from "./util";
 import * as crypto from "crypto";
@@ -26,6 +27,9 @@ const SCREENSHOT_RESPONSE_TIMEOUT_MS = 10000;
 // Interactions draw the overlay, hold it long enough to be seen, and only then act on the
 // page, so they never fit inside the default response budget.
 const INTERACTION_RESPONSE_TIMEOUT_MS = 15000;
+// A navigation waits for the new page to finish loading before it answers, so its budget has
+// to sit above the extension's own settle timeout.
+const NAVIGATION_RESPONSE_TIMEOUT_MS = 20000;
 const WAIT_RESPONSE_GRACE_MS = 5000;
 // The extension grows its probe range on the same base port, so both sides converge without
 // any discovery protocol.
@@ -192,6 +196,22 @@ export class BrowserAPI {
     });
     const message = await this.waitForResponse(correlationId, "opened-tab-id");
     return message.tabId;
+  }
+
+  async navigateTab(
+    tabId: number,
+    url: string
+  ): Promise<TabNavigatedExtensionMessage> {
+    const correlationId = this.sendMessageToExtension({
+      cmd: "navigate-tab",
+      tabId,
+      url,
+    });
+    return await this.waitForResponse(
+      correlationId,
+      "tab-navigated",
+      NAVIGATION_RESPONSE_TIMEOUT_MS
+    );
   }
 
   async closeTabs(tabIds: number[]) {

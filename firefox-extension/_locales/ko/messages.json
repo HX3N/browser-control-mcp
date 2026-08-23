@@ -80,6 +80,9 @@
     "overlayReadingContent": {
         "message": "본문 읽는 중"
     },
+    "overlayNavigate": {
+        "message": "다른 페이지로 이동"
+    },
     "overlaySnapshot": {
         "message": "페이지 훑는 중"
     },
@@ -171,7 +174,7 @@
         "message": "화이트리스트"
     },
     "popupModeAllowlistHint": {
-        "message": "아래 목록의 탭과 사이트에서만"
+        "message": "아래 목록의 사이트와 허용한 탭에서만"
     },
     "popupModeDenylistName": {
         "message": "블랙리스트"
@@ -276,7 +279,7 @@
         "message": "세션 $1개 연결됨"
     },
     "popupSummaryNoBackground": {
-        "message": "백그라운드 응답 없음"
+        "message": "확장이 응답하지 않음"
     },
     "popupContainerDefault": {
         "message": "기본 컨테이너"
@@ -294,7 +297,7 @@
         "message": "확장이 접근할 수 없는 페이지"
     },
     "popupBadgeDenylistAllowed": {
-        "message": "차단 목록 외 허용"
+        "message": "차단 목록에 없어 허용됨"
     },
     "popupBadgeDenied": {
         "message": "차단 목록에 있음"
@@ -420,10 +423,10 @@
         "message": "재발급"
     },
     "optionsSecretRegenerated": {
-        "message": "새 Secret Key 를 발급해 복사했습니다. MCP 서버에 다시 등록하세요."
+        "message": "새 Secret Key를 발급해 복사했습니다. MCP 서버에 다시 등록하세요."
     },
     "optionsSecretRegenerateFailed": {
-        "message": "새 Secret Key 를 발급하지 못했습니다. 콘솔을 확인하세요."
+        "message": "새 Secret Key를 발급하지 못했습니다. 콘솔을 확인하세요."
     },
     "optionsSecretMissing": {
         "message": "Secret Key가 없습니다. 확장을 다시 설치하세요."

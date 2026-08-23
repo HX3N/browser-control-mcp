@@ -88,6 +88,7 @@ export const DISABLED_BY_DEFAULT_TOOL_IDS: readonly string[] = [
 // Map command names to tool IDs
 export const COMMAND_TO_TOOL_ID: Record<ServerMessageRequest["cmd"], string> = {
   "open-tab": "open-browser-tab",
+  "navigate-tab": "open-browser-tab",
   "close-tabs": "close-browser-tabs",
   "get-tab-list": "get-list-of-open-tabs",
   "get-browser-recent-history": "get-recent-browser-history",
@@ -111,6 +112,7 @@ export const COMMAND_TO_TOOL_ID: Record<ServerMessageRequest["cmd"], string> = {
 
 export const PAGE_ACCESS_COMMANDS: ReadonlySet<ServerMessageRequest["cmd"]> =
   new Set([
+    "navigate-tab",
     "get-tab-content",
     "find-highlight",
     "capture-screenshot",
