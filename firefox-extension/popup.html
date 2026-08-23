@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <title>Browser Control MCP</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --panel: #f6f7f9;
+      --panel-border: #e2e5ea;
+      --text: #1b1d21;
+      --muted: #6b7280;
+      --accent: #7928ca;
+      --accent-soft: rgba(121, 40, 202, 0.12);
+      --ok: #12a150;
+      --warn: #e8590c;
+      --danger: #dc2626;
+      --danger-soft: rgba(220, 38, 38, 0.1);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #17181c;
+        --panel: #202127;
+        --panel-border: #2e3038;
+        --text: #eceef2;
+        --muted: #9aa1ac;
+        --accent: #a855f7;
+        --accent-soft: rgba(168, 85, 247, 0.18);
+        --ok: #35c46b;
+        --warn: #f59e0b;
+        --danger: #f87171;
+        --danger-soft: rgba(248, 113, 113, 0.14);
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 340px;
+      max-height: 580px;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+      color: var(--text);
+      font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex: 0 0 auto;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--panel-border);
+    }
+
+    .scroll-wrap {
+      position: relative;
+      display: flex;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
+    #scroll-area {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding: 12px 14px;
+    }
+
+    .scroll-wrap::before,
+    .scroll-wrap::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 18px;
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    .scroll-wrap::before {
+      top: 0;
+      background: linear-gradient(to bottom, var(--bg), rgba(255, 255, 255, 0));
+    }
+
+    .scroll-wrap::after {
+      bottom: 0;
+      background: linear-gradient(to top, var(--bg), rgba(255, 255, 255, 0));
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .scroll-wrap::before {
+        background: linear-gradient(to bottom, var(--bg), rgba(23, 24, 28, 0));
+      }
+
+      .scroll-wrap::after {
+        background: linear-gradient(to top, var(--bg), rgba(23, 24, 28, 0));
+      }
+    }
+
+    h1 {
+      font-size: 14px;
+      font-weight: 700;
+      margin: 0;
+      letter-spacing: -0.01em;
+    }
+
+    .brand-icon {
+      border-radius: 5px;
+      flex: 0 0 auto;
+    }
+
+    header .conn-state {
+      margin-left: auto;
+    }
+
+    .section {
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 10px;
+      padding: 11px 12px;
+      margin-bottom: 10px;
+    }
+
+    .section h2 {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin: 0 0 8px;
+    }
+
+    .conn-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 2px 0;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--danger);
+      flex: 0 0 auto;
+      box-shadow: 0 0 0 3px var(--danger-soft);
+    }
+
+    .dot.is-on {
+      background: var(--ok);
+      box-shadow: 0 0 0 3px rgba(18, 161, 80, 0.16);
+    }
+
+    .dot.is-idle {
+      background: var(--muted);
+      box-shadow: 0 0 0 3px rgba(128, 128, 128, 0.14);
+    }
+
+    .conn-label {
+      font-variant-numeric: tabular-nums;
+    }
+
+    .conn-state {
+      margin-left: auto;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .conn-row.is-off .conn-label {
+      opacity: 0.5;
+      text-decoration: line-through;
+    }
+
+    .conn-toggle {
+      width: auto;
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      flex: 0 0 auto;
+    }
+
+    .port-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 9px;
+      padding-top: 9px;
+      border-top: 1px solid var(--panel-border);
+    }
+
+    .port-label {
+      color: var(--muted);
+      font-size: 11.5px;
+    }
+
+    .port-row input {
+      font: inherit;
+      -moz-appearance: textfield;
+      appearance: textfield;
+      text-align: right;
+      width: 74px;
+      margin-left: auto;
+      padding: 4px 7px;
+      border-radius: 7px;
+      border: 1px solid var(--panel-border);
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .port-row input::-webkit-outer-spin-button,
+    .port-row input::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    .port-row button {
+      width: auto;
+      padding: 4px 9px;
+      font-size: 11.5px;
+      flex: 0 0 auto;
+    }
+
+    .tab-title {
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .tab-origin {
+      color: var(--muted);
+      font-size: 12px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      margin-top: 2px;
+    }
+
+    .tab-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    .tab-meta>* {
+      margin-top: 0;
+    }
+
+    .tab-meta .tab-origin {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 1px 7px;
+      border-radius: 999px;
+      margin-top: 7px;
+    }
+
+    .badge.is-ok {
+      color: var(--ok);
+      background: rgba(18, 161, 80, 0.14);
+    }
+
+    .badge.is-warn {
+      color: var(--warn);
+      background: rgba(232, 89, 12, 0.14);
+    }
+
+    .badge.is-danger {
+      color: var(--danger);
+      background: var(--danger-soft);
+    }
+
+    .segmented {
+      position: relative;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      padding: 3px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      border: 1px solid var(--panel-border);
+    }
+
+    .seg-thumb {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: calc(50% - 3px);
+      height: calc(100% - 6px);
+      border-radius: 999px;
+      background: var(--accent);
+      transition: transform 180ms ease;
+    }
+
+    .segmented:has(#mode-denylist:checked) .seg-thumb {
+      transform: translateX(100%);
+    }
+
+    .seg {
+      position: relative;
+      text-align: center;
+      padding: 5px 8px;
+      border-radius: 999px;
+      font-weight: 600;
+      font-size: 12px;
+      color: var(--muted);
+      cursor: pointer;
+      transition: color 180ms ease;
+    }
+
+    .seg input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .seg:has(input:checked) {
+      color: #fff;
+    }
+
+    .mode-hint {
+      display: block;
+      color: var(--muted);
+      font-size: 11.5px;
+      margin-top: 6px;
+    }
+
+    .toggle {
+      display: flex;
+      align-items: flex-start;
+      gap: 9px;
+      padding: 6px 0;
+    }
+
+    .toggle+.toggle {
+      border-top: 1px solid var(--panel-border);
+    }
+
+    .toggle input {
+      margin: 2px 0 0;
+      width: 15px;
+      height: 15px;
+      accent-color: var(--accent);
+      flex: 0 0 auto;
+    }
+
+    .toggle-body {
+      min-width: 0;
+    }
+
+    .toggle-name {
+      font-weight: 600;
+    }
+
+    .toggle-hint {
+      color: var(--muted);
+      font-size: 11.5px;
+    }
+
+    button {
+      font: inherit;
+      font-weight: 600;
+      border-radius: 8px;
+      border: 1px solid var(--panel-border);
+      background: var(--bg);
+      color: var(--text);
+      padding: 7px 10px;
+      cursor: pointer;
+      width: 100%;
+    }
+
+    button:hover:not(:disabled) {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    button:disabled {
+      opacity: 0.45;
+      cursor: default;
+    }
+
+    button+button {
+      margin-top: 6px;
+    }
+
+    button.is-danger {
+      color: var(--danger);
+      border-color: var(--danger);
+      background: var(--danger-soft);
+    }
+
+    button.is-danger:hover:not(:disabled) {
+      color: var(--danger);
+      background: var(--danger-soft);
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .disclosure {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      width: 100%;
+      margin-top: 9px;
+      padding: 6px 2px;
+      border: 0;
+      background: none;
+      color: var(--muted);
+      font-size: 11.5px;
+      font-weight: 600;
+      text-align: left;
+    }
+
+    .disclosure:hover:not(:disabled) {
+      border-color: transparent;
+      color: var(--accent);
+    }
+
+    .chev {
+      margin-left: auto;
+      width: 0;
+      height: 0;
+      border-left: 4px solid transparent;
+      border-right: 4px solid transparent;
+      border-top: 5px solid currentColor;
+      transition: transform 0.15s ease;
+    }
+
+    .disclosure[aria-expanded="true"] .chev {
+      transform: rotate(180deg);
+    }
+
+    .list-card {
+      margin-top: 10px;
+      padding-top: 9px;
+      border-top: 1px solid var(--panel-border);
+    }
+
+    .list-head {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .list-head .disclosure {
+      margin-top: 0;
+      flex: 1;
+    }
+
+    .add-current {
+      width: auto;
+      flex: 0 0 auto;
+      padding: 3px 8px;
+      font-size: 11px;
+    }
+
+    .list-editor {
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+      min-height: 92px;
+      margin-top: 7px;
+      resize: vertical;
+      font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color: var(--text);
+      background: var(--bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 7px;
+      padding: 6px 8px;
+    }
+
+    .list-editor:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .toggle-warn {
+      color: var(--warn);
+    }
+
+    .warning {
+      background: rgba(232, 89, 12, 0.14);
+      border: 1px solid var(--warn);
+      color: var(--warn);
+      border-radius: 8px;
+      padding: 8px 10px;
+      margin-bottom: 9px;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .segmented.is-locked {
+      opacity: 0.45;
+    }
+
+    .segmented.is-locked .seg {
+      cursor: not-allowed;
+    }
+
+    footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex: 0 0 auto;
+      padding: 9px 14px;
+      border-top: 1px solid var(--panel-border);
+      background: var(--bg);
+      color: var(--muted);
+      font-size: 11.5px;
+    }
+
+    #feedback {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    footer button {
+      width: auto;
+      padding: 4px 9px;
+      font-size: 11.5px;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <img src="assets/claude_icon.svg" alt="" width="20" height="20" class="brand-icon">
+    <h1>Browser Control MCP</h1>
+    <span id="status-summary" class="conn-state" data-i18n="popupStatusChecking"></span>
+  </header>
+
+  <div class="scroll-wrap">
+    <main id="scroll-area">
+
+  <section class="section">
+    <h2 data-i18n="popupSectionConnection"></h2>
+    <div id="connection-status"></div>
+    <div class="port-row">
+      <label for="base-port" class="port-label" data-i18n="popupBasePortLabel"></label>
+      <input type="number" id="base-port" min="1" max="65535" step="1">
+      <button id="save-base-port" type="button" data-i18n="popupBasePortSave"></button>
+    </div>
+  </section>
+  <section class="section">
+    <h2 data-i18n="popupSectionPermission"></h2>
+    <div id="active-tab-title" class="tab-title">—</div>
+    <div id="active-tab-origin" class="tab-origin"></div>
+    <div class="tab-meta">
+      <span id="active-tab-container" class="tab-origin hidden"></span>
+      <span id="active-tab-badge" class="badge hidden"></span>
+    </div>
+    <button id="authorize-tab" type="button" class="hidden" style="margin-top: 9px;" data-i18n="popupButtonAuthorizeTab"></button>
+
+    <div id="permission-warning" class="warning hidden" data-i18n="popupPermissionWarning"></div>
+    <div id="permission-mode" class="segmented" style="margin-top: 9px;">
+      <span class="seg-thumb" aria-hidden="true"></span>
+      <label class="seg" for="mode-allowlist">
+        <input type="radio" id="mode-allowlist" name="permission-mode" value="allowlist">
+        <span data-i18n="popupModeAllowlistName"></span>
+      </label>
+      <label class="seg" for="mode-denylist">
+        <input type="radio" id="mode-denylist" name="permission-mode" value="denylist">
+        <span data-i18n="popupModeDenylistName"></span>
+      </label>
+    </div>
+    <div id="permission-mode-hint" class="mode-hint"></div>
+    <button id="request-all-urls" type="button" class="hidden" style="margin-top: 8px;" data-i18n="popupButtonRequestAllUrls"></button>
+
+    <div class="list-card">
+      <div class="list-head">
+        <button id="site-list-toggle" type="button" class="disclosure" aria-expanded="false">
+          <span id="site-list-summary"></span>
+          <span class="chev" aria-hidden="true"></span>
+        </button>
+        <button id="add-current-site" type="button" class="add-current" data-i18n="popupListAddCurrent"></button>
+      </div>
+      <div id="site-list-body" class="hidden">
+        <textarea id="site-list" class="list-editor" rows="6" spellcheck="false" autocomplete="off"></textarea>
+      </div>
+    </div>
+  </section>
+  <section class="section">
+    <h2 data-i18n="popupSectionNewTab"></h2>
+    <label class="toggle" for="toggle-inherit-container">
+      <input type="checkbox" id="toggle-inherit-container">
+      <span class="toggle-body">
+        <span class="toggle-name" data-i18n="popupToggleInheritContainerName"></span><br>
+        <span class="toggle-hint" data-i18n="popupToggleInheritContainerHint"></span>
+      </span>
+    </label>
+  </section>
+  <section class="section">
+    <h2 data-i18n="popupSectionInteraction"></h2>
+    <label class="toggle" for="toggle-interact-click">
+      <input type="checkbox" id="toggle-interact-click" data-tool-id="interact-click">
+      <span class="toggle-body">
+        <span class="toggle-name" data-i18n="popupToggleMouseName"></span><br>
+        <span class="toggle-hint" data-i18n="popupToggleMouseHint"></span>
+      </span>
+    </label>
+    <label class="toggle" for="toggle-interact-type">
+      <input type="checkbox" id="toggle-interact-type" data-tool-id="interact-type">
+      <span class="toggle-body">
+        <span class="toggle-name" data-i18n="popupToggleKeyboardName"></span><br>
+        <span class="toggle-hint" data-i18n="popupToggleKeyboardHint"></span>
+      </span>
+    </label>
+    <label class="toggle" for="toggle-execute-javascript">
+      <input type="checkbox" id="toggle-execute-javascript" data-tool-id="execute-javascript">
+      <span class="toggle-body">
+        <span class="toggle-name" data-i18n="popupToggleJavascriptName"></span><br>
+        <span class="toggle-hint" data-i18n="popupToggleJavascriptHint"></span>
+      </span>
+    </label>
+    <label class="toggle" for="toggle-include-hidden">
+      <input type="checkbox" id="toggle-include-hidden">
+      <span class="toggle-body">
+        <span class="toggle-name" data-i18n="popupToggleHiddenName"></span><br>
+        <span class="toggle-hint toggle-warn" data-i18n="popupToggleHiddenHint"></span>
+      </span>
+    </label>
+    <label class="toggle" for="toggle-background-mode">
+      <input type="checkbox" id="toggle-background-mode">
+      <span class="toggle-body">
+        <span class="toggle-name" data-i18n="popupToggleBackgroundName"></span><br>
+        <span class="toggle-hint" data-i18n="popupToggleBackgroundHint"></span>
+      </span>
+    </label>
+  </section>
+  <section class="section">
+    <h2 data-i18n="popupSectionDisplay"></h2>
+    <label class="toggle" for="toggle-mark">
+      <input type="checkbox" id="toggle-mark">
+      <span class="toggle-body">
+        <span class="toggle-name" data-i18n="popupToggleMarkName"></span><br>
+        <span class="toggle-hint" data-i18n="popupToggleMarkHint"></span>
+      </span>
+    </label>
+    <label class="toggle" for="toggle-aurora">
+      <input type="checkbox" id="toggle-aurora">
+      <span class="toggle-body">
+        <span class="toggle-name" data-i18n="popupToggleAuroraName"></span><br>
+        <span class="toggle-hint" data-i18n="popupToggleAuroraHint"></span>
+      </span>
+    </label>
+    <label class="toggle" for="toggle-focus">
+      <input type="checkbox" id="toggle-focus">
+      <span class="toggle-body">
+        <span class="toggle-name" data-i18n="popupToggleFocusName"></span><br>
+        <span class="toggle-hint" data-i18n="popupToggleFocusHint"></span>
+      </span>
+    </label>
+    <label class="toggle" for="toggle-badge">
+      <input type="checkbox" id="toggle-badge">
+      <span class="toggle-body">
+        <span class="toggle-name" data-i18n="popupToggleBadgeName"></span><br>
+        <span class="toggle-hint" data-i18n="popupToggleBadgeHint"></span>
+      </span>
+    </label>
+  </section>
+
+    </main>
+  </div>
+
+  <footer>
+    <span id="feedback"></span>
+    <button id="open-options" type="button" data-i18n="popupButtonOpenOptions"></button>
+  </footer>
+
+  <script src="dist/popup.js"></script>
+</body>
+
+</html>
