@@ -182,6 +182,30 @@
     "popupModeDenylistHint": {
         "message": "Every page except the sites on the list below"
     },
+    "popupUrlScopeLabel": {
+        "message": "Allowed addresses"
+    },
+    "popupUrlScopeHttpsName": {
+        "message": "HTTPS"
+    },
+    "popupUrlScopeHttpsHint": {
+        "message": "HTTPS pages only"
+    },
+    "popupUrlScopeLoopbackName": {
+        "message": "+ Local"
+    },
+    "popupUrlScopeLoopbackHint": {
+        "message": "HTTPS + localhost·127.0.0.1"
+    },
+    "popupUrlScopeAnyName": {
+        "message": "+ HTTP"
+    },
+    "popupUrlScopeAnyHint": {
+        "message": "HTTPS + localhost·127.0.0.1 + HTTP"
+    },
+    "popupFeedbackUrlScopeChanged": {
+        "message": "Address scope changed"
+    },
     "popupListAllowSummary": {
         "message": "Allowed sites: $1"
     },

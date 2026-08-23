@@ -156,7 +156,7 @@ describe("MessageHandler", () => {
         });
       });
 
-      it("should throw an error if URL does not start with https://", async () => {
+      it("should throw an error if the URL is out of the configured scope", async () => {
         // Arrange
         const request: ServerMessageRequest = {
           cmd: "open-tab",
@@ -167,7 +167,7 @@ describe("MessageHandler", () => {
         // Act & Assert
         await expect(
           messageHandler.handleDecodedMessage(request)
-        ).rejects.toThrow("Invalid URL");
+        ).rejects.toThrow("HTTPS pages only");
         expect(browser.tabs.create).not.toHaveBeenCalled();
       });
 

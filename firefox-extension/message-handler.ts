@@ -27,6 +27,9 @@ import {
   isContainerInherited,
   isHiddenElementsIncluded,
   isBackgroundMode,
+  getUrlScope,
+  isUrlInScope,
+  describeUrlScope,
 } from "./extension-config";
 import { hasCaptureConsent, markTabAsAwaitingConsent } from "./capture-consent";
 import { ensureTabAccess, hasAllUrlsPermission } from "./tab-access";
@@ -229,15 +232,24 @@ export class MessageHandler {
     await addAuditLogEntry(auditEntry);
   }
 
+  private async ensureUrlInScope(url: string): Promise<void> {
+    const scope = await getUrlScope();
+    if (!isUrlInScope(url, scope)) {
+      console.error("URL out of scope:", url);
+      throw new Error(
+        `Refused to open ${url}: the extension is set to open ${describeUrlScope(
+          scope
+        )}. Ask the user to widen "Allowed addresses" in the Browser Control MCP popup.`
+      );
+    }
+  }
+
   private async openUrl(
     correlationId: string,
     url: string,
     cookieStoreId?: string
   ): Promise<void> {
-    if (!url.startsWith("https://")) {
-      console.error("Invalid URL:", url);
-      throw new Error("Invalid URL");
-    }
+    await this.ensureUrlInScope(url);
 
     if (await isDomainInDenyList(url)) {
       throw new Error("Domain in user defined deny list");
@@ -259,10 +271,7 @@ export class MessageHandler {
   private async navigateTab(
     req: NavigateTabServerMessage & { correlationId: string }
   ): Promise<void> {
-    if (!req.url.startsWith("https://")) {
-      console.error("Invalid URL:", req.url);
-      throw new Error("Invalid URL");
-    }
+    await this.ensureUrlInScope(req.url);
 
     if (await isDomainInDenyList(req.url)) {
       throw new Error("Domain in user defined deny list");
@@ -448,7 +457,7 @@ export class MessageHandler {
           return Array.from(linkElements).map(el => ({
             url: el.href,
             text: el.innerText.trim() || el.getAttribute('aria-label') || el.getAttribute('title') || ''
-          })).filter(link => link.text !== '' && link.url.startsWith('https://') && !link.url.includes('#'));
+          })).filter(link => link.text !== '' && !link.url.includes('#'));
         }
 
         function getTextContent() {
@@ -474,7 +483,11 @@ export class MessageHandler {
       })();
     `,
     });
-    const { isTruncated, fullText, links, totalLength } = results[0];
+    const { isTruncated, fullText, totalLength } = results[0];
+    const scope = await getUrlScope();
+    const links = (
+      results[0].links as { url: string; text: string }[]
+    ).filter((link) => isUrlInScope(link.url, scope));
     await this.sendResource(
       {
         resource: "tab-content",

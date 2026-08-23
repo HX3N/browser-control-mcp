@@ -1,4 +1,4 @@
-import type { PermissionMode, ToolSettings } from "./extension-config";
+import type { PermissionMode, ToolSettings, UrlScope } from "./extension-config";
 
 export interface ConnectionStatus {
   port: number;
@@ -24,6 +24,7 @@ export interface PopupStatus {
   connections: ConnectionStatus[];
   basePort: number | null;
   permissionMode: PermissionMode;
+  urlScope: UrlScope;
   toolSettings: ToolSettings;
   auroraEnabled: boolean;
   focusEnabled: boolean;
@@ -42,6 +43,7 @@ export type PopupRequest =
   | { kind: "get-status" }
   | { kind: "set-tool"; toolId: string; enabled: boolean }
   | { kind: "set-permission-mode"; mode: PermissionMode }
+  | { kind: "set-url-scope"; scope: UrlScope }
   | { kind: "set-aurora"; enabled: boolean }
   | { kind: "set-focus"; enabled: boolean }
   | { kind: "set-mark"; enabled: boolean }

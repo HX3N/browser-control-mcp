@@ -77,6 +77,15 @@ Clicking the toolbar icon (or pressing `Alt+Shift+B`) opens the popup.
 | **Allowlist** (default) | Everything is blocked by default; the extension runs only in the sites on its list, plus tabs granted one at a time. A per-tab grant expires when the tab navigates or closes. |
 | **Denylist**            | Runs in every page except the sites on its list.                                                                                                                               |
 
+### Allowed addresses
+
+The popup also decides which addresses the model may open or navigate to. `HTTPS` is the default
+and refuses everything else; `+ Local` additionally allows `http://` on loopback hosts, which is
+what a local dev server such as `http://localhost:5173/` needs; `+ HTTP` allows plain HTTP
+anywhere. The setting gates `open-browser-tab` and `navigate-browser-tab`, and the link list
+returned by `get-tab-web-content` follows it too. Pages you opened by hand are unaffected — they
+go through the access scope above.
+
 Allowlist being the default is deliberate. Rather than opening every page the moment the
 extension loads, it makes you widen the scope **explicitly** in the popup.
 

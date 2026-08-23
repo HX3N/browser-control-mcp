@@ -14,6 +14,7 @@ import {
   isBackgroundMode,
   isContainerInherited,
   isHiddenElementsIncluded,
+  getUrlScope,
   isFocusEnabled,
   isMarkEnabled,
   isDomainInDenyList,
@@ -23,6 +24,7 @@ import {
   setBackgroundMode,
   setContainerInherited,
   setHiddenElementsIncluded,
+  setUrlScope,
   setAllowedOrigins,
   setDomainDenyList,
   setFocusEnabled,
@@ -231,6 +233,7 @@ async function buildStatus(): Promise<PopupStatus> {
     inheritContainer: await isContainerInherited(),
     backgroundMode: await isBackgroundMode(),
     includeHidden: await isHiddenElementsIncluded(),
+    urlScope: await getUrlScope(),
     allUrlsGranted: await hasAllUrlsPermission(),
     activeTab: await describeActiveTab(),
   };
@@ -271,6 +274,9 @@ async function handlePopupRequest(request: PopupRequest): Promise<PopupStatus> {
       break;
     case "set-background-mode":
       await setBackgroundMode(request.enabled);
+      break;
+    case "set-url-scope":
+      await setUrlScope(request.scope);
       break;
     case "set-include-hidden":
       await setHiddenElementsIncluded(request.enabled);

@@ -140,6 +140,22 @@ function normalizePermissionMode(stored: string | undefined): PermissionMode {
     : DEFAULT_PERMISSION_MODE;
 }
 
+export type UrlScope = "https" | "loopback" | "any";
+
+export const DEFAULT_URL_SCOPE: UrlScope = "https";
+
+function normalizeUrlScope(stored: string | undefined): UrlScope {
+  return stored === "https" || stored === "loopback" || stored === "any"
+    ? stored
+    : DEFAULT_URL_SCOPE;
+}
+
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
+
+function isLoopbackHost(host: string): boolean {
+  return LOOPBACK_HOSTS.has(host) || host.endsWith(".localhost");
+}
+
 // Storage schema for tool settings
 export interface ToolSettings {
   [toolId: string]: boolean;
@@ -171,6 +187,7 @@ export interface ExtensionConfig {
   inheritContainer?: boolean;
   backgroundMode?: boolean;
   includeHiddenElements?: boolean;
+  urlScope?: UrlScope;
 }
 
 /**
@@ -409,6 +426,47 @@ export async function setHiddenElementsIncluded(
   const config = await getConfig();
   config.includeHiddenElements = include;
   await saveConfig(config);
+}
+
+export async function getUrlScope(): Promise<UrlScope> {
+  const config = await getConfig();
+  return normalizeUrlScope(config.urlScope);
+}
+
+export async function setUrlScope(scope: UrlScope): Promise<void> {
+  const config = await getConfig();
+  config.urlScope = scope;
+  await saveConfig(config);
+}
+
+export function isUrlInScope(url: string, scope: UrlScope): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch (error) {
+    return false;
+  }
+  if (parsed.protocol === "https:") {
+    return true;
+  }
+  if (parsed.protocol !== "http:") {
+    return false;
+  }
+  if (scope === "any") {
+    return true;
+  }
+  return scope === "loopback" && isLoopbackHost(parsed.hostname);
+}
+
+export function describeUrlScope(scope: UrlScope): string {
+  switch (scope) {
+    case "any":
+      return "HTTP and HTTPS pages only";
+    case "loopback":
+      return "HTTPS pages and http:// on localhost only";
+    default:
+      return "HTTPS pages only";
+  }
 }
 
 export async function getAllowedOrigins(): Promise<string[]> {

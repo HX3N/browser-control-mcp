@@ -311,6 +311,30 @@
       transform: translateX(100%);
     }
 
+    #url-scope {
+      grid-template-columns: 1fr 1fr 1fr;
+    }
+
+    #url-scope .seg-thumb {
+      width: calc(33.333% - 2px);
+    }
+
+    #url-scope:has(#scope-loopback:checked) .seg-thumb {
+      transform: translateX(100%);
+    }
+
+    #url-scope:has(#scope-any:checked) .seg-thumb {
+      transform: translateX(200%);
+    }
+
+    .field-label {
+      display: block;
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--muted);
+      margin-top: 12px;
+    }
+
     .seg {
       position: relative;
       text-align: center;
@@ -599,6 +623,24 @@
         <textarea id="site-list" class="list-editor" rows="6" spellcheck="false" autocomplete="off"></textarea>
       </div>
     </div>
+
+    <span class="field-label" data-i18n="popupUrlScopeLabel"></span>
+    <div id="url-scope" class="segmented" style="margin-top: 6px;">
+      <span class="seg-thumb" aria-hidden="true"></span>
+      <label class="seg" for="scope-https">
+        <input type="radio" id="scope-https" name="url-scope" value="https">
+        <span data-i18n="popupUrlScopeHttpsName"></span>
+      </label>
+      <label class="seg" for="scope-loopback">
+        <input type="radio" id="scope-loopback" name="url-scope" value="loopback">
+        <span data-i18n="popupUrlScopeLoopbackName"></span>
+      </label>
+      <label class="seg" for="scope-any">
+        <input type="radio" id="scope-any" name="url-scope" value="any">
+        <span data-i18n="popupUrlScopeAnyName"></span>
+      </label>
+    </div>
+    <div id="url-scope-hint" class="mode-hint"></div>
   </section>
   <section class="section">
     <h2 data-i18n="popupSectionNewTab"></h2>

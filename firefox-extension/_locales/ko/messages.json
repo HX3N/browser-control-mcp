@@ -182,6 +182,30 @@
     "popupModeDenylistHint": {
         "message": "아래 목록의 사이트를 뺀 모든 페이지"
     },
+    "popupUrlScopeLabel": {
+        "message": "접근 허용 주소"
+    },
+    "popupUrlScopeHttpsName": {
+        "message": "HTTPS"
+    },
+    "popupUrlScopeHttpsHint": {
+        "message": "HTTPS 주소만"
+    },
+    "popupUrlScopeLoopbackName": {
+        "message": "+ 로컬"
+    },
+    "popupUrlScopeLoopbackHint": {
+        "message": "HTTPS + localhost·127.0.0.1"
+    },
+    "popupUrlScopeAnyName": {
+        "message": "+ HTTP"
+    },
+    "popupUrlScopeAnyHint": {
+        "message": "HTTPS + localhost·127.0.0.1 + HTTP"
+    },
+    "popupFeedbackUrlScopeChanged": {
+        "message": "주소 범위를 바꿨습니다"
+    },
     "popupListAllowSummary": {
         "message": "허용 사이트 $1개"
     },

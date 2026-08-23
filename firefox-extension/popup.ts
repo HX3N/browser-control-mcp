@@ -1,4 +1,4 @@
-import type { PermissionMode } from "./extension-config";
+import type { PermissionMode, UrlScope } from "./extension-config";
 import { localizeDocument, t } from "./i18n";
 import type { PopupRequest, PopupStatus } from "./popup-messages";
 
@@ -31,6 +31,9 @@ const permissionModeGroup = document.getElementById(
 ) as HTMLDivElement;
 const permissionModeHint = document.getElementById(
   "permission-mode-hint"
+) as HTMLDivElement;
+const urlScopeHint = document.getElementById(
+  "url-scope-hint"
 ) as HTMLDivElement;
 const auroraToggle = document.getElementById(
   "toggle-aurora"
@@ -77,6 +80,9 @@ const toolToggles = Array.from(
 );
 const modeRadios = Array.from(
   document.querySelectorAll<HTMLInputElement>("input[name='permission-mode']")
+);
+const urlScopeRadios = Array.from(
+  document.querySelectorAll<HTMLInputElement>("input[name='url-scope']")
 );
 
 localizeDocument();
@@ -343,6 +349,17 @@ function render(status: PopupStatus): void {
       : "popupModeDenylistHint"
   );
 
+  for (const radio of urlScopeRadios) {
+    radio.checked = radio.value === status.urlScope;
+  }
+  urlScopeHint.textContent = t(
+    status.urlScope === "loopback"
+      ? "popupUrlScopeLoopbackHint"
+      : status.urlScope === "any"
+      ? "popupUrlScopeAnyHint"
+      : "popupUrlScopeHttpsHint"
+  );
+
   for (const toggle of toolToggles) {
     const toolId = toggle.dataset.toolId;
     toggle.checked = toolId ? status.toolSettings[toolId] !== false : false;
@@ -405,6 +422,19 @@ for (const radio of modeRadios) {
       mode: radio.value as PermissionMode,
     });
     showFeedback(t("popupFeedbackModeChanged"));
+  });
+}
+
+for (const radio of urlScopeRadios) {
+  radio.addEventListener("change", async () => {
+    if (!radio.checked) {
+      return;
+    }
+    await refresh({
+      kind: "set-url-scope",
+      scope: radio.value as UrlScope,
+    });
+    showFeedback(t("popupFeedbackUrlScopeChanged"));
   });
 }
 
