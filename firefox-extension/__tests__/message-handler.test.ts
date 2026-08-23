@@ -43,6 +43,7 @@ describe("MessageHandler", () => {
         "reorder-browser-tabs": true,
         "find-highlight-in-browser-tab": true,
       },
+      permissionMode: "denylist" as const,
       domainDenyList: [],
       ports: [8089],
       auditLog: [],
@@ -67,6 +68,7 @@ describe("MessageHandler", () => {
           "reorder-browser-tabs": true,
           "find-highlight-in-browser-tab": true,
         },
+        permissionMode: "denylist" as const,
         domainDenyList: [],
         ports: [8089],
         auditLog: [],
@@ -105,11 +107,52 @@ describe("MessageHandler", () => {
         // Assert
         expect(browser.tabs.create).toHaveBeenCalledWith({
           url: "https://example.com",
+          active: false,
         });
         expect(mockClient.sendResourceToServer).toHaveBeenCalledWith({
           resource: "opened-tab-id",
           correlationId: "test-correlation-id",
           tabId: 123,
+        });
+      });
+
+      it("should open the tab in the foreground when background mode is off", async () => {
+        // Arrange
+        const foregroundConfig: ExtensionConfig = {
+          secret: "test-secret",
+          toolSettings: {
+            "open-browser-tab": true,
+            "close-browser-tabs": true,
+            "get-list-of-open-tabs": true,
+            "get-recent-browser-history": true,
+            "get-tab-web-content": true,
+            "reorder-browser-tabs": true,
+            "find-highlight-in-browser-tab": true,
+          },
+          permissionMode: "denylist" as const,
+          domainDenyList: [],
+          ports: [8089],
+          auditLog: [],
+          backgroundMode: false,
+        };
+        (browser.storage.local.get as jest.Mock).mockResolvedValue({
+          config: foregroundConfig,
+        });
+
+        const request: ServerMessageRequest = {
+          cmd: "open-tab",
+          url: "https://example.com",
+          correlationId: "test-correlation-id",
+        };
+        (browser.tabs.create as jest.Mock).mockResolvedValue({ id: 123 });
+
+        // Act
+        await messageHandler.handleDecodedMessage(request);
+
+        // Assert
+        expect(browser.tabs.create).toHaveBeenCalledWith({
+          url: "https://example.com",
+          active: true,
         });
       });
 
@@ -141,6 +184,7 @@ describe("MessageHandler", () => {
             "reorder-browser-tabs": true,
             "find-highlight-in-browser-tab": true,
           },
+          permissionMode: "denylist" as const,
           domainDenyList: ["example.com", "another.com"],
           ports: [8089],
           auditLog: [],
@@ -175,6 +219,7 @@ describe("MessageHandler", () => {
             "reorder-browser-tabs": true,
             "find-highlight-in-browser-tab": true,
           },
+          permissionMode: "denylist" as const,
           domainDenyList: ["example.com", "another.com"],
           ports: [8089],
           auditLog: [],
@@ -198,6 +243,7 @@ describe("MessageHandler", () => {
         // Assert
         expect(browser.tabs.create).toHaveBeenCalledWith({
           url: "https://allowed.com",
+          active: false,
         });
         expect(mockClient.sendResourceToServer).toHaveBeenCalledWith({
           resource: "opened-tab-id",
@@ -397,6 +443,7 @@ describe("MessageHandler", () => {
             "reorder-browser-tabs": true,
             "find-highlight-in-browser-tab": true,
           },
+          permissionMode: "denylist" as const,
           domainDenyList: ["example.com"], // Add example.com to deny list
           ports: [8089],
           auditLog: [],
@@ -491,7 +538,7 @@ describe("MessageHandler", () => {
           tabId: 123,
           caseSensitive: true,
         });
-        expect(browser.tabs.update).toHaveBeenCalledWith(123, { active: true });
+        expect(browser.tabs.update).not.toHaveBeenCalled();
         expect(browser.find.highlightResults).toHaveBeenCalledWith({
           tabId: 123,
         });
@@ -500,6 +547,46 @@ describe("MessageHandler", () => {
           correlationId: "test-correlation-id",
           noOfResults: 5,
         });
+      });
+
+      it("should activate the tab when background mode is off", async () => {
+        // Arrange
+        const foregroundConfig: ExtensionConfig = {
+          secret: "test-secret",
+          toolSettings: {
+            "open-browser-tab": true,
+            "close-browser-tabs": true,
+            "get-list-of-open-tabs": true,
+            "get-recent-browser-history": true,
+            "get-tab-web-content": true,
+            "reorder-browser-tabs": true,
+            "find-highlight-in-browser-tab": true,
+          },
+          permissionMode: "denylist" as const,
+          domainDenyList: [],
+          ports: [8089],
+          auditLog: [],
+          backgroundMode: false,
+        };
+        (browser.storage.local.get as jest.Mock).mockResolvedValue({
+          config: foregroundConfig,
+        });
+
+        const request: ServerMessageRequest = {
+          cmd: "find-highlight",
+          tabId: 123,
+          queryPhrase: "test",
+          correlationId: "test-correlation-id",
+        };
+        (browser.find.find as jest.Mock).mockResolvedValue({ count: 5 });
+        (browser.tabs.update as jest.Mock).mockResolvedValue(undefined);
+        (browser.permissions.contains as jest.Mock).mockResolvedValue(true);
+
+        // Act
+        await messageHandler.handleDecodedMessage(request);
+
+        // Assert
+        expect(browser.tabs.update).toHaveBeenCalledWith(123, { active: true });
       });
 
       it("should not highlight or activate tab if no results found", async () => {
@@ -674,6 +761,7 @@ describe("MessageHandler", () => {
         grantCaptureConsent(123, "https://example.com");
         const configWithDenyList: ExtensionConfig = {
           secret: "test-secret",
+          permissionMode: "denylist" as const,
           domainDenyList: ["example.com"],
           ports: [8089],
           auditLog: [],
@@ -705,6 +793,7 @@ describe("MessageHandler", () => {
           config: {
             secret: "test-secret",
             toolSettings: { "capture-tab-screenshot": false },
+            permissionMode: "denylist" as const,
             domainDenyList: [],
             ports: [8089],
             auditLog: [],

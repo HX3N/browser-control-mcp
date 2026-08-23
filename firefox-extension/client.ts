@@ -14,10 +14,24 @@ export class WebsocketClient {
   private reconnectTimer: number | null = null;
   private connectionAttempts: number = 0;
   private messageCallback: ((data: ServerMessageRequest) => void) | null = null;
+  private closeCallback: (() => void) | null = null;
+  private lastConnectedAt: number | null = null;
 
   constructor(port: number, secret: string) {
     this.port = port;
     this.secret = secret;
+  }
+
+  public getPort(): number {
+    return this.port;
+  }
+
+  public isConnected(): boolean {
+    return this.socket !== null && this.socket.readyState === WebSocket.OPEN;
+  }
+
+  public getLastConnectedAt(): number | null {
+    return this.lastConnectedAt;
   }
 
   public connect(): void {
@@ -28,11 +42,17 @@ export class WebsocketClient {
     this.socket.addEventListener("open", () => {
       console.log("Connected to WebSocket server at port", this.port);
       this.connectionAttempts = 0;
+      this.lastConnectedAt = Date.now();
     });
 
     this.socket.addEventListener("close", () => {
       console.log("WebSocket connection closed event at port", this.port);
       this.connectionAttempts = 0;
+      const hadSession = this.lastConnectedAt !== null;
+      this.lastConnectedAt = null;
+      if (hadSession && this.closeCallback) {
+        this.closeCallback();
+      }
     });
 
     this.socket.addEventListener("error", (event) => {
@@ -73,6 +93,10 @@ export class WebsocketClient {
     callback: (data: ServerMessageRequest) => void
   ): void {
     this.messageCallback = callback;
+  }
+
+  public addCloseListener(callback: () => void): void {
+    this.closeCallback = callback;
   }
 
   private startReconnectTimer(): void {

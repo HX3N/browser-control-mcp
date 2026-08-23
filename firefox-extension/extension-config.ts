@@ -3,6 +3,7 @@
  */
 
 import { ServerMessageRequest } from "@browser-control-mcp/common/server-messages";
+import { t } from "./i18n";
 
 const DEFAULT_WS_PORT = 8089;
 const AUDIT_LOG_SIZE_LIMIT = 100; // Maximum number of audit log entries to keep
@@ -10,51 +11,78 @@ const AUDIT_LOG_SIZE_LIMIT = 100; // Maximum number of audit log entries to keep
 // Define all available tools with their IDs and descriptions
 export interface ToolInfo {
   id: string;
-  name: string;
-  description: string;
+  nameKey: string;
+  descriptionKey: string;
 }
 
 export const AVAILABLE_TOOLS: ToolInfo[] = [
   {
     id: "open-browser-tab",
-    name: "Open Browser Tab",
-    description: "Allows the MCP server to open new browser tabs"
+    nameKey: "toolOpenBrowserTabName",
+    descriptionKey: "toolOpenBrowserTabDescription"
   },
   {
     id: "close-browser-tabs",
-    name: "Close Browser Tabs",
-    description: "Allows the MCP server to close browser tabs"
+    nameKey: "toolCloseBrowserTabsName",
+    descriptionKey: "toolCloseBrowserTabsDescription"
   },
   {
     id: "get-list-of-open-tabs",
-    name: "Get List of Open Tabs",
-    description: "Allows the MCP server to get a list of all open tabs"
+    nameKey: "toolGetListOfOpenTabsName",
+    descriptionKey: "toolGetListOfOpenTabsDescription"
   },
   {
     id: "get-recent-browser-history",
-    name: "Get Recent Browser History",
-    description: "Allows the MCP server to access your recent browsing history"
+    nameKey: "toolGetRecentBrowserHistoryName",
+    descriptionKey: "toolGetRecentBrowserHistoryDescription"
   },
   {
     id: "get-tab-web-content",
-    name: "Get Tab Web Content",
-    description: "Allows the MCP server to read the content of web pages"
+    nameKey: "toolGetTabWebContentName",
+    descriptionKey: "toolGetTabWebContentDescription"
   },
   {
     id: "reorder-browser-tabs",
-    name: "Reorder/Group Browser Tabs",
-    description: "Allows the MCP server to reorder/group your browser tabs"
+    nameKey: "toolReorderBrowserTabsName",
+    descriptionKey: "toolReorderBrowserTabsDescription"
   },
   {
     id: "find-highlight-in-browser-tab",
-    name: "Find and Highlight in Browser Tab",
-    description: "Allows the MCP server to search for and highlight text in web pages"
+    nameKey: "toolFindHighlightInBrowserTabName",
+    descriptionKey: "toolFindHighlightInBrowserTabDescription"
   },
   {
     id: "capture-tab-screenshot",
-    name: "Capture Tab Screenshot",
-    description: "Allows the MCP server to capture a screenshot of a tab, after you authorize that tab with the toolbar button"
+    nameKey: "toolCaptureTabScreenshotName",
+    descriptionKey: "toolCaptureTabScreenshotDescription"
+  },
+  {
+    id: "interact-click",
+    nameKey: "toolInteractMouseName",
+    descriptionKey: "toolInteractMouseDescription"
+  },
+  {
+    id: "interact-type",
+    nameKey: "toolInteractKeyboardName",
+    descriptionKey: "toolInteractKeyboardDescription"
+  },
+  {
+    id: "execute-javascript",
+    nameKey: "toolExecuteJavascriptName",
+    descriptionKey: "toolExecuteJavascriptDescription"
   }
+];
+
+export const INTERACTION_TOOL_IDS = [
+  "interact-click",
+  "interact-type",
+  "execute-javascript",
+] as const;
+
+// The extension holds a blanket host permission, so the browser no longer stands between the
+// server and a page. Arbitrary scripting is the one tool that has to be switched on by hand.
+export const DISABLED_BY_DEFAULT_TOOL_IDS: readonly string[] = [
+  "execute-javascript",
 ];
 
 // Map command names to tool IDs
@@ -68,7 +96,47 @@ export const COMMAND_TO_TOOL_ID: Record<ServerMessageRequest["cmd"], string> = {
   "find-highlight": "find-highlight-in-browser-tab",
   "group-tabs": "reorder-browser-tabs",
   "capture-screenshot": "capture-tab-screenshot",
+  "page-snapshot": "get-tab-web-content",
+  "wait-for-element": "get-tab-web-content",
+  "click-element": "interact-click",
+  "select-option": "interact-click",
+  "scroll-page": "interact-click",
+  "type-text": "interact-type",
+  "press-key": "interact-type",
+  "execute-js": "execute-javascript",
+  // Deliberately not one of AVAILABLE_TOOLS: releasing only removes this extension's own
+  // overlay, so a disabled switch must never be able to strand it on the page.
+  "release-tabs": "release-tab-overlay",
 };
+
+export const PAGE_ACCESS_COMMANDS: ReadonlySet<ServerMessageRequest["cmd"]> =
+  new Set([
+    "get-tab-content",
+    "find-highlight",
+    "capture-screenshot",
+    "page-snapshot",
+    "wait-for-element",
+    "click-element",
+    "select-option",
+    "scroll-page",
+    "type-text",
+    "press-key",
+    "execute-js",
+  ]);
+
+export type PermissionMode = "denylist" | "allowlist";
+
+export const DEFAULT_PERMISSION_MODE: PermissionMode = "allowlist";
+
+// Older installs may still hold the retired "full" mode, which was denylist with the list
+// ignored. Reading it as denylist keeps the stored deny list meaningful instead of dropping it.
+function normalizePermissionMode(stored: string | undefined): PermissionMode {
+  return stored === "denylist" || stored === "allowlist"
+    ? stored
+    : stored === "full"
+    ? "denylist"
+    : DEFAULT_PERMISSION_MODE;
+}
 
 // Storage schema for tool settings
 export interface ToolSettings {
@@ -90,6 +158,17 @@ export interface ExtensionConfig {
   domainDenyList?: string[];
   ports: number[];
   auditLog?: AuditLogEntry[];
+  permissionMode?: PermissionMode;
+  allowedOrigins?: string[];
+  highlightEnabled?: boolean;
+  auroraEnabled?: boolean;
+  focusEnabled?: boolean;
+  markEnabled?: boolean;
+  badgeEnabled?: boolean;
+  disabledPorts?: number[];
+  inheritContainer?: boolean;
+  backgroundMode?: boolean;
+  includeHiddenElements?: boolean;
 }
 
 /**
@@ -98,7 +177,7 @@ export interface ExtensionConfig {
 export function getDefaultToolSettings(): ToolSettings {
   const settings: ToolSettings = {};
   AVAILABLE_TOOLS.forEach(tool => {
-    settings[tool.id] = true;
+    settings[tool.id] = !DISABLED_BY_DEFAULT_TOOL_IDS.includes(tool.id);
   });
   return settings;
 }
@@ -159,8 +238,11 @@ export async function generateSecret(): Promise<string> {
  */
 export async function isToolEnabled(toolId: string): Promise<boolean> {
   const config = await getConfig();
-  // Default to true if not explicitly set to false
-  return config.toolSettings?.[toolId] !== false;
+  const stored = config.toolSettings?.[toolId];
+  if (stored === undefined) {
+    return !DISABLED_BY_DEFAULT_TOOL_IDS.includes(toolId);
+  }
+  return stored !== false;
 }
 
 /**
@@ -203,6 +285,155 @@ export async function setToolEnabled(toolId: string, enabled: boolean): Promise<
 export async function getAllToolSettings(): Promise<ToolSettings> {
   const config = await getConfig();
   return config.toolSettings || getDefaultToolSettings();
+}
+
+export async function getPermissionMode(): Promise<PermissionMode> {
+  const config = await getConfig();
+  return normalizePermissionMode(config.permissionMode);
+}
+
+export async function setPermissionMode(mode: PermissionMode): Promise<void> {
+  const config = await getConfig();
+  config.permissionMode = mode;
+  await saveConfig(config);
+}
+
+// A single highlightEnabled switch predates the split, so a stored false still has to turn
+// every part of the overlay off.
+function readOverlayFlag(
+  value: boolean | undefined,
+  legacy: boolean | undefined
+): boolean {
+  if (value !== undefined) {
+    return value;
+  }
+  return legacy !== false;
+}
+
+export async function isAuroraEnabled(): Promise<boolean> {
+  const config = await getConfig();
+  return readOverlayFlag(config.auroraEnabled, config.highlightEnabled);
+}
+
+export async function setAuroraEnabled(enabled: boolean): Promise<void> {
+  const config = await getConfig();
+  config.auroraEnabled = enabled;
+  await saveConfig(config);
+}
+
+export async function isFocusEnabled(): Promise<boolean> {
+  const config = await getConfig();
+  return readOverlayFlag(config.focusEnabled, config.highlightEnabled);
+}
+
+export async function setFocusEnabled(enabled: boolean): Promise<void> {
+  const config = await getConfig();
+  config.focusEnabled = enabled;
+  await saveConfig(config);
+}
+
+export async function isMarkEnabled(): Promise<boolean> {
+  const config = await getConfig();
+  return readOverlayFlag(config.markEnabled, config.highlightEnabled);
+}
+
+export async function setMarkEnabled(enabled: boolean): Promise<void> {
+  const config = await getConfig();
+  config.markEnabled = enabled;
+  await saveConfig(config);
+}
+
+export async function isBadgeEnabled(): Promise<boolean> {
+  const config = await getConfig();
+  return readOverlayFlag(config.badgeEnabled, config.highlightEnabled);
+}
+
+export async function setBadgeEnabled(enabled: boolean): Promise<void> {
+  const config = await getConfig();
+  config.badgeEnabled = enabled;
+  await saveConfig(config);
+}
+
+export async function getDisabledPorts(): Promise<number[]> {
+  const config = await getConfig();
+  return config.disabledPorts || [];
+}
+
+export async function setPortEnabled(
+  port: number,
+  enabled: boolean
+): Promise<void> {
+  const config = await getConfig();
+  const disabled = new Set(config.disabledPorts || []);
+  if (enabled) {
+    disabled.delete(port);
+  } else {
+    disabled.add(port);
+  }
+  config.disabledPorts = [...disabled].sort((a, b) => a - b);
+  await saveConfig(config);
+}
+
+export async function isContainerInherited(): Promise<boolean> {
+  const config = await getConfig();
+  return config.inheritContainer !== false;
+}
+
+export async function setContainerInherited(inherit: boolean): Promise<void> {
+  const config = await getConfig();
+  config.inheritContainer = inherit;
+  await saveConfig(config);
+}
+
+export async function isBackgroundMode(): Promise<boolean> {
+  const config = await getConfig();
+  return config.backgroundMode !== false;
+}
+
+export async function setBackgroundMode(enabled: boolean): Promise<void> {
+  const config = await getConfig();
+  config.backgroundMode = enabled;
+  await saveConfig(config);
+}
+
+export async function isHiddenElementsIncluded(): Promise<boolean> {
+  const config = await getConfig();
+  return config.includeHiddenElements === true;
+}
+
+export async function setHiddenElementsIncluded(
+  include: boolean
+): Promise<void> {
+  const config = await getConfig();
+  config.includeHiddenElements = include;
+  await saveConfig(config);
+}
+
+export async function getAllowedOrigins(): Promise<string[]> {
+  const config = await getConfig();
+  return config.allowedOrigins || [];
+}
+
+
+export async function setAllowedOrigins(origins: string[]): Promise<void> {
+  const config = await getConfig();
+  config.allowedOrigins = origins;
+  await saveConfig(config);
+}
+
+
+export async function isOriginAllowed(url: string | undefined): Promise<boolean> {
+  if (!url) {
+    return false;
+  }
+  try {
+    const origin = new URL(url).origin;
+    const origins = await getAllowedOrigins();
+    return origins.includes(origin);
+  } catch (error) {
+    console.error(`Error checking origin in allow list: ${error}`);
+    return false;
+  }
 }
 
 /**
@@ -320,5 +551,5 @@ export async function clearAuditLog(): Promise<void> {
  */
 export function getToolNameById(toolId: string): string {
   const tool = AVAILABLE_TOOLS.find(t => t.id === toolId);
-  return tool ? tool.name : toolId;
+  return tool ? t(tool.nameKey) : toolId;
 }

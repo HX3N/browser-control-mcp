@@ -1,6 +1,7 @@
 export interface ExtensionMessageBase {
   resource: string;
   correlationId: string;
+  dialogs?: string[];
 }
 
 export interface TabContentExtensionMessage extends ExtensionMessageBase {
@@ -17,6 +18,7 @@ export interface BrowserTab {
   url?: string;
   title?: string;
   lastAccessed?: number;
+  cookieStoreId?: string;
 }
 
 export interface TabsExtensionMessage extends ExtensionMessageBase {
@@ -68,6 +70,67 @@ export interface ScreenshotExtensionMessage extends ExtensionMessageBase {
   mimeType: string;
 }
 
+export interface SnapshotElement {
+  ref: string;
+  role: string;
+  name: string;
+  tag: string;
+  selector: string;
+  value?: string;
+  placeholder?: string;
+  href?: string;
+  hidden?: boolean;
+  frame?: string;
+  disabled?: boolean;
+  checked?: boolean;
+  expanded?: boolean;
+  options?: string[];
+}
+
+export interface PageSnapshotExtensionMessage extends ExtensionMessageBase {
+  resource: "page-snapshot";
+  tabId: number;
+  url: string;
+  title: string;
+  elements: SnapshotElement[];
+  totalElements: number;
+  hiddenElements: number;
+  isTruncated: boolean;
+  scrollY: number;
+  scrollHeight: number;
+}
+
+export interface InteractionResultExtensionMessage extends ExtensionMessageBase {
+  resource: "interaction-result";
+  tabId: number;
+  action: "click" | "type" | "scroll" | "press-key" | "select-option";
+  target: string;
+  detail: string;
+  url: string;
+  scrollY: number;
+  scrollHeight: number;
+}
+
+export interface ScriptResultExtensionMessage extends ExtensionMessageBase {
+  resource: "script-result";
+  tabId: number;
+  result: string;
+  isTruncated: boolean;
+}
+
+export interface ElementWaitExtensionMessage extends ExtensionMessageBase {
+  resource: "element-wait-result";
+  tabId: number;
+  found: boolean;
+  elapsedMs: number;
+  matchCount: number;
+}
+
+export interface TabsReleasedExtensionMessage extends ExtensionMessageBase {
+  resource: "tabs-released";
+  releasedTabIds: number[];
+}
+
 export type ExtensionMessage =
   | TabContentExtensionMessage
   | TabsExtensionMessage
@@ -77,7 +140,12 @@ export type ExtensionMessage =
   | FindHighlightExtensionMessage
   | TabsClosedExtensionMessage
   | TabGroupCreatedExtensionMessage
-  | ScreenshotExtensionMessage;
+  | ScreenshotExtensionMessage
+  | PageSnapshotExtensionMessage
+  | InteractionResultExtensionMessage
+  | ScriptResultExtensionMessage
+  | ElementWaitExtensionMessage
+  | TabsReleasedExtensionMessage;
 
 export interface ExtensionError {
   correlationId: string;

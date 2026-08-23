@@ -42,6 +42,9 @@ const mockBrowser = {
   runtime: {
     getURL: jest.fn(),
   },
+  i18n: {
+    getMessage: jest.fn((key: string) => key),
+  },
 };
 
 // Override the global browser object

@@ -5,6 +5,7 @@ export interface ServerMessageBase {
 export interface OpenTabServerMessage extends ServerMessageBase {
   cmd: "open-tab";
   url: string;
+  cookieStoreId?: string;
 }
 
 export interface CloseTabsServerMessage extends ServerMessageBase {
@@ -54,6 +55,85 @@ export interface CaptureScreenshotServerMessage extends ServerMessageBase {
   scale?: number;
 }
 
+export interface ElementTarget {
+  ref?: string;
+  selector?: string;
+  index?: number;
+}
+
+export interface PageSnapshotServerMessage
+  extends ServerMessageBase,
+    ElementTarget {
+  cmd: "page-snapshot";
+  tabId: number;
+  maxElements?: number;
+  interactiveOnly?: boolean;
+}
+
+export interface ClickElementServerMessage
+  extends ServerMessageBase,
+    ElementTarget {
+  cmd: "click-element";
+  tabId: number;
+  button?: "left" | "middle" | "right";
+  clickCount?: number;
+}
+
+export interface TypeTextServerMessage
+  extends ServerMessageBase,
+    ElementTarget {
+  cmd: "type-text";
+  tabId: number;
+  text: string;
+  clearFirst?: boolean;
+  submit?: boolean;
+}
+
+export interface ExecuteJsServerMessage extends ServerMessageBase {
+  cmd: "execute-js";
+  tabId: number;
+  code: string;
+}
+
+export interface ScrollPageServerMessage
+  extends ServerMessageBase,
+    ElementTarget {
+  cmd: "scroll-page";
+  tabId: number;
+  direction: "up" | "down" | "top" | "bottom" | "element";
+  amount?: number;
+}
+
+export interface PressKeyServerMessage
+  extends ServerMessageBase,
+    ElementTarget {
+  cmd: "press-key";
+  tabId: number;
+  key: string;
+  modifiers?: ("Control" | "Shift" | "Alt" | "Meta")[];
+}
+
+export interface SelectOptionServerMessage
+  extends ServerMessageBase,
+    ElementTarget {
+  cmd: "select-option";
+  tabId: number;
+  values: string[];
+}
+
+export interface WaitForElementServerMessage extends ServerMessageBase {
+  cmd: "wait-for-element";
+  tabId: number;
+  selector: string;
+  state?: "visible" | "hidden" | "attached" | "detached";
+  timeoutMs?: number;
+}
+
+export interface ReleaseTabsServerMessage extends ServerMessageBase {
+  cmd: "release-tabs";
+  tabIds?: number[];
+}
+
 export type ServerMessage =
   | OpenTabServerMessage
   | CloseTabsServerMessage
@@ -63,6 +143,15 @@ export type ServerMessage =
   | ReorderTabsServerMessage
   | FindHighlightServerMessage
   | GroupTabsServerMessage
-  | CaptureScreenshotServerMessage;
+  | CaptureScreenshotServerMessage
+  | PageSnapshotServerMessage
+  | ClickElementServerMessage
+  | TypeTextServerMessage
+  | ExecuteJsServerMessage
+  | ScrollPageServerMessage
+  | PressKeyServerMessage
+  | SelectOptionServerMessage
+  | WaitForElementServerMessage
+  | ReleaseTabsServerMessage;
 
 export type ServerMessageRequest = ServerMessage & { correlationId: string };

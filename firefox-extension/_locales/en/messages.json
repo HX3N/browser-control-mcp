@@ -1,0 +1,500 @@
+{
+    "extensionDescription": {
+        "message": "Lets a local MCP server read and drive the browser."
+    },
+    "browserActionTitle": {
+        "message": "Browser Control MCP: connection status and permissions"
+    },
+    "commandOpenPopup": {
+        "message": "Open the Browser Control MCP popup"
+    },
+    "toolOpenBrowserTabName": {
+        "message": "Open tabs"
+    },
+    "toolOpenBrowserTabDescription": {
+        "message": "Lets the MCP server open new browser tabs"
+    },
+    "toolCloseBrowserTabsName": {
+        "message": "Close tabs"
+    },
+    "toolCloseBrowserTabsDescription": {
+        "message": "Lets the MCP server close browser tabs"
+    },
+    "toolGetListOfOpenTabsName": {
+        "message": "List open tabs"
+    },
+    "toolGetListOfOpenTabsDescription": {
+        "message": "Lets the MCP server list every open tab"
+    },
+    "toolGetRecentBrowserHistoryName": {
+        "message": "Read recent history"
+    },
+    "toolGetRecentBrowserHistoryDescription": {
+        "message": "Lets the MCP server reach recent browsing history"
+    },
+    "toolGetTabWebContentName": {
+        "message": "Read page content"
+    },
+    "toolGetTabWebContentDescription": {
+        "message": "Lets the MCP server read page text and element snapshots"
+    },
+    "toolReorderBrowserTabsName": {
+        "message": "Reorder and group tabs"
+    },
+    "toolReorderBrowserTabsDescription": {
+        "message": "Lets the MCP server change tab order or group tabs together"
+    },
+    "toolFindHighlightInBrowserTabName": {
+        "message": "Find and highlight in page"
+    },
+    "toolFindHighlightInBrowserTabDescription": {
+        "message": "Lets the MCP server find text in a page and highlight it"
+    },
+    "toolCaptureTabScreenshotName": {
+        "message": "Capture screenshots"
+    },
+    "toolCaptureTabScreenshotDescription": {
+        "message": "Lets the MCP server capture the visible tab"
+    },
+    "toolInteractMouseName": {
+        "message": "Mouse"
+    },
+    "toolInteractMouseDescription": {
+        "message": "Lets the MCP server click elements, pick options and scroll"
+    },
+    "toolInteractKeyboardName": {
+        "message": "Keyboard"
+    },
+    "toolInteractKeyboardDescription": {
+        "message": "Lets the MCP server enter text into fields and press keys"
+    },
+    "toolExecuteJavascriptName": {
+        "message": "JavaScript"
+    },
+    "toolExecuteJavascriptDescription": {
+        "message": "Lets the MCP server run arbitrary scripts in a page"
+    },
+    "overlayIdle": {
+        "message": "Claude connected"
+    },
+    "overlayReadingContent": {
+        "message": "Reading the page"
+    },
+    "overlaySnapshot": {
+        "message": "Scanning the page"
+    },
+    "overlayClick": {
+        "message": "Clicking"
+    },
+    "overlayType": {
+        "message": "Typing"
+    },
+    "overlayPressKey": {
+        "message": "Key press: $1"
+    },
+    "overlayScroll": {
+        "message": "Scrolling"
+    },
+    "overlaySelect": {
+        "message": "Selecting"
+    },
+    "overlayExecuteJs": {
+        "message": "Running JavaScript"
+    },
+    "overlayWait": {
+        "message": "Waiting for an element"
+    },
+    "popupStatusChecking": {
+        "message": "Checking…"
+    },
+    "popupSectionConnection": {
+        "message": "Connection"
+    },
+    "popupSectionPermission": {
+        "message": "Permission"
+    },
+    "popupSectionInteraction": {
+        "message": "Interaction permissions"
+    },
+    "popupSectionNewTab": {
+        "message": "New tabs"
+    },
+    "popupSectionDisplay": {
+        "message": "Display"
+    },
+    "popupButtonAuthorizeTab": {
+        "message": "Allow this tab (expires on navigation)"
+    },
+    "popupButtonAuthorizeTabDone": {
+        "message": "This tab is already allowed"
+    },
+    "popupToggleMouseName": {
+        "message": "Mouse"
+    },
+    "popupToggleMouseHint": {
+        "message": "Clicks, option picking, scrolling"
+    },
+    "popupToggleKeyboardName": {
+        "message": "Keyboard"
+    },
+    "popupToggleKeyboardHint": {
+        "message": "Text entry and key presses"
+    },
+    "popupToggleJavascriptName": {
+        "message": "JavaScript"
+    },
+    "popupToggleJavascriptHint": {
+        "message": "Arbitrary script execution"
+    },
+    "popupToggleHiddenName": {
+        "message": "Read hidden elements"
+    },
+    "popupToggleHiddenHint": {
+        "message": "This can make it vulnerable to prompt injection attacks!"
+    },
+    "popupToggleBackgroundName": {
+        "message": "Work in the background"
+    },
+    "popupToggleBackgroundHint": {
+        "message": "Maintains focus on the current screen, even during tasks."
+    },
+    "popupFeedbackBackgroundOn": {
+        "message": "Work stays in the background"
+    },
+    "popupFeedbackBackgroundOff": {
+        "message": "Work may take the foreground"
+    },
+    "popupPermissionWarning": {
+        "message": "Without full web access the extension cannot run. Grant it with the button below."
+    },
+    "popupModeAllowlistName": {
+        "message": "Allowlist"
+    },
+    "popupModeAllowlistHint": {
+        "message": "Only the tabs and sites on the list below"
+    },
+    "popupModeDenylistName": {
+        "message": "Denylist"
+    },
+    "popupModeDenylistHint": {
+        "message": "Every page except the sites on the list below"
+    },
+    "popupListAllowSummary": {
+        "message": "Allowed sites: $1"
+    },
+    "popupListDenySummary": {
+        "message": "Blocked sites: $1"
+    },
+    "popupListAddCurrent": {
+        "message": "+ Current tab"
+    },
+    "popupListPlaceholder": {
+        "message": "example.com\ndocs.example.com"
+    },
+    "popupListAriaAllow": {
+        "message": "Allowed sites, one per line"
+    },
+    "popupListAriaDeny": {
+        "message": "Blocked sites, one per line"
+    },
+    "popupButtonRequestAllUrls": {
+        "message": "Request full web access"
+    },
+    "popupToggleInheritContainerName": {
+        "message": "Keep the signed-in session"
+    },
+    "popupToggleInheritContainerHint": {
+        "message": "Opens new tabs in the container of the tab in front"
+    },
+    "popupToggleAuroraName": {
+        "message": "Tab aurora"
+    },
+    "popupToggleAuroraHint": {
+        "message": "Draws an aurora over the tab while acting"
+    },
+    "popupToggleFocusName": {
+        "message": "Action highlight"
+    },
+    "popupToggleFocusHint": {
+        "message": "Outlines the target element while acting"
+    },
+    "popupToggleMarkName": {
+        "message": "Tab icon"
+    },
+    "popupToggleMarkHint": {
+        "message": "Marks the tab icon and title while acting"
+    },
+    "popupToggleBadgeName": {
+        "message": "Status badge"
+    },
+    "popupToggleBadgeHint": {
+        "message": "Names the action at the top of the page"
+    },
+    "popupButtonOpenOptions": {
+        "message": "More settings"
+    },
+    "popupBasePortLabel": {
+        "message": "Base port"
+    },
+    "popupBasePortSave": {
+        "message": "Save"
+    },
+    "popupConnNone": {
+        "message": "No ports are configured."
+    },
+    "popupSummaryNoPorts": {
+        "message": "No ports"
+    },
+    "popupConnPort": {
+        "message": "Port $1"
+    },
+    "popupConnConnected": {
+        "message": "Connected"
+    },
+    "popupConnWaitingSpare": {
+        "message": "Waiting for a new session"
+    },
+    "popupConnDisconnected": {
+        "message": "Not connected"
+    },
+    "popupConnOff": {
+        "message": "Switched off"
+    },
+    "popupConnTurnOff": {
+        "message": "Disconnect"
+    },
+    "popupConnTurnOn": {
+        "message": "Reconnect"
+    },
+    "popupSummaryWaiting": {
+        "message": "Waiting for the MCP server"
+    },
+    "popupSummaryConnected": {
+        "message": "Connected"
+    },
+    "popupSummarySessions": {
+        "message": "$1 sessions connected"
+    },
+    "popupSummaryNoBackground": {
+        "message": "No response from the background page"
+    },
+    "popupContainerDefault": {
+        "message": "Default container"
+    },
+    "popupContainerPrivate": {
+        "message": "Private window"
+    },
+    "popupContainerNumbered": {
+        "message": "Container $1"
+    },
+    "popupTabUnknown": {
+        "message": "No tab information"
+    },
+    "popupBadgeNotScriptable": {
+        "message": "The extension cannot reach this page"
+    },
+    "popupBadgeDenylistAllowed": {
+        "message": "Allowed unless denylisted"
+    },
+    "popupBadgeDenied": {
+        "message": "On the block list"
+    },
+    "popupBadgeOriginAllowed": {
+        "message": "Allowed site"
+    },
+    "popupBadgeTabAllowed": {
+        "message": "Allowed tab"
+    },
+    "popupBadgeNotAllowed": {
+        "message": "Not allowed yet"
+    },
+    "popupFeedbackSaved": {
+        "message": "Saved"
+    },
+    "popupFeedbackListAdded": {
+        "message": "Added to the list"
+    },
+    "popupFeedbackListSaved": {
+        "message": "List saved"
+    },
+    "popupFeedbackListSkipped": {
+        "message": "Saved. $1 unreadable line(s) were left out"
+    },
+    "popupFeedbackHiddenOn": {
+        "message": "Hidden elements are included"
+    },
+    "popupFeedbackHiddenOff": {
+        "message": "Hidden elements are excluded"
+    },
+    "popupFeedbackPortOn": {
+        "message": "The port is back on"
+    },
+    "popupFeedbackPortOff": {
+        "message": "The port was switched off"
+    },
+    "popupFeedbackPortInvalid": {
+        "message": "A port has to be between 1 and 65535"
+    },
+    "popupFeedbackModeChanged": {
+        "message": "Access scope changed"
+    },
+    "popupFeedbackAuroraOn": {
+        "message": "The tab aurora was switched on"
+    },
+    "popupFeedbackAuroraOff": {
+        "message": "The tab aurora was switched off"
+    },
+    "popupFeedbackFocusOn": {
+        "message": "The action highlight was switched on"
+    },
+    "popupFeedbackFocusOff": {
+        "message": "The action highlight was switched off"
+    },
+    "popupFeedbackMarkOn": {
+        "message": "The tab icon and title are marked"
+    },
+    "popupFeedbackMarkOff": {
+        "message": "The tab icon and title are left alone"
+    },
+    "popupFeedbackBadgeOn": {
+        "message": "The status badge was switched on"
+    },
+    "popupFeedbackBadgeOff": {
+        "message": "The status badge was switched off"
+    },
+    "popupFeedbackContainerInherit": {
+        "message": "New tabs use the current container"
+    },
+    "popupFeedbackContainerDefault": {
+        "message": "New tabs use the default container"
+    },
+    "popupFeedbackTabAllowed": {
+        "message": "This tab is allowed"
+    },
+    "popupFeedbackOriginUnsupported": {
+        "message": "That cannot be applied to this page"
+    },
+    "popupFeedbackPermissionGranted": {
+        "message": "Permission granted"
+    },
+    "popupFeedbackPermissionDenied": {
+        "message": "Permission denied"
+    },
+    "popupFeedbackPermissionFailed": {
+        "message": "The permission request failed"
+    },
+    "optionsModalTitle": {
+        "message": "Permission needed"
+    },
+    "optionsModalIntro": {
+        "message": "The Browser Control MCP extension is asking for access to:"
+    },
+    "optionsModalTextDomain": {
+        "message": "Allowing this lets the MCP server read and drive pages on this domain when it asks to."
+    },
+    "optionsModalTextFeature": {
+        "message": "Allowing this lets the MCP server use this browser feature."
+    },
+    "optionsModalGrant": {
+        "message": "Allow"
+    },
+    "optionsModalCancel": {
+        "message": "Cancel"
+    },
+    "optionsTitle": {
+        "message": "Browser Control MCP settings"
+    },
+    "optionsSecretHeading": {
+        "message": "Secret Key"
+    },
+    "optionsSecretLoading": {
+        "message": "Loading…"
+    },
+    "optionsSecretShow": {
+        "message": "Show"
+    },
+    "optionsSecretCopy": {
+        "message": "Copy"
+    },
+    "optionsSecretRegenerate": {
+        "message": "New key"
+    },
+    "optionsSecretRegenerated": {
+        "message": "A new Secret Key was generated and copied. Register it with the MCP server again."
+    },
+    "optionsSecretRegenerateFailed": {
+        "message": "Could not generate a new Secret Key. Check the console."
+    },
+    "optionsSecretMissing": {
+        "message": "The Secret Key is missing. Reinstall the extension."
+    },
+    "optionsSecretLoadFailed": {
+        "message": "Could not load the Secret Key. Check the console."
+    },
+    "optionsSecretCopied": {
+        "message": "The Secret Key was copied to the clipboard"
+    },
+    "optionsSecretCopyFailed": {
+        "message": "Could not copy to the clipboard"
+    },
+    "optionsToolsHeading": {
+        "message": "Tool permissions"
+    },
+    "optionsToolsLoading": {
+        "message": "Loading tool settings…"
+    },
+    "optionsAuditHeading": {
+        "message": "Activity log"
+    },
+    "optionsAuditLoading": {
+        "message": "Loading the log…"
+    },
+    "optionsAuditClear": {
+        "message": "Clear the log"
+    },
+    "optionsAuditEmpty": {
+        "message": "No tool use has been recorded yet."
+    },
+    "optionsAuditColumnTool": {
+        "message": "Tool"
+    },
+    "optionsAuditColumnTime": {
+        "message": "Time"
+    },
+    "optionsAuditColumnDomain": {
+        "message": "Domain"
+    },
+    "optionsAuditBadUrl": {
+        "message": "Invalid URL"
+    },
+    "optionsAuditLoadFailed": {
+        "message": "Could not load the activity log. Check the console."
+    },
+    "optionsAuditCleared": {
+        "message": "The activity log was cleared"
+    },
+    "optionsAuditClearFailed": {
+        "message": "Could not clear the activity log"
+    },
+    "optionsInstallHeading": {
+        "message": "Installing the MCP server"
+    },
+    "optionsInstallBody": {
+        "message": "The extension does nothing on its own; a local MCP server has to run alongside it. Run <code>npm install &amp;&amp; npm run build</code> in the repository root first."
+    },
+    "optionsInstallCodeSnippet": {
+        "message": "claude mcp add browser-control \\n  --env EXTENSION_SECRET=<SECRET KEY> \\n  -- node /path/to/repo/mcp-server/dist/server.js"
+    },
+    "optionsInstallDesktopBody": {
+        "message": "Add the following under <code>mcpServers</code> in <code>claude_desktop_config.json</code>."
+    },
+    "optionsInstallDesktopSnippet": {
+        "message": "\"browser-control\": {\n  \"command\": \"node\",\n  \"args\": [\"/path/to/repo/mcp-server/dist/server.js\"],\n  \"env\": {\n    \"EXTENSION_SECRET\": \"<SECRET KEY>\"\n  }\n}"
+    },
+    "optionsInstallDxtHeading": {
+        "message": "DXT package"
+    },
+    "optionsInstallDxtBody": {
+        "message": "Only needed to install into Claude Desktop in one click. Claude Code does not use it. Build it yourself with <code>cd mcp-server &amp;&amp; npm run pack-dxt</code> — the DXT published by the upstream repository does not carry this fork's interaction tools."
+    }
+}

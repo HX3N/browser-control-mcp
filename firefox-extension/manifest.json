@@ -2,26 +2,36 @@
     "manifest_version": 2,
     "name": "Browser Control MCP",
     "version": "1.5.0",
-    "description": "An extension that allows a local MCP server to perform actions on the browser.",
-    "permissions": [
-        "tabs",
-        "tabGroups",
-        "history",
-        "storage",
-        "activeTab"
-    ],
-    "optional_permissions": [
-        "*://*/*",
-        "find"
-    ],
+    "default_locale": "en",
+    "description": "__MSG_extensionDescription__",
+    "browser_specific_settings": {
+        "gecko": {
+            "id": "browser-control-mcp@hx3n"
+        }
+    },
+    "permissions": ["tabs", "tabGroups", "history", "storage", "activeTab", "cookies", "find", "*://*/*"],
+    "icons": {
+        "48": "assets/claude_icon.svg",
+        "96": "assets/claude_icon.svg",
+        "128": "assets/claude_icon.svg"
+    },
     "background": {
-      "scripts": ["dist/background.js"]
+        "scripts": ["dist/background.js"]
     },
     "browser_action": {
-      "default_icon": "assets/screenshot.svg",
-      "default_title": "Browser Control MCP: allow a screenshot of this tab"
+        "default_icon": "assets/claude_icon.svg",
+        "default_title": "__MSG_browserActionTitle__",
+        "default_popup": "popup.html"
+    },
+    "commands": {
+        "_execute_browser_action": {
+            "suggested_key": {
+                "default": "Alt+Shift+B"
+            },
+            "description": "__MSG_commandOpenPopup__"
+        }
     },
     "options_ui": {
-      "page": "options.html"
+        "page": "options.html"
     }
-  }
+}
