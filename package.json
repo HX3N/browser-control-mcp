@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "postinstall": "cd mcp-server && npm install && cd .. && cd firefox-extension && npm install",
-    "build": "nx run-many --target=build --all --parallel"
+    "build": "nx run-many --target=build --all --parallel",
+    "package": "cd firefox-extension && npm run package"
   },
   "devDependencies": {
     "nx": "22.3.3"

@@ -229,6 +229,20 @@ it has to be loaded again each time.
 If running this in your personal browser feels wrong, a separate Firefox instance such as
 [Firefox Developer Edition](https://www.mozilla.org/en-US/firefox/developer/) works too.
 
+#### Packaging it into a zip
+
+Run this in the repository root:
+
+```
+npm run package
+```
+
+It writes `firefox-extension/web-ext-artifacts/browser_control_mcp-<version>.zip`. Open
+`about:addons`, click the gear, pick "Install Add-on From File..." and choose that zip. It stays
+installed across restarts, so step 2 above is not needed.
+
+This works in Zen Browser. Whether stock Firefox accepts it has not been tested.
+
 ### 3. Connect the MCP server
 
 #### The easy way: `setup.ps1`
@@ -333,6 +347,7 @@ npm install                          # installs the subproject dependencies as w
 npm run build                        # builds everything through nx
 cd firefox-extension; npm test       # extension tests
 cd mcp-server; npm start             # run the MCP server
+npm run package                      # zip the extension for installing
 ```
 
 The UI strings live in `firefox-extension/_locales/{en,ko}/messages.json`. `default_locale` is

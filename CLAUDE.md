@@ -25,6 +25,13 @@ cd mcp-server && npm run build          # tsc
 cd firefox-extension && npm run build   # esbuild, three entry points
 ```
 
+### Package the extension
+```bash
+npm run package  # build, then web-ext build → firefox-extension/web-ext-artifacts/*.zip
+```
+The exclude list lives in `firefox-extension/web-ext-config.cjs`. Zen installs that zip from
+`about:addons` and keeps it across restarts; stock Firefox is untested.
+
 ### Test
 ```bash
 cd firefox-extension && npm test

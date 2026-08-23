@@ -215,6 +215,20 @@ Zen Browser에서도 `about:debugging` 경로가 같습니다. 임시 부가 기
 개인 브라우저에서 돌리기가 꺼려진다면 별도의 Firefox 인스턴스(예:
 [Firefox Developer Edition](https://www.mozilla.org/en-US/firefox/developer/))를 쓰는 방법도 있습니다.
 
+#### zip으로 묶기
+
+저장소 루트에서 실행합니다.
+
+```
+npm run package
+```
+
+`firefox-extension/web-ext-artifacts/browser_control_mcp-<버전>.zip` 이 나옵니다. `about:addons`
+에서 톱니바퀴를 누르고 "파일에서 부가 기능 설치..." 로 그 zip을 고르면 됩니다. 브라우저를
+껐다 켜도 남아 있으므로 위의 2번 단계는 필요 없습니다.
+
+Zen Browser에서는 동작을 확인했습니다. 일반 Firefox에서도 되는지는 확인하지 못했습니다.
+
 ### 3. MCP 서버 연결
 
 #### 가장 쉬운 방법: `setup.ps1`
@@ -318,6 +332,7 @@ npm install                          # 하위 프로젝트 의존성까지 설�
 npm run build                        # nx로 전체 빌드
 cd firefox-extension; npm test       # 확장 테스트
 cd mcp-server; npm start             # MCP 서버 실행
+npm run package                      # 설치용 확장 zip 생성
 ```
 
 UI 문자열은 `firefox-extension/_locales/{en,ko}/messages.json` 에 있습니다. `default_locale` 이

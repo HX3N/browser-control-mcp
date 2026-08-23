@@ -53,5 +53,6 @@ dist
 
 # Web extension dist
 web-ext-artifacts/
+*.xpi
 
 .DS_Store

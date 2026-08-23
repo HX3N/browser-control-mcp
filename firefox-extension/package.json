@@ -4,11 +4,14 @@
   "main": "dist/background.js",
   "scripts": {
     "build": "esbuild background.ts --bundle --outfile=dist/background.js && esbuild options.ts --bundle --outfile=dist/options.js && esbuild popup.ts --bundle --outfile=dist/popup.js",
-    "test": "jest"
+    "test": "jest",
+    "package": "npm run build && web-ext build"
   },
   "license": "MIT",
   "description": "Browser Control MCP Firefox Extension / Add-on",
   "devDependencies": {
+    "@browser-control-mcp/common": "../common",
+    "@types/firefox-webext-browser": "^120.0.4",
     "@types/jest": "^29.5.14",
     "esbuild": "0.25.1",
     "jest": "^30.0.4",
@@ -16,8 +19,7 @@
     "nx": "20.6.0",
     "ts-jest": "^29.4.0",
     "typescript": "^5.8.2",
-    "@types/firefox-webext-browser": "^120.0.4",
-    "@browser-control-mcp/common": "../common"
+    "web-ext": "^10.6.0"
   },
   "nx": {}
 }
