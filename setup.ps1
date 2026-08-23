@@ -54,8 +54,11 @@ $Strings = @{
         RunningBody3     = "        panel before running this is recommended."
         DeskRunWarn      = "[warning] Claude Desktop is running ({0} process(es))."
         DeskRunBody1     = "        It reads this config only at startup, and it rewrites the file on exit,"
-        DeskRunBody2     = "        which can drop what is registered now. Quit it fully, run this again,"
-        DeskRunBody3     = "        then start it."
+        DeskRunBody2     = "        which can drop what is registered now."
+        DeskRunBody3     = "        Continuing will close Claude Desktop first so that cannot happen."
+        DeskClosing      = "  Closing Claude Desktop..."
+        DeskClosed       = "  Claude Desktop      closed"
+        DeskCloseFail    = "[error] Claude Desktop is still running. Quit it by hand and run this again."
         ContinueQuestion = "Continue anyway? (y/N)"
         Cancelled        = "Cancelled."
         SecretHint1      = "Copy the Secret Key from the extension settings page and paste it here."
@@ -77,6 +80,7 @@ $Strings = @{
         DesktopBadJsonAt = "        {0}"
         DesktopDone      = "  browser-control was written into mcpServers."
         DesktopRestart   = "  Claude Desktop has to be restarted to pick it up."
+        ShadowRemoved    = "  The shadowed config at {0} does not match this install, so it was backed up and removed."
         DxtBuilding      = "  Building the DXT package as a fallback..."
         DxtDone          = "  Built {0}"
         DxtHint          = "  Open that file with Claude Desktop if the entry above does not take effect."
@@ -132,8 +136,11 @@ $Strings = @{
         RunningBody3     = "       닫은 뒤에 다시 실행하는 것을 권합니다."
         DeskRunWarn      = "[경고] Claude Desktop 이 실행 중입니다 (프로세스 {0}개)."
         DeskRunBody1     = "       이 설정은 앱이 켜질 때만 읽히고, 종료할 때 앱이 파일을 다시 쓰면서"
-        DeskRunBody2     = "       지금 등록한 내용을 지울 수 있습니다. 완전히 종료한 뒤 이 스크립트를"
-        DeskRunBody3     = "       다시 돌리고, 그다음에 켜는 순서를 권합니다."
+        DeskRunBody2     = "       지금 등록한 내용을 지울 수 있습니다."
+        DeskRunBody3     = "       계속하면 Claude Desktop 을 먼저 종료한 뒤 진행합니다."
+        DeskClosing      = "  Claude Desktop 을 종료하는 중..."
+        DeskClosed       = "  Claude Desktop   종료했습니다"
+        DeskCloseFail    = "[오류] Claude Desktop 이 아직 살아 있습니다. 직접 종료한 뒤 다시 실행하세요."
         ContinueQuestion = "그래도 계속할까요? (y/N)"
         Cancelled        = "취소했습니다."
         SecretHint1      = "확장의 설정 페이지에서 Secret Key 를 복사해 붙여 넣으세요."
@@ -155,6 +162,7 @@ $Strings = @{
         DesktopBadJsonAt = "       {0}"
         DesktopDone      = "  mcpServers 에 browser-control 을 적었습니다."
         DesktopRestart   = "  Claude Desktop 을 다시 켜야 반영됩니다."
+        ShadowRemoved    = "  이 설치와 맞지 않는 설정 {0} 은 백업한 뒤 지웠습니다."
         DxtBuilding      = "  대안으로 쓸 DXT 패키지를 만드는 중..."
         DxtDone          = "  {0} 을 만들었습니다"
         DxtHint          = "  위 설정이 먹히지 않으면 이 파일을 Claude Desktop 으로 여세요."
@@ -522,6 +530,27 @@ if ($wantsDesktop) {
         Write-Host $T.DeskRunBody2
         Write-Host $T.DeskRunBody3
         Confirm-Continue
+
+        Write-Host $T.DeskClosing
+        foreach ($proc in $deskRunning) {
+            try { Stop-Process -Id $proc.Id -Force -ErrorAction Stop } catch {}
+        }
+        # The config is rewritten on exit, so writing before every process is gone loses it.
+        $deadline = (Get-Date).AddSeconds(15)
+        while ((Get-Date) -lt $deadline) {
+            $left = @(Get-Process -Name claude -ErrorAction SilentlyContinue |
+                Where-Object { $_.Id -in $deskRunning.Id })
+            if ($left.Count -eq 0) { break }
+            Start-Sleep -Milliseconds 500
+        }
+        $left = @(Get-Process -Name claude -ErrorAction SilentlyContinue |
+            Where-Object { $_.Id -in $deskRunning.Id })
+        if ($left.Count -gt 0) {
+            Write-Host ""
+            Write-Host $T.DeskCloseFail -ForegroundColor Red
+            Exit-With 1
+        }
+        Write-Host $T.DeskClosed
     }
 }
 
@@ -628,6 +657,15 @@ if ($wantsDesktop) {
 
     Write-Host $T.DesktopDone
     Write-Host $T.DesktopRestart
+
+    if ($desktopPaths.Packaged) {
+        $shadowPath = Join-Path (Join-Path $env:APPDATA "Claude") "claude_desktop_config.json"
+        if (Test-Path $shadowPath) {
+            Copy-Item $shadowPath "$shadowPath.bak" -Force
+            Remove-Item $shadowPath -Force
+            Write-Host ($T.ShadowRemoved -f $shadowPath)
+        }
+    }
 
     if (Get-Command npx -ErrorAction SilentlyContinue) {
         Write-Host ""

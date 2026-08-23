@@ -200,7 +200,10 @@ Injected scripts are built as strings inside TypeScript template literals. Escap
   Store build of Claude Desktop is MSIX, which redirects `%APPDATA%`, so the config path is
   resolved from `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\` first and only falls
   back to `%APPDATA%\Claude\`. Desktop reads that file only at startup and rewrites it on exit, so
-  the script warns when it is running. `EXTENSION_PORT` is not passed: the server falls back to
+  the script closes it before writing: it says so, asks, then kills the Desktop processes and waits
+  for them to go, and gives up rather than write into a live app. On an MSIX install it also backs
+  up and deletes a leftover `%APPDATA%\Claude\claude_desktop_config.json`, which the package copy
+  shadows and the app never reads. `EXTENSION_PORT` is not passed: the server falls back to
   8089 on its own
 - Injected script builders are covered by no unit test; verify them by parsing their output
   with `new Function` before trusting a change
