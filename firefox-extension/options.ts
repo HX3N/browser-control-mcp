@@ -542,10 +542,13 @@ const pickerHueKnob = document.getElementById(
 ) as HTMLDivElement;
 const pickerHex = document.getElementById("picker-hex") as HTMLInputElement;
 
-const TIMING_FIELDS: { key: keyof OverlayTimings; step: number }[] = [
-  { key: "statusResetMs", step: 500 },
-  { key: "holdReleaseMs", step: 30_000 },
-  { key: "leadMs", step: 20 },
+const MS_PER_SECOND = 1000;
+
+// Fields are stored and clamped in ms; the UI shows and steps in seconds.
+const TIMING_FIELDS: { key: keyof OverlayTimings; stepSeconds: number }[] = [
+  { key: "statusResetMs", stepSeconds: 0.5 },
+  { key: "holdReleaseMs", stepSeconds: 30 },
+  { key: "leadMs", stepSeconds: 0.1 },
 ];
 
 const SAVE_DELAY_MS = 250;
@@ -769,16 +772,16 @@ async function createTimingUI(): Promise<void> {
 
     const box = document.createElement("input");
     box.type = "number";
-    box.min = String(limits.min);
-    box.max = String(limits.max);
-    box.step = String(field.step);
-    box.value = String(timings[field.key]);
+    box.min = String(limits.min / MS_PER_SECOND);
+    box.max = String(limits.max / MS_PER_SECOND);
+    box.step = String(field.stepSeconds);
+    box.value = String(timings[field.key] / MS_PER_SECOND);
     box.addEventListener("change", async () => {
-      const asked = Number(box.value);
-      const clamped = Number.isFinite(asked)
-        ? Math.min(limits.max, Math.max(limits.min, Math.round(asked)))
+      const askedMs = Number(box.value) * MS_PER_SECOND;
+      const clamped = Number.isFinite(askedMs)
+        ? Math.min(limits.max, Math.max(limits.min, Math.round(askedMs)))
         : DEFAULT_OVERLAY_TIMINGS[field.key];
-      box.value = String(clamped);
+      box.value = String(clamped / MS_PER_SECOND);
       await setOverlayTimings({ [field.key]: clamped });
       flash(timingStatus, t("optionsTimingSaved"));
     });

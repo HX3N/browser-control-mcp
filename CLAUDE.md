@@ -175,7 +175,7 @@ long as the session holds the tab.
 Holding a tab and acting on it are separate clocks, and both lengths live in `overlayTimings`
 (`statusResetMs`, `holdReleaseMs`, `leadMs`), defaulting to the values the extension shipped with.
 The badge falls back to its resting label after `statusResetMs`, while the hold runs for
-`holdReleaseMs` (five minutes by default): MCP has no notion of a turn ending, so a model that
+`holdReleaseMs` (ninety seconds by default): MCP has no notion of a turn ending, so a model that
 thinks for minutes between two clicks must not lose the tab underneath it. A read is the one
 action that never fades - it is sent with `resetAfterMs: 0`, so its mark stands until the next
 command replaces it, because a read leaves nothing else on screen to show what happened. A hold
