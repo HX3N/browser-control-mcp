@@ -57,6 +57,7 @@ export type PopupRequest =
   | { kind: "set-badge"; enabled: boolean }
   | { kind: "set-base-port"; port: number }
   | { kind: "set-port-enabled"; port: number; enabled: boolean }
+  | { kind: "set-all-ports-enabled"; enabled: boolean }
   | { kind: "set-inherit-container"; enabled: boolean }
   | { kind: "set-background-mode"; enabled: boolean }
   | { kind: "set-include-hidden"; enabled: boolean }

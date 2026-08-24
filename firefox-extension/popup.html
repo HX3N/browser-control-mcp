@@ -189,6 +189,20 @@
       flex: 0 0 auto;
     }
 
+    .conn-bulk-row {
+      display: flex;
+      gap: 6px;
+      margin-top: 9px;
+    }
+
+    .conn-bulk-row button {
+      width: auto;
+      flex: 1 1 0;
+      padding: 4px 9px;
+      font-size: 11.5px;
+      margin-top: 0;
+    }
+
     .port-row {
       display: flex;
       align-items: center;
@@ -600,6 +614,10 @@
   <section class="section">
     <h2 data-i18n="popupSectionConnection"></h2>
     <div id="connection-status"></div>
+    <div class="conn-bulk-row">
+      <button id="disconnect-all-ports" type="button" data-i18n="popupConnDisconnectAll"></button>
+      <button id="reconnect-all-ports" type="button" data-i18n="popupConnReconnectAll"></button>
+    </div>
     <div class="port-row">
       <label for="base-port" class="port-label" data-i18n="popupBasePortLabel"></label>
       <input type="number" id="base-port" min="1" max="65535" step="1">

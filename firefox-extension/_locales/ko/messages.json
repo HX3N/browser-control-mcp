@@ -336,7 +336,13 @@
         "message": "끊기"
     },
     "popupConnTurnOn": {
-        "message": "다시 켜기"
+        "message": "재연결"
+    },
+    "popupConnDisconnectAll": {
+        "message": "전부 끊기"
+    },
+    "popupConnReconnectAll": {
+        "message": "전부 재연결"
     },
     "popupSummaryWaiting": {
         "message": "MCP 서버 대기 중"
@@ -346,6 +352,9 @@
     },
     "popupSummarySessions": {
         "message": "세션 $1개 연결됨"
+    },
+    "popupSummaryAllOff": {
+        "message": "전부 끊김"
     },
     "popupSummaryNoBackground": {
         "message": "확장이 응답하지 않음"
@@ -399,10 +408,16 @@
         "message": "숨은 요소를 제외합니다"
     },
     "popupFeedbackPortOn": {
-        "message": "포트를 다시 켰습니다"
+        "message": "포트를 재연결했습니다"
     },
     "popupFeedbackPortOff": {
         "message": "포트를 껐습니다"
+    },
+    "popupFeedbackAllOff": {
+        "message": "모든 포트를 끊었습니다"
+    },
+    "popupFeedbackAllOn": {
+        "message": "모든 포트를 재연결했습니다"
     },
     "popupFeedbackPortInvalid": {
         "message": "포트는 1에서 65535 사이여야 합니다"
@@ -624,19 +639,19 @@
         "message": "기본 시간으로 되돌렸습니다."
     },
     "optionsTiming_statusResetMs": {
-        "message": "배지 되돌림 (ms)"
+        "message": "배지 되돌림 (초)"
     },
     "optionsTimingHint_statusResetMs": {
         "message": "동작 뒤 그 문구가 얼마나 남아 있다가 대기 문구로 돌아가는지입니다. 읽기에는 적용되지 않습니다."
     },
     "optionsTiming_holdReleaseMs": {
-        "message": "탭 유지 (ms)"
+        "message": "탭 유지 (초)"
     },
     "optionsTimingHint_holdReleaseMs": {
         "message": "명령이 오지 않아도 탭을 잡고 있는 시간입니다. 명령 사이의 공백보다 길어야 합니다. 모델이 두 클릭 사이에 몇 분을 생각할 수 있습니다."
     },
     "optionsTiming_leadMs": {
-        "message": "동작 전 여유 (ms)"
+        "message": "동작 전 여유 (초)"
     },
     "optionsTimingHint_leadMs": {
         "message": "요소를 강조한 뒤 실제로 건드리기까지의 짧은 멈춤입니다. 무엇을 건드리려는지 볼 수 있게 둡니다."

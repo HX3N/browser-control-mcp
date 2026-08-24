@@ -137,7 +137,7 @@ function openSlot(port: number, role: ConnectionSlot["role"], secret: string) {
 }
 
 // Nothing tells the extension how many sessions exist, so keeping exactly one idle slot above
-// the highest connected port is what makes the range grow and shrink with them.
+// the highest taken port is what makes the range grow and shrink with them.
 function syncSlots(
   fixedPorts: number[],
   disabledPorts: number[],
@@ -152,6 +152,7 @@ function syncSlots(
   }
 
   const spareBase = Math.max(...fixedPorts) + 1;
+  const cap = spareBase + MAX_SPARE_SLOTS - 1;
   const connectedPorts = slots
     .filter((slot) => slot.client.isConnected())
     .map((slot) => slot.port);
@@ -159,8 +160,15 @@ function syncSlots(
     ? Math.max(...connectedPorts)
     : spareBase - 1;
   const highestWanted = Math.min(
-    spareBase + MAX_SPARE_SLOTS - 1,
+    cap,
     Math.max(spareBase, highestConnected + 1)
+  );
+  // Only sessions grow the range, but a port the user switched off still holds its place in it:
+  // counting it only here keeps switching one off from retiring the idle slot above it, without
+  // opening a new probe above a port the user just switched off.
+  const highestKept = Math.min(
+    cap,
+    Math.max(highestWanted, ...disabledPorts.map((port) => port + 1))
   );
 
   for (let port = spareBase; port <= highestWanted; port++) {
@@ -170,10 +178,13 @@ function syncSlots(
   }
 
   for (const slot of [...slots]) {
+    // A socket mid-handshake is not a failure: a slot the user just reopened sits outside
+    // the window until it connects, and retiring it here would close it before it can.
     const isRetired =
       slot.role === "spare" &&
-      slot.port > highestWanted &&
-      !slot.client.isConnected();
+      slot.port > highestKept &&
+      !slot.client.isConnected() &&
+      !slot.client.isConnecting();
     // A port switched off in the popup is dropped even while a session holds it: that is the
     // point of the button.
     if (isRetired || isDisabled(slot.port)) {
@@ -185,6 +196,20 @@ function syncSlots(
 
 async function syncSlotsFromConfig(secret: string) {
   syncSlots(await getPorts(), await getDisabledPorts(), secret);
+}
+
+// syncSlots grows the spare window off already-connected slots, so a port not yet finished
+// handshaking can make later ports miss that window; a port the user just turned on is opened directly instead.
+async function enablePorts(ports: number[], secret: string) {
+  const fixedPorts = await getPorts();
+  for (const port of ports) {
+    await setPortEnabled(port, true);
+  }
+  for (const port of ports) {
+    if (!slots.some((slot) => slot.port === port)) {
+      openSlot(port, fixedPorts.includes(port) ? "fixed" : "spare", secret);
+    }
+  }
 }
 
 // Firefox drops the activeTab grant as soon as the tab navigates or closes, so the tracked
@@ -315,7 +340,25 @@ async function handlePopupRequest(request: PopupRequest): Promise<PopupStatus> {
       await syncSlotsFromConfig(activeSecret);
       break;
     case "set-port-enabled":
-      await setPortEnabled(request.port, request.enabled);
+      if (request.enabled) {
+        await enablePorts([request.port], activeSecret);
+      } else {
+        await setPortEnabled(request.port, false);
+      }
+      await syncSlotsFromConfig(activeSecret);
+      break;
+    case "set-all-ports-enabled":
+      if (request.enabled) {
+        await enablePorts(await getDisabledPorts(), activeSecret);
+      } else {
+        const ports = new Set([
+          ...(await getPorts()),
+          ...slots.map((slot) => slot.port),
+        ]);
+        for (const port of ports) {
+          await setPortEnabled(port, false);
+        }
+      }
       await syncSlotsFromConfig(activeSecret);
       break;
     case "set-inherit-container":

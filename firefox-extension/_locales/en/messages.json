@@ -338,6 +338,12 @@
     "popupConnTurnOn": {
         "message": "Reconnect"
     },
+    "popupConnDisconnectAll": {
+        "message": "Disconnect all"
+    },
+    "popupConnReconnectAll": {
+        "message": "Reconnect all"
+    },
     "popupSummaryWaiting": {
         "message": "Waiting for the MCP server"
     },
@@ -346,6 +352,9 @@
     },
     "popupSummarySessions": {
         "message": "$1 sessions connected"
+    },
+    "popupSummaryAllOff": {
+        "message": "All ports off"
     },
     "popupSummaryNoBackground": {
         "message": "No response from the background page"
@@ -399,10 +408,16 @@
         "message": "Hidden elements are excluded"
     },
     "popupFeedbackPortOn": {
-        "message": "The port is back on"
+        "message": "The port reconnected"
     },
     "popupFeedbackPortOff": {
         "message": "The port was switched off"
+    },
+    "popupFeedbackAllOff": {
+        "message": "All ports disconnected"
+    },
+    "popupFeedbackAllOn": {
+        "message": "All ports reconnected"
     },
     "popupFeedbackPortInvalid": {
         "message": "A port has to be between 1 and 65535"
@@ -624,19 +639,19 @@
         "message": "The default timing is back."
     },
     "optionsTiming_statusResetMs": {
-        "message": "Badge reset (ms)"
+        "message": "Badge reset (s)"
     },
     "optionsTimingHint_statusResetMs": {
         "message": "After an action, how long its label stays before the badge falls back to the resting one. Reads ignore this."
     },
     "optionsTiming_holdReleaseMs": {
-        "message": "Tab hold (ms)"
+        "message": "Tab hold (s)"
     },
     "optionsTimingHint_holdReleaseMs": {
         "message": "How long a tab stays claimed with no command arriving. It has to outlast the pauses between commands: a model can think for minutes between two clicks."
     },
     "optionsTiming_leadMs": {
-        "message": "Lead before acting (ms)"
+        "message": "Lead before acting (s)"
     },
     "optionsTimingHint_leadMs": {
         "message": "The pause between highlighting an element and acting on it, so you can see what is about to be touched."

@@ -30,6 +30,12 @@ export class WebsocketClient {
     return this.socket !== null && this.socket.readyState === WebSocket.OPEN;
   }
 
+  public isConnecting(): boolean {
+    return (
+      this.socket !== null && this.socket.readyState === WebSocket.CONNECTING
+    );
+  }
+
   public getLastConnectedAt(): number | null {
     return this.lastConnectedAt;
   }

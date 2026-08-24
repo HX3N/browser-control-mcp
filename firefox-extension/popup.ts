@@ -4,7 +4,21 @@ import type {
   UrlScope,
 } from "./extension-config";
 import { localizeDocument, t } from "./i18n";
-import type { PopupRequest, PopupStatus } from "./popup-messages";
+import type {
+  ConnectionStatus,
+  PopupRequest,
+  PopupStatus,
+} from "./popup-messages";
+
+interface ConnectionRow {
+  row: HTMLDivElement;
+  dot: HTMLSpanElement;
+  state: HTMLSpanElement;
+  toggle: HTMLButtonElement;
+  disabled: boolean;
+}
+
+const connectionRows = new Map<number, ConnectionRow>();
 
 const statusSummary = document.getElementById(
   "status-summary"
@@ -12,6 +26,12 @@ const statusSummary = document.getElementById(
 const connectionStatus = document.getElementById(
   "connection-status"
 ) as HTMLDivElement;
+const disconnectAllButton = document.getElementById(
+  "disconnect-all-ports"
+) as HTMLButtonElement;
+const reconnectAllButton = document.getElementById(
+  "reconnect-all-ports"
+) as HTMLButtonElement;
 const activeTabTitle = document.getElementById(
   "active-tab-title"
 ) as HTMLDivElement;
@@ -104,8 +124,16 @@ const urlScopeRadios = Array.from(
 localizeDocument();
 
 let current: PopupStatus | null = null;
+let lastConnections = "";
 
+const CONNECTION_POLL_MS = 1000;
 const SITE_LIST_SAVE_DELAY_MS = 900;
+
+function connectionsKey(status: PopupStatus): string {
+  return status.connections
+    .map((c) => `${c.port}|${c.role}|${c.connected}|${c.disabled}`)
+    .join(",");
+}
 let siteListSaveTimer: number | undefined;
 
 async function send(request: PopupRequest): Promise<PopupStatus> {
@@ -124,10 +152,74 @@ function showFeedback(message: string): void {
   }, 2400);
 }
 
-function renderConnections(status: PopupStatus): void {
-  connectionStatus.textContent = "";
+function buildConnectionRow(port: number): ConnectionRow {
+  const row = document.createElement("div");
+  row.className = "conn-row";
 
+  const dot = document.createElement("span");
+
+  const label = document.createElement("span");
+  label.className = "conn-label";
+  label.textContent = t("popupConnPort", String(port));
+
+  const state = document.createElement("span");
+  state.className = "conn-state";
+
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "conn-toggle";
+
+  const entry: ConnectionRow = { row, dot, state, toggle, disabled: false };
+
+  // Reading the state off the entry rather than off a captured value: a row repainted between
+  // this listener being attached and the click would otherwise send the inverse command.
+  toggle.addEventListener("click", async () => {
+    const wasDisabled = entry.disabled;
+    await refresh({ kind: "set-port-enabled", port, enabled: wasDisabled });
+    showFeedback(
+      wasDisabled ? t("popupFeedbackPortOn") : t("popupFeedbackPortOff")
+    );
+  });
+
+  row.appendChild(dot);
+  row.appendChild(label);
+  row.appendChild(state);
+  row.appendChild(toggle);
+  return entry;
+}
+
+function paintConnectionRow(
+  entry: ConnectionRow,
+  connection: ConnectionStatus
+): void {
+  entry.disabled = connection.disabled;
+
+  // A spare that has not connected yet is a probe for the next session, not a failure.
+  const isWaitingSpare =
+    connection.role === "spare" && !connection.connected && !connection.disabled;
+
+  entry.dot.className = connection.connected
+    ? "dot is-on"
+    : isWaitingSpare || connection.disabled
+    ? "dot is-idle"
+    : "dot";
+  entry.state.textContent = connection.disabled
+    ? t("popupConnOff")
+    : connection.connected
+    ? t("popupConnConnected")
+    : isWaitingSpare
+    ? t("popupConnWaitingSpare")
+    : t("popupConnDisconnected");
+  entry.toggle.textContent = connection.disabled
+    ? t("popupConnTurnOn")
+    : t("popupConnTurnOff");
+  entry.row.classList.toggle("is-off", connection.disabled);
+}
+
+function renderConnections(status: PopupStatus): void {
   if (status.connections.length === 0) {
+    connectionRows.clear();
+    connectionStatus.textContent = "";
     const empty = document.createElement("div");
     empty.className = "conn-state";
     empty.textContent = t("popupConnNone");
@@ -136,79 +228,34 @@ function renderConnections(status: PopupStatus): void {
     return;
   }
 
-  // Idle spares are probes for the next session, not failures, so only the next one shows.
-  const idleSpares = status.connections.filter(
-    (connection) =>
-      connection.role === "spare" &&
-      !connection.connected &&
-      !connection.disabled
-  );
-  const nextSpare = idleSpares[0];
-  const shown = status.connections.filter(
-    (connection) =>
-      connection.connected ||
-      connection.disabled ||
-      connection.role === "fixed" ||
-      connection === nextSpare
-  );
+  // Rows are rebuilt only when the set of ports changes: tearing them down on every repaint
+  // would detach a button between the user's mousedown and mouseup and swallow the click.
+  const ports = status.connections.map((connection) => connection.port);
+  const sameRows =
+    connectionRows.size === ports.length &&
+    ports.every((port) => connectionRows.has(port));
 
-  for (const connection of shown) {
-    const row = document.createElement("div");
-    row.className = "conn-row";
-
-    const isWaitingSpare = connection === nextSpare;
-
-    const dot = document.createElement("span");
-    dot.className = connection.connected
-      ? "dot is-on"
-      : isWaitingSpare || connection.disabled
-      ? "dot is-idle"
-      : "dot";
-
-    const label = document.createElement("span");
-    label.className = "conn-label";
-    label.textContent = t("popupConnPort", String(connection.port));
-
-    const state = document.createElement("span");
-    state.className = "conn-state";
-    state.textContent = connection.disabled
-      ? t("popupConnOff")
-      : connection.connected
-      ? t("popupConnConnected")
-      : isWaitingSpare
-      ? t("popupConnWaitingSpare")
-      : t("popupConnDisconnected");
-
-    const toggle = document.createElement("button");
-    toggle.type = "button";
-    toggle.className = "conn-toggle";
-    toggle.textContent = connection.disabled
-      ? t("popupConnTurnOn")
-      : t("popupConnTurnOff");
-    toggle.addEventListener("click", async () => {
-      await refresh({
-        kind: "set-port-enabled",
-        port: connection.port,
-        enabled: connection.disabled,
-      });
-      showFeedback(
-        connection.disabled ? t("popupFeedbackPortOn") : t("popupFeedbackPortOff")
-      );
-    });
-
-    if (connection.disabled) {
-      row.classList.add("is-off");
+  if (!sameRows) {
+    connectionRows.clear();
+    connectionStatus.textContent = "";
+    for (const port of ports) {
+      const entry = buildConnectionRow(port);
+      connectionRows.set(port, entry);
+      connectionStatus.appendChild(entry.row);
     }
+  }
 
-    row.appendChild(dot);
-    row.appendChild(label);
-    row.appendChild(state);
-    row.appendChild(toggle);
-    connectionStatus.appendChild(row);
+  for (const connection of status.connections) {
+    const entry = connectionRows.get(connection.port);
+    if (entry) {
+      paintConnectionRow(entry, connection);
+    }
   }
 
   const connected = status.connections.filter((c) => c.connected).length;
-  if (connected === 0) {
+  if (status.connections.every((c) => c.disabled)) {
+    statusSummary.textContent = t("popupSummaryAllOff");
+  } else if (connected === 0) {
     statusSummary.textContent = t("popupSummaryWaiting");
   } else if (connected === 1) {
     statusSummary.textContent = t("popupSummaryConnected");
@@ -352,6 +399,7 @@ function renderSiteList(status: PopupStatus): void {
 
 function render(status: PopupStatus): void {
   current = status;
+  lastConnections = connectionsKey(status);
 
   renderConnections(status);
   renderActiveTab(status);
@@ -365,32 +413,7 @@ function render(status: PopupStatus): void {
       : "popupModeDenylistHint"
   );
 
-  consoleCaptureToggle.addEventListener("change", () => {
-  void send({
-    kind: "set-console-capture",
-    enabled: consoleCaptureToggle.checked,
-  }).then((status) => {
-    render(status);
-    showFeedback(t("popupFeedbackSaved"));
-  });
-});
-
-for (const radio of consoleLevelRadios) {
-  radio.addEventListener("change", () => {
-    if (!radio.checked) {
-      return;
-    }
-    void send({
-      kind: "set-console-level",
-      level: radio.value as ConsoleCaptureLevel,
-    }).then((status) => {
-      render(status);
-      showFeedback(t("popupFeedbackSaved"));
-    });
-  });
-}
-
-for (const radio of urlScopeRadios) {
+  for (const radio of urlScopeRadios) {
     radio.checked = radio.value === status.urlScope;
   }
   consoleCaptureToggle.checked = status.consoleCapture;
@@ -523,6 +546,37 @@ badgeToggle.addEventListener("change", async () => {
   showFeedback(
     badgeToggle.checked ? t("popupFeedbackBadgeOn") : t("popupFeedbackBadgeOff")
   );
+});
+
+consoleCaptureToggle.addEventListener("change", async () => {
+  await refresh({
+    kind: "set-console-capture",
+    enabled: consoleCaptureToggle.checked,
+  });
+  showFeedback(t("popupFeedbackSaved"));
+});
+
+for (const radio of consoleLevelRadios) {
+  radio.addEventListener("change", async () => {
+    if (!radio.checked) {
+      return;
+    }
+    await refresh({
+      kind: "set-console-level",
+      level: radio.value as ConsoleCaptureLevel,
+    });
+    showFeedback(t("popupFeedbackSaved"));
+  });
+}
+
+disconnectAllButton.addEventListener("click", async () => {
+  await refresh({ kind: "set-all-ports-enabled", enabled: false });
+  showFeedback(t("popupFeedbackAllOff"));
+});
+
+reconnectAllButton.addEventListener("click", async () => {
+  await refresh({ kind: "set-all-ports-enabled", enabled: true });
+  showFeedback(t("popupFeedbackAllOn"));
 });
 
 saveBasePortButton.addEventListener("click", async () => {
@@ -677,3 +731,23 @@ openOptionsButton.addEventListener("click", async () => {
 });
 
 void refresh({ kind: "get-status" });
+
+// A socket reaches OPEN a moment after the click that opened it and nothing pushes that to the
+// popup, so a row would otherwise keep the label it had at click time until the next request.
+// Only the connection rows are repainted here: re-rendering the rest would write a stale answer
+// back over a switch the user had just flipped.
+window.setInterval(async () => {
+  let status: PopupStatus;
+  try {
+    status = await send({ kind: "get-status" });
+  } catch (error) {
+    return;
+  }
+  const key = connectionsKey(status);
+  if (key === lastConnections) {
+    return;
+  }
+  lastConnections = key;
+  current = status;
+  renderConnections(status);
+}, CONNECTION_POLL_MS);
