@@ -57,7 +57,7 @@ import {
   registerDialogGuard,
   unregisterDialogGuard,
 } from "./dialog-guard";
-import type { ConsoleLevel, RegisteredDialogGuard } from "./dialog-guard";
+import type { ConsoleLevel } from "./dialog-guard";
 import {
   drainPageEvents,
   forgetPageEvents,
@@ -83,9 +83,17 @@ import {
 const TAB_PAINT_DELAY_MS = 250;
 
 const SCRIPT_STALL_MS = 3000;
+// Reads and page-supplied code can be slow without being frozen, but this still has to answer
+// inside the server's own response budget for those commands, which is 15 seconds.
+const LONG_SCRIPT_STALL_MS = 10_000;
 const SCRIPT_STALLED = "__bcm_script_stalled__";
 
 class StalledPageError extends Error {}
+
+export interface PageEventError extends Error {
+  dialogs?: string[];
+  consoleMessages?: string[];
+}
 const SCROLL_SETTLE_MS = 150;
 const BLANK_URL = "about:blank";
 
@@ -177,6 +185,24 @@ export class MessageHandler {
   }
 
   public async handleDecodedMessage(req: ServerMessageRequest): Promise<void> {
+    try {
+      await this.dispatch(req);
+    } catch (error) {
+      // sendResource is what drains these on the way out, and a failure never reaches it.
+      if (error instanceof Error && "tabId" in req) {
+        const seen = drainPageEvents(req.tabId);
+        if (seen.dialogs.length > 0) {
+          (error as PageEventError).dialogs = seen.dialogs;
+        }
+        if (seen.console.length > 0) {
+          (error as PageEventError).consoleMessages = seen.console;
+        }
+      }
+      throw error;
+    }
+  }
+
+  private async dispatch(req: ServerMessageRequest): Promise<void> {
     const isAllowed = await isCommandAllowed(req.cmd);
     if (!isAllowed) {
       throw new Error(`Command '${req.cmd}' is disabled in extension settings`);
@@ -596,8 +622,10 @@ export class MessageHandler {
     );
 
     const MAX_CONTENT_LENGTH = 50_000;
-    const results = await browser.tabs.executeScript(tabId, {
-      code: `
+    const results = await this.runScript(
+      tabId,
+      {
+        code: `
       (function () {
         ${ELEMENT_RESOLVER_SOURCE}
         const scope = ${
@@ -634,7 +662,9 @@ export class MessageHandler {
         };
       })();
     `,
-    });
+      },
+      LONG_SCRIPT_STALL_MS
+    );
     const { isTruncated, fullText, totalLength } = results[0];
     const scope = await getUrlScope();
     const links = (
@@ -716,9 +746,9 @@ export class MessageHandler {
 
     await ensureTabAccess(tab);
 
-    await browser.tabs
-      .executeScript(tabId, { code: buildConcealOverlayCode() })
-      .catch(() => undefined);
+    await this.runScript(tabId, { code: buildConcealOverlayCode() }).catch(
+      () => undefined
+    );
     await delay(SCROLL_SETTLE_MS);
 
     if (tab.windowId === undefined) {
@@ -792,9 +822,9 @@ export class MessageHandler {
           console.error("Failed to restore the previously active tab:", error);
         }
       }
-      await browser.tabs
-        .executeScript(tabId, { code: buildRevealOverlayCode() })
-        .catch(() => undefined);
+      await this.runScript(tabId, { code: buildRevealOverlayCode() }).catch(
+        () => undefined
+      );
     }
   }
 
@@ -802,7 +832,7 @@ export class MessageHandler {
     tabId: number,
     target: ElementTarget
   ): Promise<ElementBoxResult> {
-    const results = await browser.tabs.executeScript(tabId, {
+    const results = await this.runScript(tabId, {
       code: buildElementBoxCode(target),
     });
     return results[0] as ElementBoxResult;
@@ -858,11 +888,11 @@ export class MessageHandler {
   private async runScript(
     tabId: number,
     details: browser.extensionTypes.InjectDetails,
-    recovered = false
+    stallMs: number = SCRIPT_STALL_MS
   ): Promise<any[]> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const stalled = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new Error(SCRIPT_STALLED)), SCRIPT_STALL_MS);
+      timer = setTimeout(() => reject(new Error(SCRIPT_STALLED)), stallMs);
     });
 
     try {
@@ -872,12 +902,7 @@ export class MessageHandler {
       ]);
     } catch (error) {
       if (error instanceof Error && error.message === SCRIPT_STALLED) {
-        if (!recovered && (await this.recoverStalledTab(tabId))) {
-          return await this.runScript(tabId, details, true);
-        }
-        throw new StalledPageError(
-          await this.describeStalledTab(tabId, recovered)
-        );
+        throw new StalledPageError(await this.describeStalledTab(tabId));
       }
       throw error;
     } finally {
@@ -885,35 +910,7 @@ export class MessageHandler {
     }
   }
 
-  // No API dismisses a dialog that is already open, but reloading tears the document down and
-  // takes it along; the guard has to be registered first or the new document raises it again.
-  private async recoverStalledTab(tabId: number): Promise<boolean> {
-    let registration: RegisteredDialogGuard | null = null;
-    try {
-      const tab = await browser.tabs.get(tabId);
-      registration = tab.url
-        ? await registerDialogGuard(
-            tab.url,
-            buildDialogGuardCode(await this.consoleLevel()),
-            tab.cookieStoreId
-          )
-        : null;
-      const settling = this.waitForTabToSettle(tabId);
-      await browser.tabs.reload(tabId);
-      await settling;
-      return true;
-    } catch (error) {
-      console.error("Could not reload the stalled tab", tabId, error);
-      return false;
-    } finally {
-      await unregisterDialogGuard(registration);
-    }
-  }
-
-  private async describeStalledTab(
-    tabId: number,
-    reloaded: boolean
-  ): Promise<string> {
+  private async describeStalledTab(tabId: number): Promise<string> {
     let title = "";
     try {
       const tab = await browser.tabs.get(tabId);
@@ -925,10 +922,8 @@ export class MessageHandler {
     return (
       `Tab ${tabId}${title} is open but its scripts are frozen, which is what a native dialog does: ` +
       `alert, confirm and prompt suspend the page until someone answers them. The extension ` +
-      `answers them silently, but only through a guard that has to be in place before the page runs. ` +
-      (reloaded
-        ? `The tab was reloaded once with that guard registered and froze again. `
-        : `The tab could not be reloaded to clear it. `) +
+      `answers them silently, but only through a guard that has to be in place before the page runs, ` +
+      `and a tab this session never opened or navigated was never given one. ` +
       `Ask the user to close the dialog in the browser, then run this command again.`
     );
   }
@@ -968,7 +963,7 @@ export class MessageHandler {
     const timings = await getOverlayTimings();
     this.touchTab(tabId, timings.holdReleaseMs);
     try {
-      const results = await browser.tabs.executeScript(tabId, {
+      const results = await this.runScript(tabId, {
         code: buildAttachOverlayCode({
           status,
           state,
@@ -1015,7 +1010,7 @@ export class MessageHandler {
         if (anyPart) {
           await this.attachOverlay(tabId, "idle", idleStatus());
         } else {
-          await browser.tabs.executeScript(tabId, {
+          await this.runScript(tabId, {
             code: buildDetachOverlayCode(),
           });
         }
@@ -1046,7 +1041,7 @@ export class MessageHandler {
     }
     this.forgetTab(tabId);
     try {
-      await browser.tabs.executeScript(tabId, {
+      await this.runScript(tabId, {
         code: buildDetachOverlayCode(),
       });
     } catch (error) {
@@ -1104,7 +1099,7 @@ export class MessageHandler {
       await delay((await getOverlayTimings()).leadMs);
     }
 
-    const results = await browser.tabs.executeScript(req.tabId, { code });
+    const results = await this.runScript(req.tabId, { code });
     const result = results[0] as InteractionScriptResult;
 
     const detail =
@@ -1142,14 +1137,18 @@ export class MessageHandler {
       scoped ? req : undefined
     );
 
-    const results = await browser.tabs.executeScript(req.tabId, {
-      code: buildSnapshotCode({
-        maxElements: Math.max(1, req.maxElements ?? DEFAULT_SNAPSHOT_LIMIT),
-        interactiveOnly: req.interactiveOnly !== false,
-        includeHidden: await isHiddenElementsIncluded(),
-        target: scoped ? req : undefined,
-      }),
-    });
+    const results = await this.runScript(
+      req.tabId,
+      {
+        code: buildSnapshotCode({
+          maxElements: Math.max(1, req.maxElements ?? DEFAULT_SNAPSHOT_LIMIT),
+          interactiveOnly: req.interactiveOnly !== false,
+          includeHidden: await isHiddenElementsIncluded(),
+          target: scoped ? req : undefined,
+        }),
+      },
+      LONG_SCRIPT_STALL_MS
+    );
     const snapshot = results[0];
 
     await this.sendResource(
@@ -1197,10 +1196,17 @@ export class MessageHandler {
   private async pressKey(
     req: PressKeyServerMessage & { correlationId: string }
   ): Promise<void> {
+    // Label only: a shortcut reads as Control+A, never Control+a. The event still carries the
+    // key exactly as it was sent.
+    const combo = req.modifiers?.length
+      ? `${req.modifiers.join("+")}+${
+          req.key.length === 1 ? req.key.toUpperCase() : req.key
+        }`
+      : req.key;
     await this.performInteraction(
       req,
       "type",
-      t("overlayPressKey", req.key),
+      t("overlayPressKey", combo),
       "press-key",
       buildPressKeyCode(req)
     );
@@ -1237,9 +1243,13 @@ export class MessageHandler {
 
     await this.attachOverlay(req.tabId, "exec", t("overlayExecuteJs"));
 
-    const results = await browser.tabs.executeScript(req.tabId, {
-      code: buildExecuteJsCode(req.code, MAX_SCRIPT_RESULT_LENGTH),
-    });
+    const results = await this.runScript(
+      req.tabId,
+      {
+        code: buildExecuteJsCode(req.code, MAX_SCRIPT_RESULT_LENGTH),
+      },
+      LONG_SCRIPT_STALL_MS
+    );
     const output = results[0];
 
     await this.sendResource(
@@ -1270,7 +1280,7 @@ export class MessageHandler {
 
     let probe: WaitProbeResult = { matchCount: 0, satisfied: false };
     while (true) {
-      const results = await browser.tabs.executeScript(req.tabId, { code });
+      const results = await this.runScript(req.tabId, { code });
       probe = results[0] as WaitProbeResult;
       if (probe.satisfied || Date.now() - startedAt >= timeoutMs) {
         break;

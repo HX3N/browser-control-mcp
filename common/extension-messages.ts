@@ -172,4 +172,6 @@ export type ExtensionMessage =
 export interface ExtensionError {
   correlationId: string;
   errorMessage: string;
+  dialogs?: string[];
+  consoleMessages?: string[];
 }

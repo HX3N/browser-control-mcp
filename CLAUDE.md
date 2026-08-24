@@ -204,9 +204,17 @@ of it, so creating the tab straight onto the URL can beat it. `navigate-browser-
 the same way before moving the tab, the `webNavigation.onCommitted` listener re-injects on every
 navigation of a tab the session holds, and after the load settles `verifyGuard` compares the
 documents that committed against the ones a guard announced itself in, naming any it missed -
-probing the tab afterwards would only ever reach the last document of a redirect chain. A page frozen by a dialog that still
-won the race is recovered once by reloading it with the guard registered; a second freeze is
-reported to the user.
+probing the tab afterwards would only ever reach the last document of a redirect chain.
+
+A dialog that still won the race leaves the page frozen, and `executeScript` on a frozen page
+never settles: no timeout, no error, just a command that never answers. Every injection therefore
+goes through `runScript`, which races the script against a timer — `SCRIPT_STALL_MS` (3s) for
+interactions and the overlay, `LONG_SCRIPT_STALL_MS` (10s) for reads, snapshots and page-supplied
+code, both under the server's own response budget — and turns a stall into an error naming the tab
+and asking the user to close the dialog. **A new call site must use `runScript`, never
+`browser.tabs.executeScript` directly.** The tab is not reloaded to clear it: that could only ever
+fire for a tab this session neither opened nor navigated, where the dialog is already on screen
+for the user to dismiss and a reload would take their page state and every ref on it with it.
 
 What the guard sees is reported, not buffered in the page: the dialog and console hooks run with
 page code on the stack, where the extension APIs are silently unreachable, so reports are queued
@@ -218,7 +226,9 @@ under the same id, which the background uses to drop the repeat. The
 background keeps them per tab in `page-events.ts`, and `sendResource` drains them into every
 command's response as `dialogs` and `consoleMessages` — `open-browser-tab` and
 `navigate-browser-tab` wait for the load to settle so a dialog raised during it rides their own
-response. Console capture (errors, uncaught exceptions, rejected promises, failed loads,
+response. A command that fails never reaches `sendResource`, so `handleDecodedMessage` drains them
+onto the thrown error instead and they ride the `ExtensionError` out: what the page said is worth
+most when the command could not finish. Console capture (errors, uncaught exceptions, rejected promises, failed loads,
 optionally warn and log) is a popup switch, on by default at the `error` level.
 
 ## Adding a tool

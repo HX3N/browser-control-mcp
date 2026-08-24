@@ -1,5 +1,6 @@
 import { WebsocketClient } from "./client";
 import { MessageHandler } from "./message-handler";
+import type { PageEventError } from "./message-handler";
 import type { ExtensionConfig } from "./extension-config";
 import {
   generateSecret,
@@ -130,7 +131,11 @@ function openSlot(port: number, role: ConnectionSlot["role"], secret: string) {
     } catch (error) {
       console.error("Error handling message:", error);
       if (error instanceof Error) {
-        await wsClient.sendErrorToServer(message.correlationId, error.message);
+        await wsClient.sendErrorToServer(
+          message.correlationId,
+          error.message,
+          error as PageEventError
+        );
       }
     }
   });

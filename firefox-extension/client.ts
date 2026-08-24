@@ -139,7 +139,8 @@ export class WebsocketClient {
 
   public async sendErrorToServer(
     correlationId: string,
-    errorMessage: string
+    errorMessage: string,
+    seen?: { dialogs?: string[]; consoleMessages?: string[] }
   ): Promise<void> {
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
       console.error("Socket is not open", this.socket);
@@ -149,6 +150,12 @@ export class WebsocketClient {
       correlationId,
       errorMessage: errorMessage,
     };
+    if (seen?.dialogs?.length) {
+      extensionError.dialogs = seen.dialogs;
+    }
+    if (seen?.consoleMessages?.length) {
+      extensionError.consoleMessages = seen.consoleMessages;
+    }
     this.socket.send(JSON.stringify(extensionError));
   }
 

@@ -729,38 +729,7 @@ describe("MessageHandler", () => {
         expect(guardInjections()).toHaveLength(0);
       });
 
-      it("reloads a frozen tab and carries the command through", async () => {
-        jest.useFakeTimers();
-        try {
-          let guardAttempts = 0;
-          (browser.tabs.executeScript as jest.Mock).mockImplementation(
-            (_tabId, details) => {
-              if (String(details.code).includes("__bcmDialogGuard")) {
-                guardAttempts += 1;
-                if (guardAttempts === 1) {
-                  return new Promise(() => undefined);
-                }
-              }
-              return Promise.resolve(contentResult);
-            }
-          );
-
-          const pending = readFrozenTab();
-          await jest.advanceTimersByTimeAsync(3000);
-          await jest.advanceTimersByTimeAsync(15000);
-          await pending;
-
-          expect(browser.tabs.reload).toHaveBeenCalledTimes(1);
-          expect(browser.tabs.reload).toHaveBeenCalledWith(123);
-          expect(mockClient.sendResourceToServer).toHaveBeenCalledWith(
-            expect.objectContaining({ resource: "tab-content" })
-          );
-        } finally {
-          jest.useRealTimers();
-        }
-      });
-
-      it("gives up after a single reload and names the dialog", async () => {
+      it("names the dialog instead of reloading the tab out from under the user", async () => {
         jest.useFakeTimers();
         try {
           (browser.tabs.executeScript as jest.Mock).mockImplementation(
@@ -772,15 +741,13 @@ describe("MessageHandler", () => {
 
           const pending = readFrozenTab();
           const settled = expect(pending).rejects.toThrow(
-            /reloaded once.*Ask the user to close the dialog/s
+            /Frozen page.*Ask the user to close the dialog/s
           );
 
           await jest.advanceTimersByTimeAsync(3000);
-          await jest.advanceTimersByTimeAsync(15000);
-          await jest.advanceTimersByTimeAsync(3000);
           await settled;
 
-          expect(browser.tabs.reload).toHaveBeenCalledTimes(1);
+          expect(browser.tabs.reload).not.toHaveBeenCalled();
         } finally {
           jest.useRealTimers();
         }

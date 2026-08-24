@@ -17,11 +17,11 @@ import type {
   TabNavigatedExtensionMessage,
   OpenedTabIdExtensionMessage,
 } from "@browser-control-mcp/common";
-import { isPortInUse } from "./util";
+import { isPortInUse, withPageEvents } from "./util";
 import * as crypto from "crypto";
 
 const WS_DEFAULT_PORT = 8089;
-const EXTENSION_RESPONSE_TIMEOUT_MS = 1000;
+const EXTENSION_RESPONSE_TIMEOUT_MS = 5000;
 // Capturing may foreground the tab, wait for it to paint, encode the image and transfer a
 // payload orders of magnitude larger than the other responses.
 const SCREENSHOT_RESPONSE_TIMEOUT_MS = 10000;
@@ -110,17 +110,25 @@ export class BrowserAPI {
         console.error("WebSocket connection established on port", boundPort);
 
         this.ws.on("message", (message) => {
-          const decoded = JSON.parse(message.toString());
-          if (isErrorMessage(decoded)) {
-            this.handleExtensionError(decoded);
-            return;
+          // Anything thrown here escapes into the socket's own data handler and takes the
+          // connection down, which surfaces on the next command as a dropped extension.
+          try {
+            const decoded = JSON.parse(message.toString());
+            if (isErrorMessage(decoded)) {
+              this.handleExtensionError(decoded);
+              return;
+            }
+            const signature = this.createSignature(
+              JSON.stringify(decoded.payload)
+            );
+            if (signature !== decoded.signature) {
+              console.error("Invalid message signature");
+              return;
+            }
+            this.handleDecodedExtensionMessage(decoded.payload);
+          } catch (error) {
+            console.error("Failed to handle a message from the extension:", error);
           }
-          const signature = this.createSignature(JSON.stringify(decoded.payload));
-          if (signature !== decoded.signature) {
-            console.error("Invalid message signature");
-            return;
-          }
-          this.handleDecodedExtensionMessage(decoded.payload);
         });
       });
       wsServer.on("error", (error) => {
@@ -198,7 +206,11 @@ export class BrowserAPI {
       url,
       cookieStoreId,
     });
-    return await this.waitForResponse(correlationId, "opened-tab-id");
+    return await this.waitForResponse(
+      correlationId,
+      "opened-tab-id",
+      NAVIGATION_RESPONSE_TIMEOUT_MS
+    );
   }
 
   async navigateTab(
@@ -222,7 +234,11 @@ export class BrowserAPI {
       cmd: "close-tabs",
       tabIds,
     });
-    await this.waitForResponse(correlationId, "tabs-closed");
+    await this.waitForResponse(
+      correlationId,
+      "tabs-closed",
+      INTERACTION_RESPONSE_TIMEOUT_MS
+    );
   }
 
   async getTabList(): Promise<BrowserTab[]> {
@@ -255,7 +271,11 @@ export class BrowserAPI {
       offset,
       ...target,
     });
-    return await this.waitForResponse(correlationId, "tab-content");
+    return await this.waitForResponse(
+      correlationId,
+      "tab-content",
+      INTERACTION_RESPONSE_TIMEOUT_MS
+    );
   }
 
   async reorderTabs(tabOrder: number[]): Promise<number[]> {
@@ -506,20 +526,28 @@ export class BrowserAPI {
 
   private handleDecodedExtensionMessage(decoded: ExtensionMessage) {
     const { correlationId } = decoded;
-    const { resolve, resource } = this.extensionRequestMap.get(correlationId)!;
-    if (resource !== decoded.resource) {
-      console.error("Resource mismatch:", resource, decoded.resource);
+    const pending = this.extensionRequestMap.get(correlationId);
+    if (!pending) {
+      console.error("No caller is waiting for", correlationId, decoded.resource);
+      return;
+    }
+    if (pending.resource !== decoded.resource) {
+      console.error("Resource mismatch:", pending.resource, decoded.resource);
       return;
     }
     this.extensionRequestMap.delete(correlationId);
-    resolve(decoded);
+    pending.resolve(decoded);
   }
 
   private handleExtensionError(decoded: ExtensionError) {
     const { correlationId, errorMessage } = decoded;
-    const { reject } = this.extensionRequestMap.get(correlationId)!;
+    const pending = this.extensionRequestMap.get(correlationId);
+    if (!pending) {
+      console.error("No caller is waiting for", correlationId, errorMessage);
+      return;
+    }
     this.extensionRequestMap.delete(correlationId);
-    reject(errorMessage);
+    pending.reject(withPageEvents(errorMessage, decoded));
   }
 
   private async waitForResponse<T extends ExtensionMessage["resource"]>(
