@@ -10,14 +10,21 @@ interface PressResult {
   scrollHeight: number;
 }
 
-function press(key: string, modifiers: Modifier[] = []): PressResult {
-  const code = buildPressKeyCode({
-    cmd: "press-key",
-    correlationId: "test",
-    tabId: 1,
-    key,
-    modifiers,
-  } as never);
+function press(
+  key: string,
+  modifiers: Modifier[] = [],
+  pasteText: string | null = null
+): PressResult {
+  const code = buildPressKeyCode(
+    {
+      cmd: "press-key",
+      correlationId: "test",
+      tabId: 1,
+      key,
+      modifiers,
+    } as never,
+    pasteText
+  );
   return new Function("return " + code)() as PressResult;
 }
 
@@ -208,9 +215,47 @@ describe("deletion", () => {
 });
 
 describe("clipboard", () => {
-  it("refuses to paste and points at the typing tool", () => {
+  const nativeExecCommand = document.execCommand;
+
+  afterEach(() => {
+    document.execCommand = nativeExecCommand;
+  });
+
+  it("pastes at the caret and replaces the selection", () => {
+    const input = makeInput("abcdef");
+    input.setSelectionRange(1, 3);
+
+    const result = press("v", ["Control"], "XY");
+
+    expect(input.value).toBe("aXYdef");
+    expect(input.selectionStart).toBe(3);
+    expect(result.detail).toContain("pasted 2 character(s)");
+  });
+
+  it("pastes into a contenteditable element", () => {
+    const host = document.createElement("div");
+    // jsdom leaves isContentEditable false however contentEditable is set.
+    Object.defineProperty(host, "isContentEditable", { value: true });
+    host.tabIndex = 0;
+    document.body.appendChild(host);
+    host.focus();
+    const inserted: string[] = [];
+    document.execCommand = jest.fn((command: string, _ui?: boolean, value?: string) => {
+      if (command !== "insertText") {
+        return false;
+      }
+      inserted.push(value ?? "");
+      return true;
+    }) as typeof document.execCommand;
+
+    press("v", ["Control"], "hello");
+
+    expect(inserted).toEqual(["hello"]);
+  });
+
+  it("reports an empty clipboard instead of pasting nothing", () => {
     makeInput("abc");
 
-    expect(() => press("v", ["Control"])).toThrow(/type-into-page-element/);
+    expect(() => press("v", ["Control"], "")).toThrow(/clipboard holds no text/);
   });
 });

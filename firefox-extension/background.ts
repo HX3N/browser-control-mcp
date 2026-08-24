@@ -15,6 +15,7 @@ import {
   isBadgeEnabled,
   isBackgroundMode,
   isContainerInherited,
+  isClipboardReadAllowed,
   isHiddenElementsIncluded,
   getUrlScope,
   isFocusEnabled,
@@ -25,6 +26,7 @@ import {
   setBadgeEnabled,
   setBackgroundMode,
   setContainerInherited,
+  setClipboardReadAllowed,
   setHiddenElementsIncluded,
   setUrlScope,
   setAllowedOrigins,
@@ -311,6 +313,7 @@ async function buildStatus(): Promise<PopupStatus> {
     inheritContainer: await isContainerInherited(),
     backgroundMode: await isBackgroundMode(),
     includeHidden: await isHiddenElementsIncluded(),
+    clipboardRead: await isClipboardReadAllowed(),
     consoleCapture: await isConsoleCaptureEnabled(),
     consoleLevel: await getConsoleCaptureLevel(),
     urlScope: await getUrlScope(),
@@ -375,6 +378,9 @@ async function handlePopupRequest(request: PopupRequest): Promise<PopupStatus> {
       break;
     case "set-url-scope":
       await setUrlScope(request.scope);
+      break;
+    case "set-clipboard-read":
+      await setClipboardReadAllowed(request.enabled);
       break;
     case "set-include-hidden":
       await setHiddenElementsIncluded(request.enabled);

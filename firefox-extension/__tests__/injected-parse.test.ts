@@ -119,6 +119,19 @@ const cases: [string, string][] = [
     }),
   ],
   [
+    "press paste shortcut with clipboard text",
+    buildPressKeyCode(
+      {
+        cmd: "press-key",
+        tabId: 1,
+        ...target,
+        key: "v",
+        modifiers: ["Control"],
+      },
+      "line one\nline 'two'"
+    ),
+  ],
+  [
     "press delete key",
     buildPressKeyCode({
       cmd: "press-key",

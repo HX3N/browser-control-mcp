@@ -20,6 +20,7 @@ jest.mock("../client", () => {
 describe("MessageHandler", () => {
   let messageHandler: MessageHandler;
   let mockClient: jest.Mocked<WebsocketClient>;
+  let defaultConfig: ExtensionConfig;
 
   beforeEach(() => {
     // Clear all mocks before each test
@@ -33,7 +34,7 @@ describe("MessageHandler", () => {
     messageHandler = new MessageHandler(mockClient);
 
     // Mock browser.storage.local.get to return default config
-    const defaultConfig: ExtensionConfig = {
+    defaultConfig = {
       secret: "test-secret",
       toolSettings: {
         "open-browser-tab": true,
@@ -88,6 +89,52 @@ describe("MessageHandler", () => {
       await expect(
         messageHandler.handleDecodedMessage(request)
       ).rejects.toThrow("Command 'open-tab' is disabled in extension settings");
+    });
+
+    describe("press-key command", () => {
+      const pasteRequest: ServerMessageRequest = {
+        cmd: "press-key",
+        tabId: 123,
+        key: "v",
+        modifiers: ["Control"],
+        correlationId: "test-correlation-id",
+      };
+
+      it("refuses to paste while the clipboard switch is off", async () => {
+        const execCommand = jest.fn(() => true);
+        document.execCommand = execCommand as typeof document.execCommand;
+
+        await expect(
+          messageHandler.handleDecodedMessage(pasteRequest)
+        ).rejects.toThrow("Paste the clipboard");
+
+        expect(execCommand).not.toHaveBeenCalled();
+        expect(browser.tabs.executeScript).not.toHaveBeenCalled();
+      });
+
+      it("reads the clipboard once the switch is on", async () => {
+        (browser.storage.local.get as jest.Mock).mockResolvedValue({
+          config: { ...defaultConfig, allowClipboardRead: true },
+        });
+        const execCommand = jest.fn(() => true);
+        document.execCommand = execCommand as typeof document.execCommand;
+        (browser.permissions.contains as jest.Mock).mockResolvedValue(true);
+        (browser.tabs.get as jest.Mock).mockResolvedValue({
+          id: 123,
+          url: "https://example.com",
+        });
+        (browser.tabs.executeScript as jest.Mock).mockResolvedValue([
+          {
+            target: "input",
+            detail: "Pressed Control+V and pasted 3 character(s) from the clipboard",
+            url: "https://example.com",
+          },
+        ]);
+
+        await messageHandler.handleDecodedMessage(pasteRequest);
+
+        expect(execCommand).toHaveBeenCalledWith("paste");
+      });
     });
 
     describe("open-tab command", () => {

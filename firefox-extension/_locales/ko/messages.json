@@ -170,6 +170,12 @@
     "popupToggleHiddenHint": {
         "message": "프롬프트 인젝션 공격에 취약해질 수 있습니다!"
     },
+    "popupToggleClipboardName": {
+        "message": "클립보드 붙여넣기"
+    },
+    "popupToggleClipboardHint": {
+        "message": "클립보드의 내용을 모델이 읽을 수 있습니다!"
+    },
     "popupToggleBackgroundName": {
         "message": "백그라운드에서 작업"
     },
@@ -406,6 +412,12 @@
     },
     "popupFeedbackHiddenOff": {
         "message": "숨은 요소를 제외합니다"
+    },
+    "popupFeedbackClipboardOn": {
+        "message": "Control+V가 클립보드를 읽을 수 있습니다"
+    },
+    "popupFeedbackClipboardOff": {
+        "message": "클립보드에 접근하지 않습니다"
     },
     "popupFeedbackPortOn": {
         "message": "포트를 재연결했습니다"

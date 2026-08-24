@@ -8,10 +8,25 @@ import relativeTime from "dayjs/plugin/relativeTime";
 
 dayjs.extend(relativeTime);
 
-const mcpServer = new McpServer({
-  name: "BrowserControl",
-  version: "1.5.1",
-});
+const mcpServer = new McpServer(
+  {
+    name: "BrowserControl",
+    version: "1.5.1",
+  },
+  {
+    instructions: `
+      What this server cannot do, and what to reach for instead:
+      - It cannot attach a file to an upload field. Ask the user to pick the file themselves.
+      - It cannot press browser shortcuts such as Control+T, Control+W or Control+F: they never
+        reach the page. Use the tab tools and find-highlight-in-browser-tab instead.
+      - It cannot see into a cross-origin frame - no snapshot, ref or click reaches one. Open the
+        frame's own URL in a tab and work there.
+      - Every tool can be switched off in the extension, and page access can be limited to the
+        tabs the user authorized. A refusal is a setting, not a failure: name the switch that has
+        to be turned on and let the user decide.
+    `,
+  }
+);
 
 function dialogNotice(message: {
   dialogs?: string[];
@@ -637,13 +652,15 @@ mcpServer.tool(
     ArrowDown or a single character.
     A synthetic key event carries no default action of its own, so the extension performs the
     common ones itself whenever the page does not cancel the event: Enter submits the owning
-    form, Control+A selects all, Control+C and Control+X copy and cut, Control+Z and Control+Y
-    undo and redo, the arrow keys, Home and End move or extend the caret, and Backspace and
-    Delete remove text. Control with an arrow key, Home or End works on whole words or the
-    whole field.
-    Two things this cannot do: Control+V, because a page script cannot read the clipboard - use
-    type-into-page-element to enter text - and browser shortcuts such as Control+T or
-    Control+F, which never reach the page at all.
+    form, Control+A selects all, Control+C and Control+X copy and cut, Control+V pastes at the
+    caret over whatever is selected, Control+Z and Control+Y undo and redo, the arrow keys, Home
+    and End move or extend the caret, and Backspace and Delete remove text. Control with an arrow
+    key, Home or End works on whole words or the whole field.
+    Control+V is off until the user turns it on in the extension popup, and only plain text is
+    pasted, never an image. The clipboard belongs to the user and holds whatever they last copied,
+    so paste only where the user asked you to and never to find out what is on it.
+    What this cannot do is a browser shortcut such as Control+T or Control+F, which never reaches
+    the page at all.
     The response says which default action ran, or that the page cancelled it.
   `,
   {

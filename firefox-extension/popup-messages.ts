@@ -40,6 +40,7 @@ export interface PopupStatus {
   inheritContainer: boolean;
   backgroundMode: boolean;
   includeHidden: boolean;
+  clipboardRead: boolean;
   consoleCapture: boolean;
   consoleLevel: ConsoleCaptureLevel;
   allUrlsGranted: boolean;
@@ -61,6 +62,7 @@ export type PopupRequest =
   | { kind: "set-inherit-container"; enabled: boolean }
   | { kind: "set-background-mode"; enabled: boolean }
   | { kind: "set-include-hidden"; enabled: boolean }
+  | { kind: "set-clipboard-read"; enabled: boolean }
   | { kind: "set-console-capture"; enabled: boolean }
   | { kind: "set-console-level"; level: ConsoleCaptureLevel }
   | { kind: "set-domain-deny-list"; domains: string[] }

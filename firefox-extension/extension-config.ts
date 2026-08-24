@@ -203,6 +203,7 @@ export interface ExtensionConfig {
   inheritContainer?: boolean;
   backgroundMode?: boolean;
   includeHiddenElements?: boolean;
+  allowClipboardRead?: boolean;
   urlScope?: UrlScope;
   consoleCapture?: boolean;
   consoleLevel?: ConsoleCaptureLevel;
@@ -574,6 +575,17 @@ export async function setHiddenElementsIncluded(
 ): Promise<void> {
   const config = await getConfig();
   config.includeHiddenElements = include;
+  await saveConfig(config);
+}
+
+export async function isClipboardReadAllowed(): Promise<boolean> {
+  const config = await getConfig();
+  return config.allowClipboardRead === true;
+}
+
+export async function setClipboardReadAllowed(allow: boolean): Promise<void> {
+  const config = await getConfig();
+  config.allowClipboardRead = allow;
   await saveConfig(config);
 }
 

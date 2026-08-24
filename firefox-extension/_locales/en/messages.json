@@ -170,6 +170,12 @@
     "popupToggleHiddenHint": {
         "message": "This can make it vulnerable to prompt injection attacks!"
     },
+    "popupToggleClipboardName": {
+        "message": "Paste the clipboard"
+    },
+    "popupToggleClipboardHint": {
+        "message": "The model can read what is on your clipboard!"
+    },
     "popupToggleBackgroundName": {
         "message": "Work in the background"
     },
@@ -406,6 +412,12 @@
     },
     "popupFeedbackHiddenOff": {
         "message": "Hidden elements are excluded"
+    },
+    "popupFeedbackClipboardOn": {
+        "message": "Control+V may read the clipboard"
+    },
+    "popupFeedbackClipboardOff": {
+        "message": "The clipboard stays out of reach"
     },
     "popupFeedbackPortOn": {
         "message": "The port reconnected"

@@ -191,6 +191,29 @@ function __bcmClipboard(command) {
   return command === 'cut' ? 'cut the selection to the clipboard' : 'copied the selection to the clipboard';
 }
 
+function __bcmPaste(el, kind, text) {
+  if (typeof text !== 'string' || text === '') {
+    throw new Error('The clipboard holds no text, so there was nothing to paste.');
+  }
+  if (kind === 'rich') {
+    var done = false;
+    try { done = document.execCommand('insertText', false, text); } catch (err) { done = false; }
+    if (!done) {
+      throw new Error('The browser refused to paste into this element.');
+    }
+  } else if (kind === 'text') {
+    var value = el.value || '';
+    var start = typeof el.selectionStart === 'number' ? el.selectionStart : value.length;
+    var end = typeof el.selectionEnd === 'number' ? el.selectionEnd : start;
+    __bcmSetValue(el, value.slice(0, start) + text + value.slice(end));
+    try { el.setSelectionRange(start + text.length, start + text.length); } catch (err) { /* caret is best effort */ }
+    __bcmNotify(el);
+  } else {
+    throw new Error('The focused element is not a text field or a contenteditable node. Use type-into-page-element to enter text into it.');
+  }
+  return 'pasted ' + text.length + ' character(s) from the clipboard';
+}
+
 function __bcmHistory(command) {
   var done = false;
   try { done = document.execCommand(command); } catch (err) { done = false; }
@@ -300,7 +323,7 @@ function __bcmDeleteInPage(el, backspace, word) {
   return 'deleted the ' + (backspace ? 'preceding' : 'following') + ' text';
 }
 
-function __bcmDefaultAction(el, key, modifiers) {
+function __bcmDefaultAction(el, key, modifiers, pasteText) {
   var accel = modifiers.indexOf('Control') !== -1 || modifiers.indexOf('Meta') !== -1;
   var shift = modifiers.indexOf('Shift') !== -1;
   var alt = modifiers.indexOf('Alt') !== -1;
@@ -311,9 +334,7 @@ function __bcmDefaultAction(el, key, modifiers) {
     if (letter === 'a') { return __bcmSelectAll(el, kind); }
     if (letter === 'c') { return __bcmClipboard('copy'); }
     if (letter === 'x') { return __bcmClipboard('cut'); }
-    if (letter === 'v') {
-      throw new Error('Pasting cannot be emulated from a page script: the clipboard is not readable there. Use type-into-page-element to enter the text instead.');
-    }
+    if (letter === 'v') { return __bcmPaste(el, kind, pasteText); }
     if (letter === 'z') { return __bcmHistory(shift ? 'redo' : 'undo'); }
     if (letter === 'y') { return __bcmHistory('redo'); }
   }
@@ -447,7 +468,10 @@ ${VALUE_SETTER_SOURCE}
 })();`;
 }
 
-export function buildPressKeyCode(request: PressKeyServerMessage): string {
+export function buildPressKeyCode(
+  request: PressKeyServerMessage,
+  pasteText?: string | null
+): string {
   const hasTarget = Boolean(request.ref || request.selector);
   return `(function () {
 ${ELEMENT_RESOLVER_SOURCE}
@@ -461,6 +485,7 @@ ${KEY_DEFAULT_ACTION_SOURCE}
   var label = __bcmLabel(el);
   var key = ${jsValue(request.key)};
   var modifiers = ${jsValue(request.modifiers ?? [])};
+  var pasteText = ${jsValue(pasteText ?? null)};
 
   if (typeof el.focus === 'function') {
     try { el.focus({ preventScroll: true }); } catch (err) { /* focus is best effort */ }
@@ -475,7 +500,7 @@ ${KEY_DEFAULT_ACTION_SOURCE}
       submitted = __bcmSubmitOwner(el);
     }
     if (!submitted) {
-      performed = __bcmDefaultAction(el, key, modifiers);
+      performed = __bcmDefaultAction(el, key, modifiers, pasteText);
     }
   }
 
