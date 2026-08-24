@@ -243,12 +243,14 @@ export class BrowserAPI {
 
   async getTabContent(
     tabId: number,
-    offset: number
+    offset: number,
+    target?: ElementTarget
   ): Promise<TabContentExtensionMessage> {
     const correlationId = this.sendMessageToExtension({
       cmd: "get-tab-content",
       tabId,
       offset,
+      ...target,
     });
     return await this.waitForResponse(correlationId, "tab-content");
   }
@@ -296,7 +298,8 @@ export class BrowserAPI {
     tabId: number,
     format: "jpeg" | "png",
     quality: number,
-    scale: number
+    scale: number,
+    target?: ElementTarget
   ): Promise<ScreenshotExtensionMessage> {
     const correlationId = this.sendMessageToExtension({
       cmd: "capture-screenshot",
@@ -304,6 +307,7 @@ export class BrowserAPI {
       format,
       quality,
       scale,
+      ...target,
     });
     return await this.waitForResponse(
       correlationId,
@@ -315,13 +319,15 @@ export class BrowserAPI {
   async pageSnapshot(
     tabId: number,
     maxElements: number,
-    interactiveOnly: boolean
+    interactiveOnly: boolean,
+    target?: ElementTarget
   ): Promise<PageSnapshotExtensionMessage> {
     const correlationId = this.sendMessageToExtension({
       cmd: "page-snapshot",
       tabId,
       maxElements,
       interactiveOnly,
+      ...target,
     });
     return await this.waitForResponse(
       correlationId,

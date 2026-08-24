@@ -76,6 +76,18 @@ export interface ScreenshotExtensionMessage extends ExtensionMessageBase {
   // Base64-encoded image, without the data-URL prefix
   imageData: string;
   mimeType: string;
+  captured?: CapturedElement;
+}
+
+export interface CapturedElement {
+  label: string;
+  width: number;
+  height: number;
+  elementWidth: number;
+  elementHeight: number;
+  clipped: boolean;
+  scrollY: number;
+  scrollHeight: number;
 }
 
 export interface SnapshotElement {

@@ -1,9 +1,11 @@
 import type {
+  CaptureScreenshotServerMessage,
   ClickElementServerMessage,
   NavigateTabServerMessage,
   ElementTarget,
   ExtensionMessage,
   ExecuteJsServerMessage,
+  GetTabContentServerMessage,
   PageSnapshotServerMessage,
   PressKeyServerMessage,
   ReleaseTabsServerMessage,
@@ -26,6 +28,8 @@ import {
   isMarkEnabled,
   isContainerInherited,
   isHiddenElementsIncluded,
+  getOverlayColors,
+  getOverlayTimings,
   isBackgroundMode,
   getUrlScope,
   isUrlInScope,
@@ -35,6 +39,11 @@ import { hasCaptureConsent, markTabAsAwaitingConsent } from "./capture-consent";
 import { ensureTabAccess, hasAllUrlsPermission } from "./tab-access";
 import { buildSnapshotCode } from "./page-snapshot";
 import {
+  ELEMENT_RESOLVER_SOURCE,
+  isElementTargeted,
+  targetLiteral,
+} from "./injected-common";
+import {
   buildAttachOverlayCode,
   buildDetachOverlayCode,
   OverlayResult,
@@ -43,27 +52,22 @@ import {
 import { buildDialogGuardCode, buildDrainDialogsCode } from "./dialog-guard";
 import {
   buildClickCode,
+  buildElementBoxCode,
   buildExecuteJsCode,
   buildPressKeyCode,
   buildScrollCode,
   buildSelectOptionCode,
   buildTypeCode,
   buildWaitProbeCode,
+  ElementBoxResult,
   InteractionScriptResult,
   WaitProbeResult,
 } from "./interaction-scripts";
 
 // Time to let a newly foregrounded tab paint before capturing it
 const TAB_PAINT_DELAY_MS = 250;
+const SCROLL_SETTLE_MS = 150;
 
-// The pause is deliberate: it lets the overlay paint before the action changes the page, so
-// the user sees which element is about to be touched rather than only its aftermath.
-const INTERACTION_LEAD_MS = 220;
-
-// MCP has no notion of a turn ending, so the hold has to outlast the pauses between commands:
-// a model can think for minutes between two clicks.
-const HOLD_RELEASE_MS = 300_000;
-const STATUS_RESET_MS = 4000;
 const idleStatus = () => t("overlayIdle");
 
 const NAVIGATION_SETTLE_MS = 15_000;
@@ -143,7 +147,7 @@ export class MessageHandler {
         await this.sendRecentHistory(req.correlationId, req.searchQuery);
         break;
       case "get-tab-content":
-        await this.sendTabsContent(req.correlationId, req.tabId, req.offset);
+        await this.sendTabsContent(req);
         break;
       case "reorder-tabs":
         await this.reorderTabs(req.correlationId, req.tabOrder);
@@ -165,13 +169,7 @@ export class MessageHandler {
         );
         break;
       case "capture-screenshot":
-        await this.captureScreenshot(
-          req.correlationId,
-          req.tabId,
-          req.format,
-          req.quality,
-          req.scale
-        );
+        await this.captureScreenshot(req);
         break;
       case "page-snapshot":
         await this.sendPageSnapshot(req);
@@ -279,7 +277,7 @@ export class MessageHandler {
 
     await this.prepareTabAccess(req.tabId);
     await this.attachOverlay(req.tabId, "read", t("overlayNavigate"));
-    await delay(INTERACTION_LEAD_MS);
+    await delay((await getOverlayTimings()).leadMs);
 
     const settling = this.waitForTabToSettle(req.tabId);
     await browser.tabs.update(req.tabId, { url: req.url });
@@ -337,15 +335,29 @@ export class MessageHandler {
       return undefined;
     }
     try {
-      const [active] = await browser.tabs.query({
-        active: true,
-        currentWindow: true,
-      });
-      return active?.cookieStoreId;
+      const inFront = await this.findTabInFront();
+      return inFront?.cookieStoreId;
     } catch (error) {
       console.error("Could not read the active tab container:", error);
       return undefined;
     }
+  }
+
+  // Zen holds one active tab per workspace and hides the ones off screen, so an active query can
+  // answer with a tab from a workspace the user is not looking at - and its container with it.
+  private async findTabInFront(): Promise<browser.tabs.Tab | undefined> {
+    const pick = (tabs: browser.tabs.Tab[]): browser.tabs.Tab | undefined =>
+      tabs.find((tab) => !tab.hidden) ?? tabs[0];
+
+    const lastFocused = await browser.tabs.query({
+      active: true,
+      lastFocusedWindow: true,
+    });
+    const fromLastFocused = pick(lastFocused);
+    if (fromLastFocused) {
+      return fromLastFocused;
+    }
+    return pick(await browser.tabs.query({ active: true }));
   }
 
   private async closeTabs(
@@ -440,20 +452,31 @@ export class MessageHandler {
   }
 
   private async sendTabsContent(
-    correlationId: string,
-    tabId: number,
-    offset?: number
+    req: GetTabContentServerMessage & { correlationId: string }
   ): Promise<void> {
+    const { correlationId, tabId, offset } = req;
+    const scoped = isElementTargeted(req);
+
     await this.prepareTabAccess(tabId);
 
-    await this.attachOverlay(tabId, "read", t("overlayReadingContent"));
+    await this.attachOverlay(
+      tabId,
+      "read",
+      scoped ? t("overlayReadingElement") : t("overlayReadingContent"),
+      scoped ? req : undefined
+    );
 
     const MAX_CONTENT_LENGTH = 50_000;
     const results = await browser.tabs.executeScript(tabId, {
       code: `
       (function () {
+        ${ELEMENT_RESOLVER_SOURCE}
+        const scope = ${
+          scoped ? `__bcmResolve(${targetLiteral(req)})` : "document.body"
+        };
+
         function getLinks() {
-          const linkElements = document.querySelectorAll('a[href]');
+          const linkElements = scope.querySelectorAll('a[href]');
           return Array.from(linkElements).map(el => ({
             url: el.href,
             text: el.innerText.trim() || el.getAttribute('aria-label') || el.getAttribute('title') || ''
@@ -462,7 +485,7 @@ export class MessageHandler {
 
         function getTextContent() {
           let isTruncated = false;
-          let text = document.body.innerText.substring(${Number(offset) || 0});
+          let text = (scope.innerText || '').substring(${Number(offset) || 0});
           if (text.length > ${MAX_CONTENT_LENGTH}) {
             text = text.substring(0, ${MAX_CONTENT_LENGTH});
             isTruncated = true;
@@ -478,7 +501,7 @@ export class MessageHandler {
           links: getLinks(),
           fullText: textContent.text,
           isTruncated: textContent.isTruncated,
-          totalLength: document.body.innerText.length
+          totalLength: (scope.innerText || '').length
         };
       })();
     `,
@@ -554,12 +577,12 @@ export class MessageHandler {
   }
 
   private async captureScreenshot(
-    correlationId: string,
-    tabId: number,
-    format: "jpeg" | "png" = "jpeg",
-    quality: number = 70,
-    scale: number = 1
+    req: CaptureScreenshotServerMessage & { correlationId: string }
   ): Promise<void> {
+    const { correlationId, tabId } = req;
+    const format = req.format ?? "jpeg";
+    const quality = req.quality ?? 70;
+    const scale = req.scale ?? 1;
     const tab = await browser.tabs.get(tabId);
 
     await ensureTabAccess(tab);
@@ -594,12 +617,16 @@ export class MessageHandler {
       : await this.activateTabForCapture(tabId, tab.windowId);
 
     try {
+      const box = isElementTargeted(req)
+        ? await this.measureElement(tabId, req)
+        : null;
       let dataUrl: string;
       try {
         dataUrl = await browser.tabs.captureVisibleTab(tab.windowId, {
           format,
           quality,
           scale,
+          ...(box ? { rect: box.rect } : {}),
         });
       } catch (error) {
         // The browser is the real enforcer of the activeTab grant, so it can still refuse
@@ -619,6 +646,20 @@ export class MessageHandler {
           tabId,
           imageData,
           mimeType,
+          ...(box
+            ? {
+                captured: {
+                  label: box.label,
+                  width: Math.round(box.rect.width),
+                  height: Math.round(box.rect.height),
+                  elementWidth: box.elementWidth,
+                  elementHeight: box.elementHeight,
+                  clipped: box.clipped,
+                  scrollY: box.scrollY,
+                  scrollHeight: box.scrollHeight,
+                },
+              }
+            : {}),
         },
         tabId
       );
@@ -631,6 +672,18 @@ export class MessageHandler {
         }
       }
     }
+  }
+
+  private async measureElement(
+    tabId: number,
+    target: ElementTarget
+  ): Promise<ElementBoxResult> {
+    const results = await browser.tabs.executeScript(tabId, {
+      code: buildElementBoxCode(target),
+    });
+    const box = results[0] as ElementBoxResult;
+    await delay(SCROLL_SETTLE_MS);
+    return box;
   }
 
   // Foregrounds the tab to be captured, returning the tab that was active before, if any.
@@ -700,7 +753,6 @@ export class MessageHandler {
     status: string,
     target?: ElementTarget
   ): Promise<OverlayResult | null> {
-    this.touchTab(tabId);
 
     const showAurora = await isAuroraEnabled();
     const showFocus = await isFocusEnabled();
@@ -709,6 +761,9 @@ export class MessageHandler {
     if (!showAurora && !showFocus && !showBadge && !markTab) {
       return null;
     }
+    const colors = await getOverlayColors();
+    const timings = await getOverlayTimings();
+    this.touchTab(tabId, timings.holdReleaseMs);
     try {
       const results = await browser.tabs.executeScript(tabId, {
         code: buildAttachOverlayCode({
@@ -719,7 +774,9 @@ export class MessageHandler {
           showFocus,
           showBadge,
           idleStatus: idleStatus(),
-          resetAfterMs: STATUS_RESET_MS,
+          resetAfterMs: state === "read" ? 0 : timings.statusResetMs,
+          accents: colors.accents,
+          aurora: colors.aurora,
           target,
         }),
       });
@@ -730,7 +787,7 @@ export class MessageHandler {
     }
   }
 
-  private touchTab(tabId: number): void {
+  private touchTab(tabId: number, holdMs: number): void {
     const existing = this.claimedTabs.get(tabId);
     if (existing) {
       clearTimeout(existing);
@@ -739,8 +796,30 @@ export class MessageHandler {
       tabId,
       setTimeout(() => {
         void this.releaseTab(tabId);
-      }, HOLD_RELEASE_MS)
+      }, holdMs)
     );
+  }
+
+  public async refreshOverlays(): Promise<void> {
+    const anyPart =
+      (await isAuroraEnabled()) ||
+      (await isFocusEnabled()) ||
+      (await isBadgeEnabled()) ||
+      (await isMarkEnabled());
+
+    for (const tabId of [...this.claimedTabs.keys()]) {
+      try {
+        if (anyPart) {
+          await this.attachOverlay(tabId, "idle", idleStatus());
+        } else {
+          await browser.tabs.executeScript(tabId, {
+            code: buildDetachOverlayCode(),
+          });
+        }
+      } catch (error) {
+        console.error("Could not refresh the overlay on tab", tabId, error);
+      }
+    }
   }
 
   private forgetTab(tabId: number): void {
@@ -813,7 +892,7 @@ export class MessageHandler {
       elementTargetOf(req)
     );
     if (shown) {
-      await delay(INTERACTION_LEAD_MS);
+      await delay((await getOverlayTimings()).leadMs);
     }
 
     const results = await browser.tabs.executeScript(req.tabId, { code });
@@ -843,15 +922,23 @@ export class MessageHandler {
   private async sendPageSnapshot(
     req: PageSnapshotServerMessage & { correlationId: string }
   ): Promise<void> {
+    const scoped = isElementTargeted(req);
+
     await this.prepareTabAccess(req.tabId);
 
-    await this.attachOverlay(req.tabId, "read", t("overlaySnapshot"));
+    await this.attachOverlay(
+      req.tabId,
+      "read",
+      scoped ? t("overlaySnapshotElement") : t("overlaySnapshot"),
+      scoped ? req : undefined
+    );
 
     const results = await browser.tabs.executeScript(req.tabId, {
       code: buildSnapshotCode({
         maxElements: Math.max(1, req.maxElements ?? DEFAULT_SNAPSHOT_LIMIT),
         interactiveOnly: req.interactiveOnly !== false,
         includeHidden: await isHiddenElementsIncluded(),
+        target: scoped ? req : undefined,
       }),
     });
     const snapshot = results[0];

@@ -1,4 +1,12 @@
-import { jsValue, REF_ATTRIBUTE, ROOT_WALKER_SOURCE } from "./injected-common";
+import type { ElementTarget } from "@browser-control-mcp/common/server-messages";
+import {
+  isElementTargeted,
+  jsValue,
+  REF_ATTRIBUTE,
+  RESOLVER_SOURCE,
+  ROOT_WALKER_SOURCE,
+  targetLiteral,
+} from "./injected-common";
 
 const INTERACTIVE_SELECTOR = [
   "a[href]",
@@ -40,6 +48,7 @@ const CONTEXT_SELECTOR = [
 
 const SNAPSHOT_HELPERS_SOURCE = `
 ${ROOT_WALKER_SOURCE}
+${RESOLVER_SOURCE}
 function __bcmScope(el) {
   var root = el.getRootNode ? el.getRootNode() : el.ownerDocument;
   return root && root.querySelectorAll ? root : el.ownerDocument;
@@ -219,15 +228,34 @@ export function buildSnapshotCode(options: {
   maxElements: number;
   interactiveOnly: boolean;
   includeHidden: boolean;
+  target?: ElementTarget;
 }): string {
+  const scopeExpression = isElementTargeted(options.target)
+    ? `__bcmResolve(${targetLiteral(options.target!)})`
+    : "null";
+
   return `(function () {
 ${SNAPSHOT_HELPERS_SOURCE}
-  var roots = __bcmRoots();
+  var scopeRoot = ${scopeExpression};
+  var roots = __bcmRoots(scopeRoot);
 
   for (var r = 0; r < roots.length; r++) {
     var previous = roots[r].querySelectorAll('[${REF_ATTRIBUTE}]');
     for (var p = 0; p < previous.length; p++) {
       previous[p].removeAttribute('${REF_ATTRIBUTE}');
+    }
+  }
+
+  var base = 0;
+  if (scopeRoot) {
+    if (scopeRoot.hasAttribute('${REF_ATTRIBUTE}')) { scopeRoot.removeAttribute('${REF_ATTRIBUTE}'); }
+    var stamped = __bcmQueryAll('[${REF_ATTRIBUTE}]');
+    for (var s = 0; s < stamped.length; s++) {
+      var seen = /^e(\\d+)$/.exec(stamped[s].getAttribute('${REF_ATTRIBUTE}') || '');
+      if (seen) {
+        var value = parseInt(seen[1], 10);
+        if (value > base) { base = value; }
+      }
     }
   }
 
@@ -239,6 +267,14 @@ ${SNAPSHOT_HELPERS_SOURCE}
   var includeHidden = ${jsValue(options.includeHidden)};
   var shown = [];
   var concealed = [];
+
+  if (scopeRoot && scopeRoot.matches && scopeRoot.matches(selector)) {
+    if (__bcmVisible(scopeRoot)) {
+      shown.push({ el: scopeRoot, frame: __bcmFrameLabel(scopeRoot), hidden: false });
+    } else if (includeHidden) {
+      concealed.push({ el: scopeRoot, frame: __bcmFrameLabel(scopeRoot), hidden: true });
+    }
+  }
 
   for (var r2 = 0; r2 < roots.length; r2++) {
     var frame = __bcmFrameLabel(roots[r2]);
@@ -259,7 +295,7 @@ ${SNAPSHOT_HELPERS_SOURCE}
   var elements = [];
 
   for (var k = 0; k < found.length && elements.length < maxElements; k++) {
-    var ref = 'e' + (k + 1);
+    var ref = 'e' + (base + k + 1);
     found[k].el.setAttribute('${REF_ATTRIBUTE}', ref);
     elements.push(__bcmDescribe(found[k].el, ref, found[k].hidden, found[k].frame));
   }

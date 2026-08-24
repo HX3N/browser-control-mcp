@@ -86,6 +86,12 @@
     "overlaySnapshot": {
         "message": "Scanning the page"
     },
+    "overlaySnapshotElement": {
+        "message": "Scanning one element"
+    },
+    "overlayReadingElement": {
+        "message": "Reading one element"
+    },
     "overlayClick": {
         "message": "Clicking"
     },
@@ -523,5 +529,77 @@
     },
     "optionsInstallDxtBody": {
         "message": "Only needed to install into Claude Desktop in one click. Claude Code does not use it. Build it yourself with <code>cd mcp-server &amp;&amp; npm run pack-dxt</code> — the DXT published by the upstream repository does not carry this fork's interaction tools."
+    },
+    "optionsAppearanceHeading": {
+        "message": "Overlay colours"
+    },
+    "optionsAppearanceIntro": {
+        "message": "The colours the on-page overlay uses. Each one starts at the value the extension ships with, and a change reaches every tab the session is holding right away."
+    },
+    "optionsAppearanceAccentHeading": {
+        "message": "Action colours"
+    },
+    "optionsAppearanceAuroraHeading": {
+        "message": "Aurora"
+    },
+    "optionsAppearanceAuroraNote": {
+        "message": "The aurora is a rainbow by default: four colours that flow into one another, not a single tint. Replacing all four is what changes its character, and the strip above shows what the page will look like."
+    },
+    "optionsAppearanceReset": {
+        "message": "Restore the default colours"
+    },
+    "optionsAppearanceSaved": {
+        "message": "Colour saved."
+    },
+    "optionsAppearanceRestored": {
+        "message": "The default colours are back."
+    },
+    "optionsAccent_idle": {
+        "message": "Resting (holding the tab)"
+    },
+    "optionsAccent_read": {
+        "message": "Reading and snapshots"
+    },
+    "optionsAccent_click": {
+        "message": "Clicking"
+    },
+    "optionsAccent_type": {
+        "message": "Typing and keys"
+    },
+    "optionsAccent_exec": {
+        "message": "Running JavaScript"
+    },
+    "optionsTimingHeading": {
+        "message": "Overlay timing"
+    },
+    "optionsTimingIntro": {
+        "message": "How long the overlay lingers. A read is the exception: its mark stays until the next command replaces it, because reading leaves nothing else behind to see."
+    },
+    "optionsTimingReset": {
+        "message": "Restore the default timing"
+    },
+    "optionsTimingSaved": {
+        "message": "Timing saved."
+    },
+    "optionsTimingRestored": {
+        "message": "The default timing is back."
+    },
+    "optionsTiming_statusResetMs": {
+        "message": "Badge reset (ms)"
+    },
+    "optionsTimingHint_statusResetMs": {
+        "message": "After an action, how long its label stays before the badge falls back to the resting one. Reads ignore this."
+    },
+    "optionsTiming_holdReleaseMs": {
+        "message": "Tab hold (ms)"
+    },
+    "optionsTimingHint_holdReleaseMs": {
+        "message": "How long a tab stays claimed with no command arriving. It has to outlast the pauses between commands: a model can think for minutes between two clicks."
+    },
+    "optionsTiming_leadMs": {
+        "message": "Lead before acting (ms)"
+    },
+    "optionsTimingHint_leadMs": {
+        "message": "The pause between highlighting an element and acting on it, so you can see what is about to be touched."
     }
 }

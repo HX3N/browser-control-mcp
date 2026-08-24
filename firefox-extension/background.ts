@@ -1,5 +1,6 @@
 import { WebsocketClient } from "./client";
 import { MessageHandler } from "./message-handler";
+import type { ExtensionConfig } from "./extension-config";
 import {
   generateSecret,
   getAllToolSettings,
@@ -56,17 +57,57 @@ interface ConnectionSlot {
   port: number;
   role: "fixed" | "spare";
   client: WebsocketClient;
+  handler: MessageHandler;
 }
 
 const slots: ConnectionSlot[] = [];
 
 let activeSecret = "";
 
+// An overlay is injected DOM: it does not read storage again on its own, so a look the user
+// just changed would otherwise stay stale until the next command arrives.
+let overlayLook = "";
+
+function overlayLookOf(config: ExtensionConfig | undefined): string {
+  if (!config) {
+    return "";
+  }
+  return JSON.stringify([
+    config.highlightEnabled,
+    config.auroraEnabled,
+    config.focusEnabled,
+    config.markEnabled,
+    config.badgeEnabled,
+    config.overlayColors,
+    config.overlayTimings,
+  ]);
+}
+
+async function refreshOverlays(): Promise<void> {
+  for (const slot of slots) {
+    await slot.handler.refreshOverlays();
+  }
+}
+
+browser.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local" || !changes.config) {
+    return;
+  }
+  const look = overlayLookOf(changes.config.newValue as ExtensionConfig);
+  if (look === overlayLook) {
+    return;
+  }
+  overlayLook = look;
+  refreshOverlays().catch((error) => {
+    console.error("Could not apply the new overlay look:", error);
+  });
+});
+
 function openSlot(port: number, role: ConnectionSlot["role"], secret: string) {
   const wsClient = new WebsocketClient(port, secret);
   const messageHandler = new MessageHandler(wsClient);
 
-  slots.push({ port, role, client: wsClient });
+  slots.push({ port, role, client: wsClient, handler: messageHandler });
   wsClient.connect();
 
   wsClient.addCloseListener(() => {

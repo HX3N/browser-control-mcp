@@ -11,7 +11,18 @@ import {
   clearAuditLog,
   getToolNameById,
   INTERACTION_TOOL_IDS,
+  DEFAULT_OVERLAY_TIMINGS,
+  OVERLAY_ACCENT_KEYS,
+  OVERLAY_TIMING_LIMITS,
+  getOverlayColors,
+  getOverlayTimings,
+  resetOverlayColors,
+  resetOverlayTimings,
+  setOverlayColors,
+  setOverlayTimings,
 } from "./extension-config";
+import type { OverlayAccentKey, OverlayTimings } from "./extension-config";
+import { clamp01, hexToHsv, hsvToHex } from "./color";
 import { localizeDocument, t } from "./i18n";
 
 // The popup owns these three, so listing them here as well would give the user two switches
@@ -504,12 +515,299 @@ revealSecretButton.addEventListener("focus", () => setSecretRevealed(true));
 revealSecretButton.addEventListener("blur", () => setSecretRevealed(false));
 regenerateSecretButton.addEventListener("click", regenerateSecret);
 clearAuditLogButton.addEventListener("click", handleClearAuditLog);
+
+const accentRows = document.getElementById("accent-rows") as HTMLDivElement;
+const auroraStrip = document.getElementById("aurora-strip") as HTMLDivElement;
+const auroraPreview = document.getElementById(
+  "aurora-preview"
+) as HTMLDivElement;
+const appearanceStatus = document.getElementById(
+  "appearance-status"
+) as HTMLDivElement;
+const resetColorsButton = document.getElementById(
+  "reset-colors"
+) as HTMLButtonElement;
+const timingRows = document.getElementById("timing-rows") as HTMLDivElement;
+const timingStatus = document.getElementById("timing-status") as HTMLDivElement;
+const resetTimingsButton = document.getElementById(
+  "reset-timings"
+) as HTMLButtonElement;
+
+const colorPicker = document.getElementById("color-picker") as HTMLDivElement;
+const pickerArea = document.getElementById("picker-area") as HTMLDivElement;
+const pickerKnob = document.getElementById("picker-knob") as HTMLDivElement;
+const pickerHue = document.getElementById("picker-hue") as HTMLDivElement;
+const pickerHueKnob = document.getElementById(
+  "picker-hue-knob"
+) as HTMLDivElement;
+const pickerHex = document.getElementById("picker-hex") as HTMLInputElement;
+
+const TIMING_FIELDS: { key: keyof OverlayTimings; step: number }[] = [
+  { key: "statusResetMs", step: 500 },
+  { key: "holdReleaseMs", step: 30_000 },
+  { key: "leadMs", step: 20 },
+];
+
+const SAVE_DELAY_MS = 250;
+const PICKER_WIDTH = 232;
+
+let pickerHsv = { h: 0, s: 0, v: 0 };
+let pickerCommit: ((hex: string) => void) | null = null;
+let saveTimer: ReturnType<typeof setTimeout> | undefined;
+
+function saveSoon(run: () => Promise<void>): void {
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+  }
+  saveTimer = setTimeout(() => {
+    void run();
+  }, SAVE_DELAY_MS);
+}
+
+function paintPicker(): string {
+  const hex = hsvToHex(pickerHsv.h, pickerHsv.s, pickerHsv.v);
+  pickerArea.style.background = [
+    "linear-gradient(to top, #000, rgba(0, 0, 0, 0))",
+    `linear-gradient(to right, #fff, hsl(${Math.round(pickerHsv.h)}, 100%, 50%))`,
+  ].join(", ");
+  pickerKnob.style.left = `${pickerHsv.s * 100}%`;
+  pickerKnob.style.top = `${(1 - pickerHsv.v) * 100}%`;
+  pickerKnob.style.background = hex;
+  pickerHueKnob.style.left = `${(pickerHsv.h / 360) * 100}%`;
+  if (document.activeElement !== pickerHex) {
+    pickerHex.value = hex;
+  }
+  return hex;
+}
+
+function emitPickedColor(): void {
+  const hex = paintPicker();
+  pickerCommit?.(hex);
+}
+
+function closePicker(): void {
+  colorPicker.classList.add("hidden");
+  pickerCommit = null;
+}
+
+function openPicker(
+  anchor: HTMLElement,
+  current: string,
+  commit: (hex: string) => void
+): void {
+  pickerHsv = hexToHsv(current);
+  pickerCommit = commit;
+  colorPicker.classList.remove("hidden");
+
+  const box = anchor.getBoundingClientRect();
+  const room = document.documentElement.clientWidth - PICKER_WIDTH;
+  colorPicker.style.top = `${box.bottom + window.scrollY + 6}px`;
+  colorPicker.style.left = `${Math.max(
+    8,
+    Math.min(box.left + window.scrollX, room)
+  )}px`;
+  paintPicker();
+}
+
+function trackPointer(
+  surface: HTMLElement,
+  onMove: (event: PointerEvent) => void
+): void {
+  surface.addEventListener("pointerdown", (event) => {
+    surface.setPointerCapture(event.pointerId);
+    onMove(event);
+  });
+  surface.addEventListener("pointermove", (event) => {
+    if (surface.hasPointerCapture(event.pointerId)) {
+      onMove(event);
+    }
+  });
+}
+
+trackPointer(pickerArea, (event) => {
+  const box = pickerArea.getBoundingClientRect();
+  pickerHsv.s = clamp01((event.clientX - box.left) / box.width);
+  pickerHsv.v = 1 - clamp01((event.clientY - box.top) / box.height);
+  emitPickedColor();
+});
+
+trackPointer(pickerHue, (event) => {
+  const box = pickerHue.getBoundingClientRect();
+  pickerHsv.h = clamp01((event.clientX - box.left) / box.width) * 360;
+  emitPickedColor();
+});
+
+pickerHex.addEventListener("input", () => {
+  const typed = pickerHex.value.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(typed)) {
+    pickerHsv = hexToHsv(typed);
+    emitPickedColor();
+  }
+});
+
+document.addEventListener("pointerdown", (event) => {
+  if (colorPicker.classList.contains("hidden")) {
+    return;
+  }
+  const target = event.target as HTMLElement | null;
+  if (colorPicker.contains(target) || target?.classList.contains("swatch")) {
+    return;
+  }
+  closePicker();
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    closePicker();
+  }
+});
+
+function swatchButton(color: string): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "swatch";
+  button.style.background = color;
+  return button;
+}
+
+function flash(element: HTMLDivElement, message: string): void {
+  element.textContent = message;
+  setTimeout(() => {
+    element.textContent = "";
+  }, 3000);
+}
+
+function paintAuroraPreview(colors: string[]): void {
+  auroraPreview.style.background = `linear-gradient(135deg, ${colors.join(
+    ", "
+  )})`;
+}
+
+function labelRow(labelText: string, hintText: string): HTMLDivElement {
+  const row = document.createElement("div");
+  row.className = "tool-row";
+
+  const labels = document.createElement("div");
+  labels.className = "tool-label-container";
+
+  const label = document.createElement("div");
+  label.className = "tool-name";
+  label.textContent = labelText;
+  labels.appendChild(label);
+
+  if (hintText) {
+    const hint = document.createElement("div");
+    hint.className = "tool-description";
+    hint.textContent = hintText;
+    labels.appendChild(hint);
+  }
+
+  row.appendChild(labels);
+  return row;
+}
+
+async function createAppearanceUI(): Promise<void> {
+  const colors = await getOverlayColors();
+
+  accentRows.textContent = "";
+  for (const key of OVERLAY_ACCENT_KEYS) {
+    const row = labelRow(t(`optionsAccent_${key}`), "");
+    let chosen = colors.accents[key];
+    const swatch = swatchButton(chosen);
+    swatch.addEventListener("click", () => {
+      openPicker(swatch, chosen, (hex) => {
+        chosen = hex;
+        swatch.style.background = hex;
+        saveSoon(async () => {
+          await setOverlayColors({
+            accents: { [key]: hex } as Partial<
+              Record<OverlayAccentKey, string>
+            >,
+          });
+          flash(appearanceStatus, t("optionsAppearanceSaved"));
+        });
+      });
+    });
+    row.appendChild(swatch);
+    accentRows.appendChild(row);
+  }
+
+  auroraStrip.textContent = "";
+  const auroraColors = [...colors.aurora];
+  auroraColors.forEach((color, position) => {
+    const swatch = swatchButton(color);
+    swatch.setAttribute(
+      "aria-label",
+      `${t("optionsAppearanceAuroraHeading")} ${position + 1}`
+    );
+    swatch.addEventListener("click", () => {
+      openPicker(swatch, auroraColors[position], (hex) => {
+        auroraColors[position] = hex;
+        swatch.style.background = hex;
+        paintAuroraPreview(auroraColors);
+        saveSoon(async () => {
+          await setOverlayColors({ aurora: [...auroraColors] });
+          flash(appearanceStatus, t("optionsAppearanceSaved"));
+        });
+      });
+    });
+    auroraStrip.appendChild(swatch);
+  });
+  paintAuroraPreview(auroraColors);
+}
+
+async function createTimingUI(): Promise<void> {
+  const timings = await getOverlayTimings();
+
+  timingRows.textContent = "";
+  for (const field of TIMING_FIELDS) {
+    const limits = OVERLAY_TIMING_LIMITS[field.key];
+    const row = labelRow(
+      t(`optionsTiming_${field.key}`),
+      t(`optionsTimingHint_${field.key}`)
+    );
+
+    const box = document.createElement("input");
+    box.type = "number";
+    box.min = String(limits.min);
+    box.max = String(limits.max);
+    box.step = String(field.step);
+    box.value = String(timings[field.key]);
+    box.addEventListener("change", async () => {
+      const asked = Number(box.value);
+      const clamped = Number.isFinite(asked)
+        ? Math.min(limits.max, Math.max(limits.min, Math.round(asked)))
+        : DEFAULT_OVERLAY_TIMINGS[field.key];
+      box.value = String(clamped);
+      await setOverlayTimings({ [field.key]: clamped });
+      flash(timingStatus, t("optionsTimingSaved"));
+    });
+
+    row.appendChild(box);
+    timingRows.appendChild(row);
+  }
+}
+
+resetColorsButton.addEventListener("click", async () => {
+  await resetOverlayColors();
+  await createAppearanceUI();
+  flash(appearanceStatus, t("optionsAppearanceRestored"));
+});
+
+resetTimingsButton.addEventListener("click", async () => {
+  await resetOverlayTimings();
+  await createTimingUI();
+  flash(timingStatus, t("optionsTimingRestored"));
+});
+
 document.addEventListener("DOMContentLoaded", () => {
   localizeDocument();
   revealSecretButton.setAttribute("aria-label", t("optionsSecretShow"));
   loadSecret();
   createToolSettingsUI();
   loadAuditLog();
+  createAppearanceUI();
+  createTimingUI();
   initializeCollapsibleSections();
 
   // Ensure modal is hidden by default

@@ -11,7 +11,7 @@ export const MAX_ROOT_DEPTH = 5;
 // A cross-origin frame throws on contentDocument and stays out of the walk. That is the
 // browser's own boundary, not a bug to route around.
 export const ROOT_WALKER_SOURCE = `
-function __bcmRoots() {
+function __bcmRoots(start) {
   var roots = [];
   function walk(root, depth) {
     if (!root || depth > ${MAX_ROOT_DEPTH} || roots.indexOf(root) !== -1) { return; }
@@ -28,14 +28,20 @@ function __bcmRoots() {
       }
     }
   }
-  walk(document, 0);
+  walk(start || document, 0);
   return roots;
 }
 
 function __bcmFrameLabel(root) {
-  var host = root.host;
-  if (host) { return 'shadow:' + host.tagName.toLowerCase(); }
   if (root === document) { return ''; }
+  // An anchor carries its own .host, so the element case has to be settled before that is read.
+  if (root.nodeType === 1) {
+    var owner = root.getRootNode ? root.getRootNode() : null;
+    if (owner && owner !== root && owner.nodeType !== 1) { return __bcmFrameLabel(owner); }
+    return '';
+  }
+  var host = root.host;
+  if (host && host.tagName) { return 'shadow:' + host.tagName.toLowerCase(); }
   var frame = root.defaultView && root.defaultView.frameElement;
   if (!frame) { return 'frame'; }
   var name = frame.getAttribute('name') || frame.getAttribute('id') || frame.getAttribute('src') || '';
@@ -44,10 +50,9 @@ function __bcmFrameLabel(root) {
 }
 `;
 
-export const ELEMENT_RESOLVER_SOURCE = `
-${ROOT_WALKER_SOURCE}
-function __bcmQueryAll(selector) {
-  var roots = __bcmRoots();
+export const RESOLVER_SOURCE = `
+function __bcmQueryAll(selector, start) {
+  var roots = __bcmRoots(start);
   var found = [];
   for (var i = 0; i < roots.length; i++) {
     var matches = roots[i].querySelectorAll(selector);
@@ -98,6 +103,15 @@ function __bcmScroll() {
   return { scrollY: Math.round(doc.scrollTop), scrollHeight: Math.round(doc.scrollHeight) };
 }
 `;
+
+export const ELEMENT_RESOLVER_SOURCE = `
+${ROOT_WALKER_SOURCE}
+${RESOLVER_SOURCE}
+`;
+
+export function isElementTargeted(target?: ElementTarget): boolean {
+  return !!(target && (target.ref || target.selector));
+}
 
 export function targetLiteral(target: ElementTarget): string {
   return jsValue({

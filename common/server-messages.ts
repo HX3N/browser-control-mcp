@@ -28,7 +28,9 @@ export interface GetBrowserRecentHistoryServerMessage extends ServerMessageBase 
   searchQuery?: string;
 }
 
-export interface GetTabContentServerMessage extends ServerMessageBase {
+export interface GetTabContentServerMessage
+  extends ServerMessageBase,
+    ElementTarget {
   cmd: "get-tab-content";
   tabId: number;
   offset?: number;
@@ -53,7 +55,9 @@ export interface GroupTabsServerMessage extends ServerMessageBase {
   groupTitle: string;
 }
 
-export interface CaptureScreenshotServerMessage extends ServerMessageBase {
+export interface CaptureScreenshotServerMessage
+  extends ServerMessageBase,
+    ElementTarget {
   cmd: "capture-screenshot";
   tabId: number;
   format?: "jpeg" | "png";

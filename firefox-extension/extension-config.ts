@@ -188,6 +188,137 @@ export interface ExtensionConfig {
   backgroundMode?: boolean;
   includeHiddenElements?: boolean;
   urlScope?: UrlScope;
+  overlayTimings?: Partial<OverlayTimings>;
+  overlayColors?: StoredOverlayColors;
+}
+
+export interface OverlayTimings {
+  statusResetMs: number;
+  holdReleaseMs: number;
+  leadMs: number;
+}
+
+export const DEFAULT_OVERLAY_TIMINGS: OverlayTimings = {
+  statusResetMs: 4000,
+  holdReleaseMs: 300_000,
+  leadMs: 220,
+};
+
+export const OVERLAY_TIMING_LIMITS: Record<
+  keyof OverlayTimings,
+  { min: number; max: number }
+> = {
+  statusResetMs: { min: 1000, max: 120_000 },
+  holdReleaseMs: { min: 10_000, max: 3_600_000 },
+  leadMs: { min: 0, max: 5_000 },
+};
+
+export type OverlayAccentKey = "idle" | "read" | "click" | "type" | "exec";
+
+export const OVERLAY_ACCENT_KEYS: readonly OverlayAccentKey[] = [
+  "idle",
+  "read",
+  "click",
+  "type",
+  "exec",
+];
+
+export interface OverlayColors {
+  accents: Record<OverlayAccentKey, string>;
+  aurora: string[];
+}
+
+interface StoredOverlayColors {
+  accents?: Partial<Record<OverlayAccentKey, string>>;
+  aurora?: string[];
+}
+
+export const DEFAULT_OVERLAY_COLORS: OverlayColors = {
+  accents: {
+    idle: "#d97757",
+    read: "#00dfd8",
+    click: "#ff007f",
+    type: "#a855f7",
+    exec: "#ffac1c",
+  },
+  aurora: ["#ff007f", "#7928ca", "#00dfd8", "#ffac1c"],
+};
+
+export const AURORA_COLOR_COUNT = DEFAULT_OVERLAY_COLORS.aurora.length;
+
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
+
+function readColor(value: unknown, fallback: string): string {
+  return typeof value === "string" && HEX_COLOR.test(value) ? value : fallback;
+}
+
+function readTiming(
+  value: unknown,
+  key: keyof OverlayTimings
+): number {
+  const limits = OVERLAY_TIMING_LIMITS[key];
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return DEFAULT_OVERLAY_TIMINGS[key];
+  }
+  return Math.min(limits.max, Math.max(limits.min, Math.round(value)));
+}
+
+export async function getOverlayTimings(): Promise<OverlayTimings> {
+  const stored = (await getConfig()).overlayTimings ?? {};
+  return {
+    statusResetMs: readTiming(stored.statusResetMs, "statusResetMs"),
+    holdReleaseMs: readTiming(stored.holdReleaseMs, "holdReleaseMs"),
+    leadMs: readTiming(stored.leadMs, "leadMs"),
+  };
+}
+
+export async function setOverlayTimings(
+  patch: Partial<OverlayTimings>
+): Promise<void> {
+  const config = await getConfig();
+  const current = await getOverlayTimings();
+  config.overlayTimings = { ...current, ...patch };
+  await saveConfig(config);
+}
+
+export async function getOverlayColors(): Promise<OverlayColors> {
+  const stored = (await getConfig()).overlayColors ?? {};
+  const accents = {} as Record<OverlayAccentKey, string>;
+  for (const key of OVERLAY_ACCENT_KEYS) {
+    accents[key] = readColor(
+      stored.accents?.[key],
+      DEFAULT_OVERLAY_COLORS.accents[key]
+    );
+  }
+  const aurora = DEFAULT_OVERLAY_COLORS.aurora.map((fallback, position) =>
+    readColor(stored.aurora?.[position], fallback)
+  );
+  return { accents, aurora };
+}
+
+export async function setOverlayColors(patch: {
+  accents?: Partial<Record<OverlayAccentKey, string>>;
+  aurora?: string[];
+}): Promise<void> {
+  const config = await getConfig();
+  const current = await getOverlayColors();
+  config.overlayColors = {
+    accents: { ...current.accents, ...patch.accents },
+    aurora: patch.aurora ?? current.aurora,
+  };
+  await saveConfig(config);
+}
+
+export async function resetOverlayColors(): Promise<void> {
+  const config = await getConfig();
+  delete config.overlayColors;
+  await saveConfig(config);
+}
+
+export async function resetOverlayTimings(): Promise<void> {
+  const config = await getConfig();
+  delete config.overlayTimings;
+  await saveConfig(config);
 }
 
 /**

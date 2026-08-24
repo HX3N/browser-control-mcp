@@ -280,6 +280,123 @@
       min-height: 18px;
     }
 
+    .swatch {
+      width: 46px;
+      height: 28px;
+      padding: 0;
+      border: 1px solid var(--panel-border);
+      border-radius: 6px;
+      cursor: pointer;
+      flex: none;
+    }
+
+    .swatch:hover {
+      border-color: var(--accent);
+    }
+
+    /* Firefox hands input[type=color] to the OS colour dialog, so the page draws its own. */
+    .picker {
+      position: absolute;
+      z-index: 50;
+      width: 208px;
+      padding: 12px;
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 10px;
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+    }
+
+    .picker.hidden {
+      display: none;
+    }
+
+    .picker-area {
+      position: relative;
+      height: 132px;
+      border-radius: 8px;
+      cursor: crosshair;
+      touch-action: none;
+    }
+
+    .picker-knob,
+    .picker-hue-knob {
+      position: absolute;
+      border-radius: 50%;
+      border: 2px solid #fff;
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55);
+      pointer-events: none;
+    }
+
+    .picker-knob {
+      width: 14px;
+      height: 14px;
+      margin: -7px 0 0 -7px;
+    }
+
+    .picker-hue {
+      position: relative;
+      height: 12px;
+      margin-top: 12px;
+      border-radius: 6px;
+      cursor: ew-resize;
+      touch-action: none;
+      background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+    }
+
+    .picker-hue-knob {
+      width: 16px;
+      height: 16px;
+      top: -2px;
+      margin-left: -8px;
+      background: #fff;
+    }
+
+    .picker-hex {
+      margin: 12px 0 0;
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    input[type="number"] {
+      width: 116px;
+      font-size: 13px;
+      color: var(--text);
+      background: var(--inset);
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      padding: 7px 9px;
+      text-align: right;
+      flex: none;
+      appearance: textfield;
+      -moz-appearance: textfield;
+    }
+
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+      appearance: none;
+      margin: 0;
+    }
+
+    input[type="number"]:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .swatch-strip {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding: 11px 0;
+      flex-wrap: wrap;
+    }
+
+    .aurora-preview {
+      height: 30px;
+      border-radius: 8px;
+      border: 1px solid var(--panel-border);
+      margin-bottom: 6px;
+    }
+
     .tool-row {
       display: flex;
       justify-content: space-between;
@@ -530,6 +647,39 @@
 
 
     <div class="section-container">
+      <h2 class="collapsed" role="button" aria-expanded="false" tabindex="0" id="appearance-header" data-i18n="optionsAppearanceHeading"></h2>
+      <div class="section-content collapsed" aria-labelledby="appearance-header">
+        <p data-i18n="optionsAppearanceIntro"></p>
+
+        <h3 data-i18n="optionsAppearanceAccentHeading"></h3>
+        <div id="accent-rows"></div>
+
+        <h3 data-i18n="optionsAppearanceAuroraHeading"></h3>
+        <p data-i18n="optionsAppearanceAuroraNote"></p>
+        <div class="aurora-preview" id="aurora-preview"></div>
+        <div class="swatch-strip" id="aurora-strip"></div>
+
+        <div style="margin-top: 14px;">
+          <button id="reset-colors" type="button" data-i18n="optionsAppearanceReset"></button>
+          <div class="status" id="appearance-status"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-container">
+      <h2 class="collapsed" role="button" aria-expanded="false" tabindex="0" id="timing-header" data-i18n="optionsTimingHeading"></h2>
+      <div class="section-content collapsed" aria-labelledby="timing-header">
+        <p data-i18n="optionsTimingIntro"></p>
+        <div id="timing-rows"></div>
+
+        <div style="margin-top: 14px;">
+          <button id="reset-timings" type="button" data-i18n="optionsTimingReset"></button>
+          <div class="status" id="timing-status"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-container">
       <h2 class="collapsed" role="button" aria-expanded="false" tabindex="0" id="audit-log-header" data-i18n="optionsAuditHeading"></h2>
       <div class="section-content collapsed" aria-labelledby="audit-log-header">
         <div id="audit-log-container">
@@ -558,6 +708,16 @@
         <p data-i18n-html="optionsInstallDxtBody"></p>
       </div>
     </div>
+  </div>
+
+  <div class="picker hidden" id="color-picker">
+    <div class="picker-area" id="picker-area">
+      <div class="picker-knob" id="picker-knob"></div>
+    </div>
+    <div class="picker-hue" id="picker-hue">
+      <div class="picker-hue-knob" id="picker-hue-knob"></div>
+    </div>
+    <input type="text" class="picker-hex" id="picker-hex" spellcheck="false" maxlength="7">
   </div>
 
   <script src="dist/options.js"></script>

@@ -61,9 +61,22 @@ const OVERLAY_RUNTIME_SOURCE = `
       'rgba(0,0,0,1) 100%)';
   }
 
+  function auroraFlow() {
+    return RAINBOW.concat(RAINBOW).concat([RAINBOW[0]]).join(', ');
+  }
+
+  function applyPalette(accents, aurora) {
+    if (accents) {
+      for (var key in ACCENTS) {
+        if (accents[key]) { ACCENTS[key] = accents[key]; }
+      }
+    }
+    if (aurora && aurora.length) { RAINBOW = aurora.slice(); }
+    if (host) { host.style.setProperty('--bcm-flow-colors', auroraFlow()); }
+  }
+
   function styleText() {
     var masks = ramp('to right') + ', ' + ramp('to bottom');
-    var flow = RAINBOW.concat(RAINBOW).concat([RAINBOW[0]]).join(', ');
     return [
       '@property --bcm-accent {',
       '  syntax: "<color>";',
@@ -87,7 +100,7 @@ const OVERLAY_RUNTIME_SOURCE = `
       '.bcm-flow {',
       '  position: absolute; top: -3rem; left: -3rem;',
       '  width: calc(200% + 6rem); height: calc(200% + 6rem);',
-      '  background: linear-gradient(135deg, ' + flow + ');',
+      '  background: linear-gradient(135deg, var(--bcm-flow-colors));',
       '  animation: bcmFlow 9s linear infinite;',
       '  will-change: transform; opacity: 0.32;',
       '}',
@@ -254,6 +267,7 @@ const OVERLAY_RUNTIME_SOURCE = `
 
   function attach(options) {
     if (!host || !host.isConnected) { build(); }
+    applyPalette(options.accents, options.aurora);
     if (options.showAurora) {
       aurora.classList.add('is-active');
     } else {
@@ -330,6 +344,8 @@ export interface AttachRequest {
   showBadge: boolean;
   idleStatus: string;
   resetAfterMs: number;
+  accents: Record<OverlayState, string>;
+  aurora: string[];
   target?: ElementTarget;
 }
 
@@ -345,7 +361,9 @@ ${OVERLAY_RUNTIME_SOURCE}
     showAurora: ${jsValue(request.showAurora)},
     showBadge: ${jsValue(request.showBadge)},
     idleStatus: ${jsValue(request.idleStatus)},
-    resetAfterMs: ${jsValue(request.resetAfterMs)}
+    resetAfterMs: ${jsValue(request.resetAfterMs)},
+    accents: ${jsValue(request.accents)},
+    aurora: ${jsValue(request.aurora)}
   });
 
   var target = ${jsValue(request.showFocus)} ? ${target} : null;

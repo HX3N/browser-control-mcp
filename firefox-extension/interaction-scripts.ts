@@ -1,5 +1,6 @@
 import type {
   ClickElementServerMessage,
+  ElementTarget,
   PressKeyServerMessage,
   ScrollPageServerMessage,
   SelectOptionServerMessage,
@@ -24,6 +25,18 @@ export interface WaitProbeResult {
   matchCount: number;
   satisfied: boolean;
 }
+
+export interface ElementBoxResult {
+  rect: { x: number; y: number; width: number; height: number };
+  label: string;
+  elementWidth: number;
+  elementHeight: number;
+  clipped: boolean;
+  scrollY: number;
+  scrollHeight: number;
+}
+
+export const CAPTURE_PADDING_PX = 8;
 
 const VALUE_SETTER_SOURCE = `
 function __bcmSetValue(el, value) {
@@ -385,5 +398,53 @@ export function buildWaitProbeCode(
   }
 
   return { matchCount: matches.length, satisfied: satisfied };
+})();`;
+}
+
+export function buildElementBoxCode(target: ElementTarget): string {
+  return `(function () {
+${ELEMENT_RESOLVER_SOURCE}
+  var el = __bcmResolve(${targetLiteral(target)});
+  var pad = ${jsValue(CAPTURE_PADDING_PX)};
+
+  function viewport() {
+    return {
+      width: window.innerWidth || document.documentElement.clientWidth,
+      height: window.innerHeight || document.documentElement.clientHeight
+    };
+  }
+
+  var view = viewport();
+  var box = el.getBoundingClientRect();
+  var outOfView = box.bottom <= 0 || box.top >= view.height ||
+    box.right <= 0 || box.left >= view.width;
+
+  // An element taller than the window is aligned to its top, not centred: the capture starts at
+  // the beginning of it, so scrolling down and capturing again walks through the whole thing.
+  if (outOfView && typeof el.scrollIntoView === 'function') {
+    el.scrollIntoView({ block: box.height > view.height ? 'start' : 'center', inline: 'nearest' });
+    view = viewport();
+    box = el.getBoundingClientRect();
+  }
+
+  var left = Math.max(0, box.left - pad);
+  var top = Math.max(0, box.top - pad);
+  var right = Math.min(view.width, box.right + pad);
+  var bottom = Math.min(view.height, box.bottom + pad);
+
+  if (right <= left || bottom <= top) {
+    throw new Error('The element ' + __bcmLabel(el) + ' is not on screen, so there is nothing to capture. Scroll to it first with scroll-browser-tab.');
+  }
+
+  var scroll = __bcmScroll();
+  return {
+    rect: { x: left, y: top, width: right - left, height: bottom - top },
+    label: __bcmLabel(el),
+    elementWidth: Math.round(box.width),
+    elementHeight: Math.round(box.height),
+    clipped: box.top < 0 || box.left < 0 || box.bottom > view.height || box.right > view.width,
+    scrollY: scroll.scrollY,
+    scrollHeight: scroll.scrollHeight
+  };
 })();`;
 }
