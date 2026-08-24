@@ -69,7 +69,8 @@ Clicking the toolbar icon (or pressing `Alt+Shift+B`) opens the popup.
   whether a snapshot may read the elements the page keeps hidden, and whether work stays in the
   background. With that last one on (the default) a new tab opens behind the tab you are on and
   page search does not jump to it. A screenshot stays in the background too, and only falls back
-  to bringing the tab forward when Firefox refuses to capture it where it sits.
+  to bringing the tab forward when Firefox refuses to capture it where it sits. Switch it off and
+  every click, keystroke and scroll brings its tab forward first, so you can watch the work happen.
 - **Display** — four switches: tab icon, tab aurora, action highlight, status badge
 
 ### The two access scopes

@@ -137,6 +137,57 @@ describe("MessageHandler", () => {
       });
     });
 
+    describe("background mode", () => {
+      const keyRequest: ServerMessageRequest = {
+        cmd: "press-key",
+        tabId: 123,
+        key: "a",
+        modifiers: [],
+        correlationId: "test-correlation-id",
+      };
+
+      const driveKeyPress = async (backgroundMode?: boolean): Promise<void> => {
+        (browser.storage.local.get as jest.Mock).mockResolvedValue({
+          config:
+            backgroundMode === undefined
+              ? defaultConfig
+              : { ...defaultConfig, backgroundMode },
+        });
+        (browser.permissions.contains as jest.Mock).mockResolvedValue(true);
+        (browser.tabs.get as jest.Mock).mockResolvedValue({
+          id: 123,
+          url: "https://example.com",
+        });
+        (browser.tabs.executeScript as jest.Mock).mockResolvedValue([
+          { target: "input", detail: "Pressed a", url: "https://example.com" },
+        ]);
+
+        await messageHandler.handleDecodedMessage(keyRequest);
+      };
+
+      it("brings the tab forward for an interaction once background mode is off", async () => {
+        await driveKeyPress(false);
+
+        expect(browser.tabs.update).toHaveBeenCalledWith(123, { active: true });
+      });
+
+      it("leaves the tab where it is while background mode is on", async () => {
+        await driveKeyPress(true);
+
+        expect(browser.tabs.update).not.toHaveBeenCalledWith(123, {
+          active: true,
+        });
+      });
+
+      it("stays in the background by default", async () => {
+        await driveKeyPress();
+
+        expect(browser.tabs.update).not.toHaveBeenCalledWith(123, {
+          active: true,
+        });
+      });
+    });
+
     describe("open-tab command", () => {
       const driveOpen = async (
         request: ServerMessageRequest,

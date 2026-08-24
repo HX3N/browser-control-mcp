@@ -1,6 +1,7 @@
 import type { ElementTarget } from "@browser-control-mcp/common/server-messages";
 import {
   ELEMENT_RESOLVER_SOURCE,
+  SCROLL_ANCHOR_SOURCE,
   jsValue,
   targetLiteral,
 } from "./injected-common";
@@ -403,6 +404,7 @@ export function buildAttachOverlayCode(request: AttachRequest): string {
   const target = request.target ? targetLiteral(request.target) : "null";
   return `(function () {
 ${ELEMENT_RESOLVER_SOURCE}
+${SCROLL_ANCHOR_SOURCE}
 ${OVERLAY_RUNTIME_SOURCE}
   window.__bcmOverlay.attach({
     status: ${jsValue(request.status)},
@@ -428,18 +430,7 @@ ${OVERLAY_RUNTIME_SOURCE}
   var viewportWidth = window.innerWidth || document.documentElement.clientWidth;
   var wasInView = before.bottom > 0 && before.top < viewportHeight &&
     before.right > 0 && before.left < viewportWidth;
-  if (typeof el.scrollIntoView === 'function') {
-    el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-  }
-
-  var doc = document.scrollingElement || document.documentElement;
-  var goal = Math.max(0, Math.min(
-    window.scrollY + el.getBoundingClientRect().top - viewportHeight / 2,
-    Math.max(0, doc.scrollHeight - viewportHeight)
-  ));
-  if (Math.abs(goal - window.scrollY) > 1) {
-    window.scrollTo({ top: goal, behavior: 'smooth' });
-  }
+  __bcmScrollToAnchor(el, true);
 
   var rect = __bcmRect(el);
   window.__bcmOverlay.focus(el, ${jsValue(request.state)});

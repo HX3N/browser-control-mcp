@@ -210,6 +210,38 @@ describe("injected source contracts", () => {
     expect(code).toContain("window.scrollTo");
   });
 
+  it("anchors every scroll a third of the way down, not at the centre", () => {
+    const codes = [
+      buildAttachOverlayCode({
+        status: "Reading",
+        state: "read",
+        showAurora: true,
+        showFocus: true,
+        showBadge: true,
+        markTab: true,
+        idleStatus: "Claude connected",
+        resetAfterMs: 0,
+        accents: DEFAULT_OVERLAY_COLORS.accents,
+        aurora: DEFAULT_OVERLAY_COLORS.aurora,
+        target,
+      }),
+      buildClickCode({ cmd: "click-element", tabId: 1, ...target } as never),
+      buildScrollCode({
+        cmd: "scroll-page",
+        tabId: 1,
+        ...target,
+        direction: "element",
+      } as never),
+    ];
+
+    for (const code of codes) {
+      expect(code).toContain("__bcmScrollToAnchor");
+      expect(code).toContain("viewportHeight / 3");
+      expect(code).not.toContain("viewportHeight / 2");
+      expect(code).not.toContain("block: 'center'");
+    }
+  });
+
   it("measures a capture box in page coordinates so off-screen parts are reachable", () => {
     const code = buildElementBoxCode(target);
 

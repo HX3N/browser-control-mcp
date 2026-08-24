@@ -1090,6 +1090,10 @@ export class MessageHandler {
   ): Promise<void> {
     await this.prepareTabAccess(req.tabId);
 
+    if (!(await isBackgroundMode())) {
+      await browser.tabs.update(req.tabId, { active: true });
+    }
+
     const shown = await this.attachOverlay(
       req.tabId,
       state,

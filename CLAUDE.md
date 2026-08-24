@@ -189,7 +189,9 @@ detaching instead when every part has been switched off.
 The element outline is re-measured every animation frame while it shows, so it rides the element
 through scrolling and the page's own movement; the geometry transition is dropped while tracking
 (`is-tracking`) or the box would lag behind. Attaching with a target scrolls the page so the
-element's top sits at the vertical middle of the screen.
+element's top sits one third of the way down the screen, through `__bcmScrollToAnchor` in
+`injected-common.ts` - the click and scroll-to-element scripts call the same helper, so an
+interaction does not drag the element somewhere else after the overlay has placed it.
 
 ### Native dialogs and page events
 

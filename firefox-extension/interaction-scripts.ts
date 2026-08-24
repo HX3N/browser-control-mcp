@@ -9,6 +9,7 @@ import type {
 } from "@browser-control-mcp/common/server-messages";
 import {
   ELEMENT_RESOLVER_SOURCE,
+  SCROLL_ANCHOR_SOURCE,
   jsValue,
   targetLiteral,
 } from "./injected-common";
@@ -364,15 +365,14 @@ export function buildClickCode(request: ClickElementServerMessage): string {
 
   return `(function () {
 ${ELEMENT_RESOLVER_SOURCE}
+${SCROLL_ANCHOR_SOURCE}
   var el = __bcmResolve(${targetLiteral(request)});
   if (el.disabled) {
     throw new Error('The element is disabled and cannot be clicked');
   }
 
   var label = __bcmLabel(el);
-  if (typeof el.scrollIntoView === 'function') {
-    try { el.scrollIntoView({ block: 'center', inline: 'nearest' }); } catch (err) { el.scrollIntoView(); }
-  }
+  __bcmScrollToAnchor(el, false);
   var rect = el.getBoundingClientRect();
   var clientX = rect.left + rect.width / 2;
   var clientY = rect.top + rect.height / 2;
@@ -528,6 +528,7 @@ export function buildScrollCode(request: ScrollPageServerMessage): string {
   const hasTarget = Boolean(request.ref || request.selector);
   return `(function () {
 ${ELEMENT_RESOLVER_SOURCE}
+${SCROLL_ANCHOR_SOURCE}
   var doc = document.scrollingElement || document.documentElement;
   var direction = ${jsValue(request.direction)};
   var viewport = window.innerHeight || doc.clientHeight;
@@ -539,7 +540,10 @@ ${ELEMENT_RESOLVER_SOURCE}
     ${
       hasTarget
         ? `var el = __bcmResolve(${targetLiteral(request)});
-    el.scrollIntoView({ block: 'center', inline: 'center' });
+    if (typeof el.scrollIntoView === 'function') {
+      try { el.scrollIntoView({ block: 'nearest', inline: 'center' }); } catch (err) { el.scrollIntoView(); }
+    }
+    __bcmScrollToAnchor(el, false);
     label = __bcmLabel(el);`
         : `throw new Error('Scrolling to an element needs a ref or a selector');`
     }

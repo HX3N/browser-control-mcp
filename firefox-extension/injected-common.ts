@@ -132,6 +132,27 @@ function __bcmScroll() {
 }
 `;
 
+export const SCROLL_ANCHOR_SOURCE = `
+function __bcmScrollToAnchor(el, smooth) {
+  if (typeof el.scrollIntoView === 'function') {
+    try { el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (err) { el.scrollIntoView(); }
+  }
+  var doc = document.scrollingElement || document.documentElement;
+  var viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+  var goal = Math.max(0, Math.min(
+    window.scrollY + el.getBoundingClientRect().top - viewportHeight / 3,
+    Math.max(0, doc.scrollHeight - viewportHeight)
+  ));
+  if (Math.abs(goal - window.scrollY) > 1) {
+    if (smooth) {
+      window.scrollTo({ top: goal, behavior: 'smooth' });
+    } else {
+      window.scrollTo(0, goal);
+    }
+  }
+}
+`;
+
 export const ELEMENT_RESOLVER_SOURCE = `
 ${ROOT_WALKER_SOURCE}
 ${RESOLVER_SOURCE}
