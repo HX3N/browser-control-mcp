@@ -378,17 +378,20 @@ mcpServer.tool(
 mcpServer.tool(
   "capture-tab-screenshot",
   `
-    Capture a screenshot of the visible area of a browser tab, by tab ID.
-    The user must authorize each tab by clicking the extension's toolbar button while that tab is open.
-    If the tab is not authorized, this tool returns an error explaining what to ask the user to do; relay that
-    request to the user and retry afterwards. Authorization ends when the tab navigates or closes.
-    Capturing brings the tab to the foreground momentarily.
-    Pass "ref" or "selector" to capture one element rather than the whole screen: the element is
-    scrolled into view and the image is cropped to it, which is both cheaper and easier to read
-    than a full screen you have to hunt through.
-    Only what is on screen can be captured, so an element taller than the window comes back
-    cropped. The result says so and gives the element's full size; scroll with scroll-browser-tab
-    and capture again to see the rest.
+    Capture a screenshot of a browser tab, by tab ID.
+    In allowlist mode a tab whose site is not on the user's list has to be authorized from the
+    extension popup first; until then this tool returns an error explaining what to ask the user
+    for, so relay that request and retry afterwards. Such an authorization covers that one tab and
+    ends when it navigates or closes.
+    A full-screen capture is of what is on screen, and the tab may be brought to the foreground
+    momentarily to take it.
+    Pass "ref" or "selector" to capture one element rather than the whole screen, which is both
+    cheaper and easier to read than a full screen you have to hunt through. An element capture
+    neither scrolls the page nor brings the tab forward: it is cropped in page coordinates, so the
+    part of the element below the fold is in the image too.
+    Only an element taller than 2000 pixels comes back cropped, and there the scroll position
+    decides which slice you get. The result says so and gives the element's full size; scroll with
+    scroll-browser-tab and capture again to see the rest.
   `,
   {
     tabId: z.number(),
@@ -816,9 +819,9 @@ mcpServer.tool(
     Call this once you are done with the browser for now, so the user's tabs stop showing that
     you are attached. It is not destructive: nothing is closed or navigated, and any later tool
     call simply takes the tab again.
-    Tabs are also released on their own after five minutes without a command, so forgetting this
-    is not fatal, only untidy. Do call it, though: five minutes of an overlay on a tab you have
-    finished with is a long time for the user to look at.
+    Tabs are also released on their own after ninety seconds without a command, so forgetting this
+    is not fatal, only untidy. Do call it, though: an overlay left on a tab you have finished with
+    is time the user spends looking at something that is no longer true.
   `,
   {
     tabIds: z

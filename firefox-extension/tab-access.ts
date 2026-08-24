@@ -4,13 +4,13 @@ import {
   isOriginAllowed,
   PermissionMode,
 } from "./extension-config";
-import { hasCaptureConsent, markTabAsAwaitingConsent } from "./capture-consent";
+import { hasTabAuthorization, markTabAsAwaitingAuthorization } from "./tab-authorization";
 
 export interface TabAccessGrant {
   mode: PermissionMode;
   // True when the grant came from an explicit per-tab authorization, which carries activeTab
   // and therefore already covers scripting and capture without a host permission.
-  viaTabConsent: boolean;
+  viaTabAuthorization: boolean;
 }
 
 export async function ensureTabAccess(
@@ -24,19 +24,19 @@ export async function ensureTabAccess(
   }
 
   if (mode === "denylist") {
-    return { mode, viaTabConsent: false };
+    return { mode, viaTabAuthorization: false };
   }
 
   if (await isOriginAllowed(url)) {
-    return { mode, viaTabConsent: false };
+    return { mode, viaTabAuthorization: false };
   }
 
-  if (tab.id !== undefined && hasCaptureConsent(tab.id, url)) {
-    return { mode, viaTabConsent: true };
+  if (tab.id !== undefined && hasTabAuthorization(tab.id, url)) {
+    return { mode, viaTabAuthorization: true };
   }
 
   if (tab.id !== undefined) {
-    await markTabAsAwaitingConsent(tab.id);
+    await markTabAsAwaitingAuthorization(tab.id);
   }
   throw new Error(
     `The extension is in allowlist mode and tab ${tab.id} ("${

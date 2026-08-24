@@ -711,7 +711,7 @@ authorizeTabButton.addEventListener("click", async () => {
 requestAllUrlsButton.addEventListener("click", async () => {
   try {
     const granted = await browser.permissions.request({
-      origins: ["*://*/*"],
+      origins: ["<all_urls>"],
     });
     await refresh({ kind: "get-status" });
     showFeedback(

@@ -76,7 +76,7 @@ A monorepo with three components:
 | `firefox-extension/message-handler.ts` | Executes every command |
 | `firefox-extension/extension-config.ts` | Tool registry, command mapping, permission mode, storage |
 | `firefox-extension/tab-access.ts` | Permission mode enforcement |
-| `firefox-extension/capture-consent.ts` | Per-tab activeTab consent tracking |
+| `firefox-extension/tab-authorization.ts` | Per-tab activeTab authorization granted from the popup |
 | `firefox-extension/injected-common.ts` | Shared injected source: root walk across frames and shadow roots, element resolution, labels |
 | `firefox-extension/page-snapshot.ts` | Snapshot script that stamps `data-bcm-ref` |
 | `firefox-extension/interaction-scripts.ts` | Click, type, key, scroll, select, execute, wait, element box |

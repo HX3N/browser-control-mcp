@@ -37,8 +37,7 @@ import {
   isConsoleCaptureEnabled,
   getConsoleCaptureLevel,
 } from "./extension-config";
-import { hasCaptureConsent, markTabAsAwaitingConsent } from "./capture-consent";
-import { ensureTabAccess, hasAllUrlsPermission } from "./tab-access";
+import { ensureTabAccess } from "./tab-access";
 import { buildSnapshotCode } from "./page-snapshot";
 import {
   ELEMENT_RESOLVER_SOURCE,
@@ -116,32 +115,50 @@ export class MessageHandler {
   private claimedTabs: Map<number, ReturnType<typeof setTimeout>> = new Map();
   private openedTabs: Set<number> = new Set();
 
+  private readonly onTabRemoved = (tabId: number) => {
+    this.forgetTab(tabId);
+  };
+
+  // A page that calls alert() while loading freezes before any command arrives, and no API can
+  // answer a dialog that is already open: the guard has to be in before the document runs a line.
+  private readonly onNavigationCommitted = (details: {
+    frameId: number;
+    tabId: number;
+    url: string;
+  }) => {
+    if (details.frameId !== 0 || !this.isGuarded(details.tabId)) {
+      return;
+    }
+    if (details.url && details.url !== BLANK_URL) {
+      noteCommittedDocument(details.tabId, details.url);
+    }
+    this.guardDialogs(details.tabId, "document_start").catch(() => undefined);
+  };
+
+  // The overlay is injected DOM, so a navigation wipes it and nothing puts it back on its own.
+  private readonly onTabUpdated = (
+    tabId: number,
+    changeInfo: { status?: string }
+  ) => {
+    if (changeInfo.status !== "complete" || !this.claimedTabs.has(tabId)) {
+      return;
+    }
+    void this.redrawOverlay(tabId);
+  };
+
   constructor(client: WebsocketClient) {
     this.client = client;
-    browser.tabs.onRemoved.addListener((tabId) => {
-      this.forgetTab(tabId);
+    browser.tabs.onRemoved.addListener(this.onTabRemoved);
+    browser.webNavigation.onCommitted.addListener(this.onNavigationCommitted);
+    browser.tabs.onUpdated.addListener(this.onTabUpdated, {
+      properties: ["status"],
     });
-    // A page that calls alert() while loading freezes before any command arrives, and no API can
-    // answer a dialog that is already open: the guard has to be in before the document runs a line.
-    browser.webNavigation.onCommitted.addListener((details) => {
-      if (details.frameId !== 0 || !this.isGuarded(details.tabId)) {
-        return;
-      }
-      if (details.url && details.url !== BLANK_URL) {
-        noteCommittedDocument(details.tabId, details.url);
-      }
-      this.guardDialogs(details.tabId, "document_start").catch(() => undefined);
-    });
-    // The overlay is injected DOM, so a navigation wipes it and nothing puts it back on its own.
-    browser.tabs.onUpdated.addListener(
-      (tabId, changeInfo) => {
-        if (changeInfo.status !== "complete" || !this.claimedTabs.has(tabId)) {
-          return;
-        }
-        void this.redrawOverlay(tabId);
-      },
-      { properties: ["status"] }
-    );
+  }
+
+  public dispose(): void {
+    browser.tabs.onRemoved.removeListener(this.onTabRemoved);
+    browser.webNavigation.onCommitted.removeListener(this.onNavigationCommitted);
+    browser.tabs.onUpdated.removeListener(this.onTabUpdated);
   }
 
   private async consoleLevel(): Promise<ConsoleLevel> {
@@ -307,23 +324,26 @@ export class MessageHandler {
       this.openedTabs.add(tab.id);
     }
 
-    const registration = await registerDialogGuard(
+    let registration = await registerDialogGuard(
       url,
       buildDialogGuardCode(await this.consoleLevel()),
       container
     );
 
-    if (tab.id !== undefined) {
-      const settling = this.waitForTabToSettle(tab.id);
-      await browser.tabs.update(tab.id, { url });
-      if (!registration) {
-        this.guardDialogs(tab.id, "document_start").catch(() => undefined);
+    try {
+      if (tab.id !== undefined) {
+        const settling = this.waitForTabToSettle(tab.id);
+        await browser.tabs.update(tab.id, { url });
+        if (!registration) {
+          this.guardDialogs(tab.id, "document_start").catch(() => undefined);
+        }
+        await settling;
+        await unregisterDialogGuard(registration);
+        registration = null;
+        await this.verifyGuard(tab.id);
+        await this.attachOverlay(tab.id, "read", t("overlayOpen"));
       }
-      await settling;
-      await unregisterDialogGuard(registration);
-      await this.verifyGuard(tab.id);
-      await this.attachOverlay(tab.id, "read", t("overlayOpen"));
-    } else {
+    } finally {
       await unregisterDialogGuard(registration);
     }
 
@@ -379,10 +399,14 @@ export class MessageHandler {
       buildDialogGuardCode(await this.consoleLevel()),
       current.cookieStoreId
     );
-    const settling = this.waitForTabToSettle(req.tabId);
-    await browser.tabs.update(req.tabId, { url: req.url });
-    const settled = await settling;
-    await unregisterDialogGuard(registration);
+    let settled: boolean;
+    try {
+      const settling = this.waitForTabToSettle(req.tabId);
+      await browser.tabs.update(req.tabId, { url: req.url });
+      settled = await settling;
+    } finally {
+      await unregisterDialogGuard(registration);
+    }
     await this.verifyGuard(req.tabId);
     const tab = await browser.tabs.get(req.tabId);
 
@@ -692,20 +716,6 @@ export class MessageHandler {
 
     await ensureTabAccess(tab);
 
-    // captureVisibleTab compares the permission string literally, so an equivalent pattern such
-    // as *://*/* leaves this passing here and refused by the browser.
-    if (!(await hasAllUrlsPermission()) && !hasCaptureConsent(tabId, tab.url)) {
-      await markTabAsAwaitingConsent(tabId);
-      throw new Error(
-        `The user has not authorized screenshots of tab ${tabId} ("${
-          tab.title ?? tab.url
-        }"). The extension's toolbar button is now marked with a "!" badge on that tab. ` +
-          `Ask the user to open the Browser Control MCP popup while that tab is in front and press the authorize button, then try again. ` +
-          `The authorization covers only that tab, and ends when the tab navigates or closes. ` +
-          `Switching the popup to full-access mode removes the need to authorize each tab.`
-      );
-    }
-
     await browser.tabs
       .executeScript(tabId, { code: buildConcealOverlayCode() })
       .catch(() => undefined);
@@ -817,7 +827,7 @@ export class MessageHandler {
   private async prepareTabAccess(tabId: number): Promise<browser.tabs.Tab> {
     const tab = await browser.tabs.get(tabId);
     const grant = await ensureTabAccess(tab);
-    if (!grant.viaTabConsent) {
+    if (!grant.viaTabAuthorization) {
       await this.checkForUrlPermission(tab.url);
     }
     await this.guardDialogs(tabId);
@@ -1031,7 +1041,7 @@ export class MessageHandler {
   }
 
   private async releaseTab(tabId: number): Promise<boolean> {
-    if (!this.claimedTabs.has(tabId)) {
+    if (!this.claimedTabs.has(tabId) && !this.openedTabs.has(tabId)) {
       return false;
     }
     this.forgetTab(tabId);
@@ -1046,7 +1056,7 @@ export class MessageHandler {
   }
 
   public async releaseAllTabs(): Promise<number[]> {
-    const tabIds = [...this.claimedTabs.keys()];
+    const tabIds = [...new Set([...this.claimedTabs.keys(), ...this.openedTabs])];
     for (const tabId of tabIds) {
       await this.releaseTab(tabId);
     }

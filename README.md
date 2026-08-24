@@ -64,11 +64,11 @@ Clicking the toolbar icon (or pressing `Alt+Shift+B`) opens the popup.
   entry per line, saved as you type. Allowlist mode also offers a one-off grant for the current
   tab that expires when it navigates.
 - **New tabs** — whether a new tab inherits the container of the tab in front
-- **Interaction permissions** — separate switches for mouse, keyboard and JavaScript, plus
+- **Interaction permissions** — separate switches for screenshots, mouse, keyboard and JavaScript, plus
   whether a snapshot may read the elements the page keeps hidden, and whether work stays in the
   background. With that last one on (the default) a new tab opens behind the tab you are on and
-  page search does not jump to it. A screenshot still has to bring its tab forward, because
-  `captureVisibleTab` only sees what is visible.
+  page search does not jump to it. A screenshot stays in the background too, and only falls back
+  to bringing the tab forward when Firefox refuses to capture it where it sits.
 - **Display** — four switches: tab icon, tab aurora, action highlight, status badge
 
 ### The two access scopes
@@ -119,7 +119,7 @@ Holding a tab and acting on it are separate clocks. The badge falls back to its 
 moments after an action, while the hold survives the long pauses between commands: MCP has no
 notion of a turn ending, so a model that thinks for minutes must not lose the tab underneath it.
 A hold ends with the `release-browser-tab` tool, with the tab closing, with the socket closing,
-or after five minutes without a command.
+or after ninety seconds without a command, a length the options page can change.
 
 A read is the exception: its mark stays up until the next command replaces it. Everything else
 leaves a trace on the page you can see afterwards, whereas a read changes nothing, so the mark
@@ -132,10 +132,12 @@ the dialog is answered before it can open and its text is handed back with the a
 Animation stops where `prefers-reduced-motion` is set. The overlay is removed just before a
 screenshot is taken, so the effects never end up in the resulting image.
 
-A screenshot can also be cropped to one element by passing a `ref` or a `selector`. The element is
-scrolled into view first and the image keeps a small margin around it. Only what is on screen can
-be captured, so an element taller than the window comes back cropped - the result says so and
-reports the element's full size, which is enough to scroll on and capture the rest.
+A screenshot can also be cropped to one element by passing a `ref` or a `selector`. The tab is
+not brought to the front and the page is not scrolled: the crop is taken in page coordinates, so
+the part of the element below the fold is in the shot too, with a small margin around it. Only an
+element taller than 2000 pixels comes back cropped, and it is the scroll position that decides
+which slice - the result says so and reports the element's full size, which is enough to scroll on
+and capture the rest.
 
 ## Example prompts
 
@@ -176,7 +178,7 @@ This fork exists to open what the upstream keeps closed, so it is **less safe th
 
 - Page interaction and arbitrary script execution are possible. While they are on, the MCP server
   can click and type anything as your signed-in self.
-- **The host permission `*://*/*` is a required permission.** The upstream asked per domain; this
+- **The host permission `<all_urls>` is a required permission.** The upstream asked per domain; this
   fork is granted full web access when the extension loads. That means **the per-origin backstop
   the browser used to provide is gone.** The access scope and the tool switches — this
   extension's own code — are the only line left.

@@ -99,6 +99,9 @@ ${ELEMENT_RESOLVER_SOURCE}
   }
 
   var label = __bcmLabel(el);
+  if (typeof el.scrollIntoView === 'function') {
+    try { el.scrollIntoView({ block: 'center', inline: 'nearest' }); } catch (err) { el.scrollIntoView(); }
+  }
   var rect = el.getBoundingClientRect();
   var clientX = rect.left + rect.width / 2;
   var clientY = rect.top + rect.height / 2;

@@ -2,7 +2,7 @@ import { MessageHandler } from "../message-handler";
 import { WebsocketClient } from "../client";
 import type { ServerMessageRequest } from "@browser-control-mcp/common";
 import { ExtensionConfig } from "../extension-config";
-import { grantCaptureConsent, revokeCaptureConsent } from "../capture-consent";
+import { grantTabAuthorization, revokeTabAuthorization } from "../tab-authorization";
 import { forgetPageEvents, recordPageEvent } from "../page-events";
 
 // Mock the WebsocketClient
@@ -549,7 +549,7 @@ describe("MessageHandler", () => {
       };
 
       const readFrozenTab = (): Promise<void> => {
-        grantCaptureConsent(123, "https://example.com");
+        grantTabAuthorization(123, "https://example.com");
         (browser.tabs.get as jest.Mock).mockResolvedValue({
           id: 123,
           url: "https://example.com",
@@ -1134,7 +1134,7 @@ describe("MessageHandler", () => {
       };
 
       beforeEach(() => {
-        revokeCaptureConsent(123);
+        revokeTabAuthorization(123);
         (browser.tabs.captureTab as jest.Mock).mockResolvedValue(
           "data:image/jpeg;base64,QUJD"
         );
@@ -1143,8 +1143,9 @@ describe("MessageHandler", () => {
         );
       });
 
-      it("should refuse to capture a tab the user has not authorized", async () => {
+      it("should capture without a host permission, since the tool switch is the gate", async () => {
         // Arrange
+        (browser.permissions.contains as jest.Mock).mockResolvedValue(false);
         const mockTab = {
           id: 123,
           url: "https://example.com",
@@ -1154,40 +1155,20 @@ describe("MessageHandler", () => {
         };
         (browser.tabs.get as jest.Mock).mockResolvedValue(mockTab);
 
-        // Act & Assert
-        await expect(
-          messageHandler.handleDecodedMessage(request)
-        ).rejects.toThrow(/has not authorized screenshots of tab 123/);
-        expect(browser.tabs.captureTab).not.toHaveBeenCalled();
-        // The toolbar button is badged so the user can see which tab is waiting
-        expect(browser.browserAction.setBadgeText).toHaveBeenCalledWith({
+        // Act
+        await messageHandler.handleDecodedMessage(request);
+
+        // Assert
+        expect(browser.tabs.captureTab).toHaveBeenCalled();
+        expect(browser.browserAction.setBadgeText).not.toHaveBeenCalledWith({
           text: "!",
           tabId: 123,
         });
       });
 
-      it("should treat consent as revoked once the tab has navigated", async () => {
-        // Arrange
-        grantCaptureConsent(123, "https://example.com/first");
-        const mockTab = {
-          id: 123,
-          url: "https://example.com/second",
-          title: "Example",
-          windowId: 1,
-          active: true,
-        };
-        (browser.tabs.get as jest.Mock).mockResolvedValue(mockTab);
-
-        // Act & Assert
-        await expect(
-          messageHandler.handleDecodedMessage(request)
-        ).rejects.toThrow(/has not authorized screenshots of tab 123/);
-        expect(browser.tabs.captureTab).not.toHaveBeenCalled();
-      });
-
       it("should capture an authorized active tab and send the image to the server", async () => {
         // Arrange
-        grantCaptureConsent(123, "https://example.com");
+        grantTabAuthorization(123, "https://example.com");
         const mockTab = {
           id: 123,
           url: "https://example.com",
@@ -1231,7 +1212,7 @@ describe("MessageHandler", () => {
         const captureElement = async (
           override: Partial<typeof box> = {}
         ): Promise<void> => {
-          grantCaptureConsent(123, "https://example.com");
+          grantTabAuthorization(123, "https://example.com");
           (browser.tabs.get as jest.Mock).mockResolvedValue({
             id: 123,
             url: "https://example.com",
@@ -1302,7 +1283,7 @@ describe("MessageHandler", () => {
 
       it("should capture a background tab without bringing it to the front", async () => {
         // Arrange
-        grantCaptureConsent(123, "https://example.com");
+        grantTabAuthorization(123, "https://example.com");
         const mockTab = {
           id: 123,
           url: "https://example.com",
@@ -1326,7 +1307,7 @@ describe("MessageHandler", () => {
       });
 
       it("hides the overlay for the shot instead of tearing it down", async () => {
-        grantCaptureConsent(123, "https://example.com");
+        grantTabAuthorization(123, "https://example.com");
         (browser.tabs.get as jest.Mock).mockResolvedValue({
           id: 123,
           url: "https://example.com",
@@ -1347,7 +1328,7 @@ describe("MessageHandler", () => {
       });
 
       it("falls back to the visible tab when captureTab is refused", async () => {
-        grantCaptureConsent(123, "https://example.com");
+        grantTabAuthorization(123, "https://example.com");
         (browser.tabs.get as jest.Mock).mockResolvedValue({
           id: 123,
           url: "https://example.com",
@@ -1372,7 +1353,7 @@ describe("MessageHandler", () => {
       });
 
       it("reports what the browser refused when both paths fail", async () => {
-        grantCaptureConsent(123, "https://example.com");
+        grantTabAuthorization(123, "https://example.com");
         (browser.tabs.get as jest.Mock).mockResolvedValue({
           id: 123,
           url: "https://example.com",
@@ -1397,7 +1378,7 @@ describe("MessageHandler", () => {
 
       it("should throw an error if tab URL domain is in deny list", async () => {
         // Arrange
-        grantCaptureConsent(123, "https://example.com");
+        grantTabAuthorization(123, "https://example.com");
         const configWithDenyList: ExtensionConfig = {
           secret: "test-secret",
           permissionMode: "denylist" as const,
@@ -1427,7 +1408,7 @@ describe("MessageHandler", () => {
 
       it("should throw an error if the tool is disabled in settings", async () => {
         // Arrange
-        grantCaptureConsent(123, "https://example.com");
+        grantTabAuthorization(123, "https://example.com");
         (browser.storage.local.get as jest.Mock).mockResolvedValue({
           config: {
             secret: "test-secret",

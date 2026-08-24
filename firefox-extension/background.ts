@@ -40,11 +40,11 @@ import {
   setConsoleCaptureLevel,
 } from "./extension-config";
 import {
-  grantCaptureConsent,
-  hasCaptureConsent,
-  revokeCaptureConsent,
-  showConsentGrantedFeedback,
-} from "./capture-consent";
+  grantTabAuthorization,
+  hasTabAuthorization,
+  revokeTabAuthorization,
+  showAuthorizationGrantedFeedback,
+} from "./tab-authorization";
 import { hasAllUrlsPermission } from "./tab-access";
 import { isPageEventMessage, recordPageEvent } from "./page-events";
 import type { PageEventMessage } from "./page-events";
@@ -189,6 +189,7 @@ function syncSlots(
     // point of the button.
     if (isRetired || isDisabled(slot.port)) {
       slot.client.disconnect();
+      slot.handler.dispose();
       slots.splice(slots.indexOf(slot), 1);
     }
   }
@@ -214,16 +215,16 @@ async function enablePorts(ports: number[], secret: string) {
 
 // Firefox drops the activeTab grant as soon as the tab navigates or closes, so the tracked
 // consent has to follow it.
-function initCaptureConsentTracking() {
+function initTabAuthorizationTracking() {
   browser.tabs.onUpdated.addListener(
     (tabId) => {
-      revokeCaptureConsent(tabId);
+      revokeTabAuthorization(tabId);
     },
     { properties: ["url"] }
   );
 
   browser.tabs.onRemoved.addListener((tabId) => {
-    revokeCaptureConsent(tabId);
+    revokeTabAuthorization(tabId);
   });
 }
 
@@ -261,7 +262,7 @@ async function describeActiveTab(): Promise<ActiveTabStatus> {
     title: tab.title ?? "",
     url,
     origin,
-    authorized: hasCaptureConsent(tab.id, tab.url),
+    authorized: hasTabAuthorization(tab.id, tab.url),
     originAllowed: await isOriginAllowed(url),
     denied: url.length > 0 && (await isDomainInDenyList(url)),
     scriptable: url.length > 0 && !UNSCRIPTABLE_SCHEME.test(url),
@@ -387,12 +388,12 @@ async function handlePopupRequest(request: PopupRequest): Promise<PopupStatus> {
       break;
     case "authorize-tab": {
       const tab = await browser.tabs.get(request.tabId);
-      grantCaptureConsent(request.tabId, tab.url);
-      await showConsentGrantedFeedback(request.tabId);
+      grantTabAuthorization(request.tabId, tab.url);
+      await showAuthorizationGrantedFeedback(request.tabId);
       break;
     }
     case "revoke-tab":
-      revokeCaptureConsent(request.tabId);
+      revokeTabAuthorization(request.tabId);
       break;
     default: {
       const exhaustiveCheck: never = request;
@@ -453,7 +454,7 @@ initExtension()
       void syncSlotsFromConfig(secret);
     }, SLOT_SYNC_INTERVAL_MS);
 
-    initCaptureConsentTracking();
+    initTabAuthorizationTracking();
     initPopupChannel();
     console.log("Browser extension initialized");
   })
