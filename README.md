@@ -45,7 +45,8 @@ The tools the MCP server exposes.
 
 - `click-page-element` — click, including double, middle and right button
 - `type-into-page-element` — enter text into a field, with an option to submit the form
-- `press-key-in-tab` — press Enter, Tab, Escape and the like
+- `press-key-in-tab` — press Enter, Tab, Escape, and the editing shortcuts: `Ctrl+A`, `Ctrl+C`,
+  `Ctrl+X`, `Ctrl+Z`, `Ctrl+Y`, the caret keys, Backspace and Delete
 - `scroll-browser-tab` — scroll up, down, to the top, to the bottom, or to an element
 - `select-page-option` — pick an option in a `<select>`
 - `wait-for-page-element` — wait for an element to appear or disappear

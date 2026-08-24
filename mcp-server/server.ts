@@ -652,9 +652,16 @@ mcpServer.tool(
     Dispatch a key press in a browser tab, on a specific element or on whatever currently has
     focus. Use key names as they appear in KeyboardEvent.key, for example Enter, Tab, Escape,
     ArrowDown or a single character.
-    Synthetic key events do not carry the browser's default action, so they will not insert
-    text - use type-into-page-element for that. Enter without modifiers does submit the owning
-    form, which covers the common search-box case.
+    A synthetic key event carries no default action of its own, so the extension performs the
+    common ones itself whenever the page does not cancel the event: Enter submits the owning
+    form, Control+A selects all, Control+C and Control+X copy and cut, Control+Z and Control+Y
+    undo and redo, the arrow keys, Home and End move or extend the caret, and Backspace and
+    Delete remove text. Control with an arrow key, Home or End works on whole words or the
+    whole field.
+    Two things this cannot do: Control+V, because a page script cannot read the clipboard - use
+    type-into-page-element to enter text - and browser shortcuts such as Control+T or
+    Control+F, which never reach the page at all.
+    The response says which default action ran, or that the page cancelled it.
   `,
   {
     tabId: z.number(),

@@ -100,6 +100,35 @@ const cases: [string, string][] = [
     }),
   ],
   [
+    "press select-all shortcut",
+    buildPressKeyCode({
+      cmd: "press-key",
+      tabId: 1,
+      ...target,
+      key: "a",
+      modifiers: ["Control"],
+    }),
+  ],
+  [
+    "press caret key without a target",
+    buildPressKeyCode({
+      cmd: "press-key",
+      tabId: 1,
+      key: "Home",
+      modifiers: ["Shift"],
+    }),
+  ],
+  [
+    "press delete key",
+    buildPressKeyCode({
+      cmd: "press-key",
+      tabId: 1,
+      ...bySelector,
+      key: "Backspace",
+      modifiers: [],
+    }),
+  ],
+  [
     "scroll by amount",
     buildScrollCode({
       cmd: "scroll-page",

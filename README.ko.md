@@ -44,7 +44,8 @@ MCP 서버가 제공하는 도구입니다.
 
 - `click-page-element` — 클릭 (더블 클릭, 가운데·오른쪽 버튼 포함)
 - `type-into-page-element` — 입력란에 텍스트 넣기, 폼 제출 옵션
-- `press-key-in-tab` — Enter·Tab·Escape 등 키 입력
+- `press-key-in-tab` — Enter·Tab·Escape와 편집 단축키: `Ctrl+A`, `Ctrl+C`, `Ctrl+X`, `Ctrl+Z`,
+  `Ctrl+Y`, 캐럿 이동 키, Backspace·Delete
 - `scroll-browser-tab` — 위/아래/맨위/맨아래/특정 요소로 스크롤
 - `select-page-option` — `<select>` 항목 선택
 - `wait-for-page-element` — 요소가 나타나거나 사라질 때까지 대기

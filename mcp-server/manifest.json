@@ -105,7 +105,7 @@
         },
         {
             "name": "press-key-in-tab",
-            "description": "Dispatch a key press such as Enter, Tab or Escape in a browser tab"
+            "description": "Dispatch a key press in a browser tab, including editing shortcuts such as Control+A, Control+C and the caret keys"
         },
         {
             "name": "scroll-browser-tab",
