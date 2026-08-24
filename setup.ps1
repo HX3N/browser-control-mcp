@@ -13,9 +13,6 @@ $Strings = @{
     en = @{
         Title            = "  Browser Control MCP - setup"
         LanguagePrompt   = "Language / 언어  [1] English  [2] 한국어"
-        BuildHeading     = "  Checking the build"
-        BuildReady       = "  Build            the MCP server and the extension are ready"
-        BuildNeeded      = "  Build            not built yet, building now"
         NodeMissing      = "  Node.js          npm is not on PATH"
         NodeInstallAsk   = "Install Node.js LTS now? (y/N)"
         NodeInstallSkip  = "  Node.js          skipped"
@@ -46,27 +43,32 @@ $Strings = @{
         DesktopReg       = "  Claude Desktop   the MCP server is registered, its Secret Key will be refreshed"
         DesktopPending   = "  Claude Desktop   the app is there but the MCP server is not registered, it will be added"
         DesktopConfigAt  = "                   config: {0}"
+        StatusHeading    = "  Current state"
+        StatusBuildReady = "  Build            already built, it will be rebuilt to match this checkout"
+        StatusBuildTodo  = "  Build            not built yet, it will be built in a moment"
+        StatusCodeNone   = "  Claude Code      not available, it will be skipped"
+        StatusDeskNone   = "  Claude Desktop   not available, it will be skipped"
+        StatusRunning    = "                   running right now ({0} process(es))"
         NothingToDo      = "  Neither client is available, so there is nothing to register."
         NothingHint      = "  Install Claude Code or Claude Desktop first, then run this again."
-        RunningWarn      = "[warning] Claude Code is running ({0} process(es))."
-        RunningBody1     = "        A running session can rewrite its settings later and drop what you"
-        RunningBody2     = "        register now. Closing every Claude Code window and the VSCode Claude"
-        RunningBody3     = "        panel before running this is recommended."
-        DeskRunWarn      = "[warning] Claude Desktop is running ({0} process(es))."
-        DeskRunBody1     = "        It reads this config only at startup, and it rewrites the file on exit,"
-        DeskRunBody2     = "        which can drop what is registered now."
-        DeskRunBody3     = "        Continuing will close Claude Desktop first so that cannot happen."
+        NoticeHeading    = "  What happens after the Secret Key"
+        NoticeDeskKill   = "  Claude Desktop will be closed by force. It reads this config only at startup"
+        NoticeDeskKill2  = "  and rewrites the file on exit, so it cannot be running while the file is written."
+        NoticeDeskIdle   = "  Claude Desktop is not running, so it only has to be started again afterwards."
+        NoticeCodeOpen   = "  Claude Code sessions that are already open keep their old settings. Open a new"
+        NoticeCodeOpen2  = "  session once this is done."
+        NoticeNonStop    = "  Nothing else is asked from here on: the registration and the config file"
+        NoticeNonStop2   = "  are written in one go."
         DeskClosing      = "  Closing Claude Desktop..."
         DeskClosed       = "  Claude Desktop      closed"
         DeskCloseFail    = "[error] Claude Desktop is still running. Quit it by hand and run this again."
-        ContinueQuestion = "Continue anyway? (y/N)"
-        Cancelled        = "Cancelled."
         SecretHint1      = "Copy the Secret Key from the extension settings page and paste it here."
         SecretHint2      = "  about:addons - Browser Control MCP - Preferences - Secret Key - [Show]"
         SecretPrompt     = "Secret Key"
         SecretEmpty      = "[error] The Secret Key is empty."
         NotUuidWarn      = "[warning] That does not look like a UUID."
         NotUuidExample   = "          It usually looks like 148c4345-1398-4d16-b56c-4462847036bf."
+        InstallHeading   = "  Build"
         CodeHeading      = "  Claude Code"
         CodeRemoving     = "  Removing the old registration..."
         CodeAdding       = "  Registering..."
@@ -85,6 +87,12 @@ $Strings = @{
         DxtDone          = "  Built {0}"
         DxtHint          = "  Open that file with Claude Desktop if the entry above does not take effect."
         DxtFailed        = "[warning] The DXT build failed. The config entry above is what matters, so this is not fatal."
+        PackHeading      = "  Extension package"
+        PackBuilding     = "  Packaging the extension (npm run package)..."
+        PackDone         = "  Built {0}"
+        PackHint         = "  Install or update that zip from about:addons, then copy the Secret Key from its preferences."
+        PackHintDebug    = "  Or load {0} from about:debugging for a temporary install that lasts until the browser closes."
+        PackFailed       = "[warning] The extension zip failed to build. If the extension is already installed, its key still works."
         DoneHeading      = "  Finished."
         DoneBody1        = "  Sessions that are already open will not see this."
         DoneBody2        = "  Open a new session for the tools to appear."
@@ -95,9 +103,6 @@ $Strings = @{
     ko = @{
         Title            = "  Browser Control MCP - 설치"
         LanguagePrompt   = "Language / 언어  [1] English  [2] 한국어"
-        BuildHeading     = "  빌드를 확인하는 중"
-        BuildReady       = "  빌드             MCP 서버와 확장이 준비돼 있습니다"
-        BuildNeeded      = "  빌드             아직 빌드되지 않아 지금 빌드합니다"
         NodeMissing      = "  Node.js          npm 을 PATH 에서 찾지 못했습니다"
         NodeInstallAsk   = "Node.js LTS 를 지금 설치할까요? (y/N)"
         NodeInstallSkip  = "  Node.js          건너뜁니다"
@@ -128,27 +133,32 @@ $Strings = @{
         DesktopReg       = "  Claude Desktop   MCP 서버가 등록돼 있습니다, Secret Key 를 갱신합니다"
         DesktopPending   = "  Claude Desktop   앱은 있으나 MCP 서버가 등록돼 있지 않습니다, 새로 등록합니다"
         DesktopConfigAt  = "                   설정 파일: {0}"
+        StatusHeading    = "  현재 상태"
+        StatusBuildReady = "  빌드             빌드돼 있습니다. 현재 소스에 맞춰 다시 빌드합니다"
+        StatusBuildTodo  = "  빌드             아직 빌드되지 않아 곧 빌드합니다"
+        StatusCodeNone   = "  Claude Code      쓸 수 없어 건너뜁니다"
+        StatusDeskNone   = "  Claude Desktop   쓸 수 없어 건너뜁니다"
+        StatusRunning    = "                   지금 실행 중입니다 (프로세스 {0}개)"
         NothingToDo      = "  쓸 수 있는 클라이언트가 없어 등록할 것이 없습니다."
         NothingHint      = "  Claude Code 나 Claude Desktop 을 먼저 설치한 뒤 다시 실행하세요."
-        RunningWarn      = "[경고] Claude Code 가 실행 중입니다 (프로세스 {0}개)."
-        RunningBody1     = "       실행 중인 세션이 나중에 설정 파일을 다시 쓰면서 지금 등록한 내용을"
-        RunningBody2     = "       지워 버릴 수 있습니다. VSCode 의 Claude 패널과 모든 Claude Code 창을"
-        RunningBody3     = "       닫은 뒤에 다시 실행하는 것을 권합니다."
-        DeskRunWarn      = "[경고] Claude Desktop 이 실행 중입니다 (프로세스 {0}개)."
-        DeskRunBody1     = "       이 설정은 앱이 켜질 때만 읽히고, 종료할 때 앱이 파일을 다시 쓰면서"
-        DeskRunBody2     = "       지금 등록한 내용을 지울 수 있습니다."
-        DeskRunBody3     = "       계속하면 Claude Desktop 을 먼저 종료한 뒤 진행합니다."
+        NoticeHeading    = "  Secret Key 다음에 일어나는 일"
+        NoticeDeskKill   = "  Claude Desktop 을 강제로 종료합니다. 이 설정은 앱이 켜질 때만 읽히고 종료할 때"
+        NoticeDeskKill2  = "  앱이 파일을 다시 쓰기 때문에, 살아 있는 앱에는 쓸 수 없습니다."
+        NoticeDeskIdle   = "  Claude Desktop 은 실행 중이 아니어서, 끝난 뒤 다시 켜기만 하면 됩니다."
+        NoticeCodeOpen   = "  이미 열려 있는 Claude Code 세션은 예전 설정을 그대로 씁니다. 끝난 뒤에 새 세션을"
+        NoticeCodeOpen2  = "  열어야 반영됩니다."
+        NoticeNonStop    = "  여기서부터는 아무것도 묻지 않습니다. 등록과 설정 파일 기록을"
+        NoticeNonStop2   = "  한 번에 진행합니다."
         DeskClosing      = "  Claude Desktop 을 종료하는 중..."
         DeskClosed       = "  Claude Desktop   종료했습니다"
         DeskCloseFail    = "[오류] Claude Desktop 이 아직 살아 있습니다. 직접 종료한 뒤 다시 실행하세요."
-        ContinueQuestion = "그래도 계속할까요? (y/N)"
-        Cancelled        = "취소했습니다."
         SecretHint1      = "확장의 설정 페이지에서 Secret Key 를 복사해 붙여 넣으세요."
         SecretHint2      = "  about:addons - Browser Control MCP - 설정 - Secret Key - [보기]"
         SecretPrompt     = "Secret Key"
         SecretEmpty      = "[오류] Secret Key 가 비어 있습니다."
         NotUuidWarn      = "[경고] 입력한 값이 UUID 형태가 아닙니다."
         NotUuidExample   = "       보통 148c4345-1398-4d16-b56c-4462847036bf 같은 모양입니다."
+        InstallHeading   = "  빌드"
         CodeHeading      = "  Claude Code"
         CodeRemoving     = "  기존 등록을 지우는 중..."
         CodeAdding       = "  등록하는 중..."
@@ -167,6 +177,12 @@ $Strings = @{
         DxtDone          = "  {0} 을 만들었습니다"
         DxtHint          = "  위 설정이 먹히지 않으면 이 파일을 Claude Desktop 으로 여세요."
         DxtFailed        = "[경고] DXT 빌드에 실패했습니다. 중요한 것은 위의 설정 기록이라 치명적이지 않습니다."
+        PackHeading      = "  확장 패키지"
+        PackBuilding     = "  확장을 패키징하는 중 (npm run package)..."
+        PackDone         = "  {0} 을 만들었습니다"
+        PackHint         = "  about:addons 에서 이 zip 을 설치(또는 갱신)한 뒤, 확장 설정에서 Secret Key 를 복사하세요."
+        PackHintDebug    = "  또는 about:debugging 에서 {0} 을 지목해 임시로 로드할 수도 있습니다(브라우저를 닫으면 사라집니다)."
+        PackFailed       = "[경고] 확장 zip 만들기에 실패했습니다. 확장이 이미 설치돼 있다면 그 키로 계속할 수 있습니다."
         DoneHeading      = "  끝났습니다."
         DoneBody1        = "  이미 열려 있던 세션에는 반영되지 않습니다."
         DoneBody2        = "  새 세션을 열어야 도구가 잡힙니다."
@@ -192,15 +208,6 @@ function Confirm-Yes($question) {
     Write-Host ""
     $answer = Read-Host $question
     return ($answer -eq "y" -or $answer -eq "Y")
-}
-
-function Confirm-Continue {
-    if (-not (Confirm-Yes $T.ContinueQuestion)) {
-        Write-Host ""
-        Write-Host $T.Cancelled
-        Exit-With 0
-    }
-    Write-Host ""
 }
 
 # node ships npm.ps1 / npx.ps1 alongside the .cmd shims, and PowerShell picks the .ps1 first.
@@ -316,82 +323,40 @@ Write-Rule
 
 $hasWinget = [bool](Get-Command winget -ErrorAction SilentlyContinue)
 
-Write-Host ""
-Write-Host $T.BuildHeading
-Write-Host ""
-
 $needsDeps = @($repoRoot, $serverDir, $extensionDir) |
     Where-Object { -not (Test-Path (Join-Path $_ "node_modules")) } |
     Select-Object -First 1
 $needsDeps = [bool]$needsDeps
 $needsBuild = (-not (Test-Path $serverPath)) -or (-not (Test-Path $extensionBundle))
 
-if (-not ($needsDeps -or $needsBuild)) {
-    Write-Host $T.BuildReady -ForegroundColor Green
-}
-else {
-    Write-Host $T.BuildNeeded -ForegroundColor Yellow
-
-    if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
-        Write-Host $T.NodeMissing -ForegroundColor Yellow
-        if (Confirm-Yes $T.NodeInstallAsk) {
-            if ($hasWinget) {
-                Write-Host $T.NodeInstalling
-                Invoke-Native "winget" @(
-                    "install", "--id", "OpenJS.NodeJS.LTS", "-e",
-                    "--accept-package-agreements", "--accept-source-agreements"
-                ) | Out-Null
-            }
-            else {
-                Write-Host $T.NoWinget -ForegroundColor Red
-            }
-            Update-PathFromRegistry
-        }
-        else {
-            Write-Host $T.NodeInstallSkip -ForegroundColor DarkGray
-        }
-        if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
-            Write-Host ""
-            Write-Host $T.NodeInstallFail -ForegroundColor Red
-            Exit-With 1
-        }
-    }
-
-    Push-Location $repoRoot
-    try {
-        if ($needsDeps) {
-            Write-Host ""
-            Write-Host $T.DepsInstalling
-            if ((Invoke-Native "npm" @("install")) -ne 0) {
-                Write-Host ""
-                Write-Host $T.DepsFailed -ForegroundColor Red
-                Exit-With 1
-            }
-        }
-        Write-Host ""
-        Write-Host $T.Building
-        if ((Invoke-Native "npm" @("run", "build")) -ne 0) {
-            Write-Host ""
-            Write-Host $T.BuildFailed -ForegroundColor Red
-            Exit-With 1
-        }
-    }
-    finally {
-        Pop-Location
-    }
-
-    foreach ($artifact in @($serverPath, $extensionBundle)) {
-        if (-not (Test-Path $artifact)) {
-            Write-Host ""
-            Write-Host ($T.BuildMissing -f $artifact) -ForegroundColor Red
-            Exit-With 1
-        }
-    }
-}
-
 Write-Host ""
 Write-Host $T.DetectHeading
 Write-Host ""
+
+if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
+    Write-Host $T.NodeMissing -ForegroundColor Yellow
+    if (Confirm-Yes $T.NodeInstallAsk) {
+        if ($hasWinget) {
+            Write-Host $T.NodeInstalling
+            Invoke-Native "winget" @(
+                "install", "--id", "OpenJS.NodeJS.LTS", "-e",
+                "--accept-package-agreements", "--accept-source-agreements"
+            ) | Out-Null
+        }
+        else {
+            Write-Host $T.NoWinget -ForegroundColor Red
+        }
+        Update-PathFromRegistry
+    }
+    else {
+        Write-Host $T.NodeInstallSkip -ForegroundColor DarkGray
+    }
+    if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
+        Write-Host ""
+        Write-Host $T.NodeInstallFail -ForegroundColor Red
+        Exit-With 1
+    }
+}
 
 $hasCodeCli = [bool](Get-Command claude -ErrorAction SilentlyContinue)
 
@@ -419,19 +384,6 @@ if (-not $hasCodeCli) {
     }
     else {
         Write-Host $T.CodeInstallSkip -ForegroundColor DarkGray
-    }
-}
-
-$wantsCode = $hasCodeCli
-$codeRegistered = $false
-
-if ($hasCodeCli) {
-    $codeRegistered = (Invoke-Native "claude" @("mcp", "get", "browser-control") -Quiet) -eq 0
-    if ($codeRegistered) {
-        Write-Host $T.CodeRegistered -ForegroundColor Green
-    }
-    else {
-        Write-Host $T.CodePending -ForegroundColor Green
     }
 }
 
@@ -466,9 +418,17 @@ if (-not $hasDesktop) {
     }
 }
 
+$wantsCode = $hasCodeCli
+$codeRegistered = $false
+
+if ($hasCodeCli) {
+    $codeRegistered = (Invoke-Native "claude" @("mcp", "get", "browser-control") -Quiet) -eq 0
+}
+
 $desktopConfigPath = $desktopPaths.Config
 $desktopConfig = $null
 $wantsDesktop = $false
+$desktopRegistered = $false
 
 if ($hasDesktop) {
     $desktopConfig = Read-DesktopConfig $desktopConfigPath
@@ -480,20 +440,61 @@ if ($hasDesktop) {
     }
 
     $wantsDesktop = $true
-    $alreadyThere = $false
     if ($desktopConfig -and ($desktopConfig.PSObject.Properties.Name -contains "mcpServers")) {
         if ($desktopConfig.mcpServers.PSObject.Properties.Name -contains "browser-control") {
-            $alreadyThere = $true
+            $desktopRegistered = $true
         }
     }
+}
 
-    if ($alreadyThere) {
+$claudeProcesses = @(Get-Process -Name claude -ErrorAction SilentlyContinue)
+$codeRunning = @($claudeProcesses | Where-Object { $_.Path -notlike "*WindowsApps*" })
+$deskRunning = @($claudeProcesses | Where-Object {
+        $_.Path -like "*WindowsApps*" -or $_.Path -like "*AnthropicClaude*" -or $_.Path -like "*Programs\Claude*"
+    })
+
+Write-Host ""
+Write-Rule
+Write-Host $T.StatusHeading -ForegroundColor Cyan
+Write-Rule
+Write-Host ""
+
+if ($needsDeps -or $needsBuild) {
+    Write-Host $T.StatusBuildTodo -ForegroundColor Yellow
+}
+else {
+    Write-Host $T.StatusBuildReady -ForegroundColor Green
+}
+
+if ($wantsCode) {
+    if ($codeRegistered) {
+        Write-Host $T.CodeRegistered -ForegroundColor Green
+    }
+    else {
+        Write-Host $T.CodePending -ForegroundColor Green
+    }
+    if ($codeRunning.Count -gt 0) {
+        Write-Host ($T.StatusRunning -f $codeRunning.Count) -ForegroundColor Yellow
+    }
+}
+else {
+    Write-Host $T.StatusCodeNone -ForegroundColor DarkGray
+}
+
+if ($wantsDesktop) {
+    if ($desktopRegistered) {
         Write-Host $T.DesktopReg -ForegroundColor Green
     }
     else {
         Write-Host $T.DesktopPending -ForegroundColor Green
     }
     Write-Host ($T.DesktopConfigAt -f $desktopConfigPath) -ForegroundColor DarkGray
+    if ($deskRunning.Count -gt 0) {
+        Write-Host ($T.StatusRunning -f $deskRunning.Count) -ForegroundColor Yellow
+    }
+}
+else {
+    Write-Host $T.StatusDeskNone -ForegroundColor DarkGray
 }
 
 if (-not $wantsCode -and -not $wantsDesktop) {
@@ -505,54 +506,93 @@ if (-not $wantsCode -and -not $wantsDesktop) {
     Exit-With 0
 }
 
-$claudeProcesses = @(Get-Process -Name claude -ErrorAction SilentlyContinue)
+Write-Host ""
+Write-Rule
+Write-Host $T.InstallHeading -ForegroundColor Cyan
+Write-Rule
 
-if ($wantsCode) {
-    $running = @($claudeProcesses | Where-Object { $_.Path -notlike "*WindowsApps*" })
-    if ($running.Count -gt 0) {
+Push-Location $repoRoot
+try {
+    if ($needsDeps) {
         Write-Host ""
-        Write-Host ($T.RunningWarn -f $running.Count) -ForegroundColor Yellow
-        Write-Host ""
-        Write-Host $T.RunningBody1
-        Write-Host $T.RunningBody2
-        Write-Host $T.RunningBody3
-        Confirm-Continue
-    }
-}
-
-if ($wantsDesktop) {
-    $deskRunning = @($claudeProcesses | Where-Object { $_.Path -like "*WindowsApps*" -or $_.Path -like "*AnthropicClaude*" -or $_.Path -like "*Programs\Claude*" })
-    if ($deskRunning.Count -gt 0) {
-        Write-Host ""
-        Write-Host ($T.DeskRunWarn -f $deskRunning.Count) -ForegroundColor Yellow
-        Write-Host ""
-        Write-Host $T.DeskRunBody1
-        Write-Host $T.DeskRunBody2
-        Write-Host $T.DeskRunBody3
-        Confirm-Continue
-
-        Write-Host $T.DeskClosing
-        foreach ($proc in $deskRunning) {
-            try { Stop-Process -Id $proc.Id -Force -ErrorAction Stop } catch {}
-        }
-        # The config is rewritten on exit, so writing before every process is gone loses it.
-        $deadline = (Get-Date).AddSeconds(15)
-        while ((Get-Date) -lt $deadline) {
-            $left = @(Get-Process -Name claude -ErrorAction SilentlyContinue |
-                Where-Object { $_.Id -in $deskRunning.Id })
-            if ($left.Count -eq 0) { break }
-            Start-Sleep -Milliseconds 500
-        }
-        $left = @(Get-Process -Name claude -ErrorAction SilentlyContinue |
-            Where-Object { $_.Id -in $deskRunning.Id })
-        if ($left.Count -gt 0) {
+        Write-Host $T.DepsInstalling
+        if ((Invoke-Native "npm" @("install")) -ne 0) {
             Write-Host ""
-            Write-Host $T.DeskCloseFail -ForegroundColor Red
+            Write-Host $T.DepsFailed -ForegroundColor Red
             Exit-With 1
         }
-        Write-Host $T.DeskClosed
+    }
+    Write-Host ""
+    Write-Host $T.Building
+    if ((Invoke-Native "npm" @("run", "build")) -ne 0) {
+        Write-Host ""
+        Write-Host $T.BuildFailed -ForegroundColor Red
+        Exit-With 1
     }
 }
+finally {
+    Pop-Location
+}
+
+foreach ($artifact in @($serverPath, $extensionBundle)) {
+    if (-not (Test-Path $artifact)) {
+        Write-Host ""
+        Write-Host ($T.BuildMissing -f $artifact) -ForegroundColor Red
+        Exit-With 1
+    }
+}
+
+Write-Host ""
+Write-Rule
+Write-Host $T.PackHeading -ForegroundColor Cyan
+Write-Rule
+
+Write-Host $T.PackBuilding
+$packStartedAt = Get-Date
+Push-Location $repoRoot
+try {
+    Invoke-Native "npm" @("run", "package") -Quiet | Out-Null
+}
+finally {
+    Pop-Location
+}
+$packed = Get-ChildItem (Join-Path $extensionDir "web-ext-artifacts") -Filter "*.zip" -ErrorAction SilentlyContinue |
+    Where-Object { $_.LastWriteTime -ge $packStartedAt } |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1
+if ($packed) {
+    Write-Host ($T.PackDone -f $packed.FullName)
+    Write-Host $T.PackHint
+}
+else {
+    Write-Host $T.PackFailed -ForegroundColor Yellow
+}
+Write-Host ($T.PackHintDebug -f (Join-Path $extensionDir "manifest.json"))
+
+Write-Host ""
+Write-Rule
+Write-Host $T.NoticeHeading -ForegroundColor Cyan
+Write-Rule
+Write-Host ""
+
+if ($wantsDesktop) {
+    if ($deskRunning.Count -gt 0) {
+        Write-Host $T.NoticeDeskKill -ForegroundColor Yellow
+        Write-Host $T.NoticeDeskKill2 -ForegroundColor Yellow
+    }
+    else {
+        Write-Host $T.NoticeDeskIdle
+    }
+}
+
+if ($wantsCode) {
+    Write-Host $T.NoticeCodeOpen
+    Write-Host $T.NoticeCodeOpen2
+}
+
+Write-Host ""
+Write-Host $T.NoticeNonStop
+Write-Host $T.NoticeNonStop2
 
 Write-Host ""
 Write-Host $T.SecretHint1
@@ -578,7 +618,30 @@ if ($secret -notmatch '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]
     Write-Host ""
     Write-Host $T.NotUuidWarn -ForegroundColor Yellow
     Write-Host $T.NotUuidExample
-    Confirm-Continue
+}
+
+if ($wantsDesktop -and $deskRunning.Count -gt 0) {
+    Write-Host ""
+    Write-Host $T.DeskClosing
+    foreach ($proc in $deskRunning) {
+        try { Stop-Process -Id $proc.Id -Force -ErrorAction Stop } catch {}
+    }
+    # The config is rewritten on exit, so writing before every process is gone loses it.
+    $deadline = (Get-Date).AddSeconds(15)
+    while ((Get-Date) -lt $deadline) {
+        $left = @(Get-Process -Name claude -ErrorAction SilentlyContinue |
+            Where-Object { $_.Id -in $deskRunning.Id })
+        if ($left.Count -eq 0) { break }
+        Start-Sleep -Milliseconds 500
+    }
+    $left = @(Get-Process -Name claude -ErrorAction SilentlyContinue |
+        Where-Object { $_.Id -in $deskRunning.Id })
+    if ($left.Count -gt 0) {
+        Write-Host ""
+        Write-Host $T.DeskCloseFail -ForegroundColor Red
+        Exit-With 1
+    }
+    Write-Host $T.DeskClosed
 }
 
 if ($wantsCode) {
