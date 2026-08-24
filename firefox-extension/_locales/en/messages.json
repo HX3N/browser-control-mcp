@@ -83,6 +83,9 @@
     "overlayNavigate": {
         "message": "Going to another page"
     },
+    "overlayOpen": {
+        "message": "Opened this page"
+    },
     "overlaySnapshot": {
         "message": "Scanning the page"
     },
@@ -143,6 +146,12 @@
     "popupToggleMouseHint": {
         "message": "Clicks, option picking, scrolling"
     },
+    "popupToggleScreenshotName": {
+        "message": "Screenshot"
+    },
+    "popupToggleScreenshotHint": {
+        "message": "Tab and element captures"
+    },
     "popupToggleKeyboardName": {
         "message": "Keyboard"
     },
@@ -166,6 +175,30 @@
     },
     "popupToggleBackgroundHint": {
         "message": "Maintains focus on the current screen, even during tasks."
+    },
+    "popupToggleConsoleName": {
+        "message": "Console"
+    },
+    "popupToggleConsoleHint": {
+        "message": "Report page errors back to the model"
+    },
+    "popupConsoleLevelErrorName": {
+        "message": "error"
+    },
+    "popupConsoleLevelErrorHint": {
+        "message": "error·uncaught"
+    },
+    "popupConsoleLevelWarnName": {
+        "message": "+ warn"
+    },
+    "popupConsoleLevelWarnHint": {
+        "message": "error·uncaught + warn"
+    },
+    "popupConsoleLevelLogName": {
+        "message": "+ log"
+    },
+    "popupConsoleLevelLogHint": {
+        "message": "error·uncaught + warn + info·log"
     },
     "popupFeedbackBackgroundOn": {
         "message": "Work stays in the background"
@@ -208,6 +241,12 @@
     },
     "popupUrlScopeAnyHint": {
         "message": "HTTPS + localhost·127.0.0.1 + HTTP"
+    },
+    "popupUrlScopeFilesName": {
+        "message": "+ Files"
+    },
+    "popupUrlScopeFilesHint": {
+        "message": "HTTPS + localhost·127.0.0.1 + HTTP + file·ftp"
     },
     "popupFeedbackUrlScopeChanged": {
         "message": "Address scope changed"

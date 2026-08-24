@@ -39,7 +39,11 @@ const OVERLAY_RUNTIME_SOURCE = `
 
   var host = null;
   var aurora = null;
+  var GLIDE_MS = 340;
   var focusBox = null;
+  var tracked = null;
+  var trackFrame = 0;
+  var glideTimer = null;
   var badge = null;
 
   var removedIcons = null;
@@ -122,6 +126,9 @@ const OVERLAY_RUNTIME_SOURCE = `
       '    border-color 0.45s ease, box-shadow 0.45s ease;',
       '}',
       '.bcm-focus.is-active { opacity: 1; animation: bcmBreathe 2.4s ease-in-out infinite; }',
+      '.bcm-focus.is-tracking {',
+      '  transition: opacity 0.32s ease, border-color 0.45s ease, box-shadow 0.45s ease;',
+      '}',
       '@keyframes bcmBreathe {',
       '  0%, 100% { filter: brightness(1); }',
       '  50% { filter: brightness(1.35); }',
@@ -292,27 +299,68 @@ const OVERLAY_RUNTIME_SOURCE = `
     }
   }
 
-  function focus(rect, state) {
-    if (!host || !host.isConnected) { return; }
-    host.style.setProperty('--bcm-focus-color', ACCENTS[state] || ACCENTS.idle);
-    if (!rect || rect.width <= 0 || rect.height <= 0) {
-      focusBox.classList.remove('is-active');
-      return;
-    }
+  function place(rect) {
     var pad = 5;
     focusBox.style.top = (rect.top - pad) + 'px';
     focusBox.style.left = (rect.left - pad) + 'px';
     focusBox.style.width = (rect.width + pad * 2) + 'px';
     focusBox.style.height = (rect.height + pad * 2) + 'px';
+  }
+
+  // A fixed layer is never clipped by the page but never moves with it either, so the box is
+  // re-measured every frame; the geometry transition is dropped once tracking starts or it lags.
+  function track() {
+    trackFrame = 0;
+    if (!host || !host.isConnected || !tracked) { return; }
+    if (!tracked.isConnected) { clearFocus(); return; }
+    place(tracked.getBoundingClientRect());
+    trackFrame = requestAnimationFrame(track);
+  }
+
+  function focus(el, state) {
+    if (!host || !host.isConnected) { return; }
+    host.style.setProperty('--bcm-focus-color', ACCENTS[state] || ACCENTS.idle);
+    var rect = el && el.getBoundingClientRect ? el.getBoundingClientRect() : null;
+    if (!rect || rect.width <= 0 || rect.height <= 0) {
+      clearFocus();
+      return;
+    }
+    if (tracked !== el) {
+      focusBox.classList.remove('is-tracking');
+      if (glideTimer) { clearTimeout(glideTimer); }
+      glideTimer = setTimeout(function () {
+        glideTimer = null;
+        if (focusBox) { focusBox.classList.add('is-tracking'); }
+      }, GLIDE_MS);
+    }
+    tracked = el;
+    place(rect);
     focusBox.classList.add('is-active');
+    if (!trackFrame) { trackFrame = requestAnimationFrame(track); }
   }
 
   function clearFocus() {
-    if (focusBox) { focusBox.classList.remove('is-active'); }
+    tracked = null;
+    if (trackFrame) { cancelAnimationFrame(trackFrame); trackFrame = 0; }
+    if (glideTimer) { clearTimeout(glideTimer); glideTimer = null; }
+    if (focusBox) {
+      focusBox.classList.remove('is-active');
+      focusBox.classList.remove('is-tracking');
+    }
+  }
+
+  function conceal() {
+    if (host) { host.style.setProperty('display', 'none', 'important'); }
+  }
+
+  function reveal() {
+    if (host) { host.style.removeProperty('display'); }
   }
 
   function detach() {
     if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+    tracked = null;
+    if (trackFrame) { cancelAnimationFrame(trackFrame); trackFrame = 0; }
     restoreTabMark();
     if (!host || !host.isConnected) { return; }
     aurora.classList.remove('is-active');
@@ -330,6 +378,8 @@ const OVERLAY_RUNTIME_SOURCE = `
     setStatus: setStatus,
     focus: focus,
     clearFocus: clearFocus,
+    conceal: conceal,
+    reveal: reveal,
     detach: detach
   };
 })();
@@ -378,13 +428,36 @@ ${OVERLAY_RUNTIME_SOURCE}
   var viewportWidth = window.innerWidth || document.documentElement.clientWidth;
   var wasInView = before.bottom > 0 && before.top < viewportHeight &&
     before.right > 0 && before.left < viewportWidth;
-  if (!wasInView && typeof el.scrollIntoView === 'function') {
-    el.scrollIntoView({ block: 'center', inline: 'center' });
+  if (typeof el.scrollIntoView === 'function') {
+    el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+
+  var doc = document.scrollingElement || document.documentElement;
+  var goal = Math.max(0, Math.min(
+    window.scrollY + el.getBoundingClientRect().top - viewportHeight / 2,
+    Math.max(0, doc.scrollHeight - viewportHeight)
+  ));
+  if (Math.abs(goal - window.scrollY) > 1) {
+    window.scrollTo({ top: goal, behavior: 'smooth' });
   }
 
   var rect = __bcmRect(el);
-  window.__bcmOverlay.focus(rect, ${jsValue(request.state)});
+  window.__bcmOverlay.focus(el, ${jsValue(request.state)});
   return { rect: rect, target: __bcmLabel(el), wasInView: wasInView };
+})();`;
+}
+
+export function buildConcealOverlayCode(): string {
+  return `(function () {
+  if (window.__bcmOverlay) { window.__bcmOverlay.conceal(); }
+  return true;
+})();`;
+}
+
+export function buildRevealOverlayCode(): string {
+  return `(function () {
+  if (window.__bcmOverlay) { window.__bcmOverlay.reveal(); }
+  return true;
 })();`;
 }
 

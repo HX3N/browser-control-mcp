@@ -83,6 +83,9 @@
     "overlayNavigate": {
         "message": "다른 페이지로 이동"
     },
+    "overlayOpen": {
+        "message": "페이지 열었음"
+    },
     "overlaySnapshot": {
         "message": "페이지 훑는 중"
     },
@@ -143,6 +146,12 @@
     "popupToggleMouseHint": {
         "message": "클릭·항목 선택·스크롤"
     },
+    "popupToggleScreenshotName": {
+        "message": "스크린샷"
+    },
+    "popupToggleScreenshotHint": {
+        "message": "탭·요소 화면 캡처"
+    },
     "popupToggleKeyboardName": {
         "message": "키보드"
     },
@@ -166,6 +175,30 @@
     },
     "popupToggleBackgroundHint": {
         "message": "작업 중에도 현재 화면의 포커스를 유지합니다"
+    },
+    "popupToggleConsoleName": {
+        "message": "콘솔"
+    },
+    "popupToggleConsoleHint": {
+        "message": "페이지 오류를 모델에게 전달"
+    },
+    "popupConsoleLevelErrorName": {
+        "message": "error"
+    },
+    "popupConsoleLevelErrorHint": {
+        "message": "error·uncaught"
+    },
+    "popupConsoleLevelWarnName": {
+        "message": "+ warn"
+    },
+    "popupConsoleLevelWarnHint": {
+        "message": "error·uncaught + warn"
+    },
+    "popupConsoleLevelLogName": {
+        "message": "+ log"
+    },
+    "popupConsoleLevelLogHint": {
+        "message": "error·uncaught + warn + info·log"
     },
     "popupFeedbackBackgroundOn": {
         "message": "작업이 백그라운드에 머무릅니다"
@@ -208,6 +241,12 @@
     },
     "popupUrlScopeAnyHint": {
         "message": "HTTPS + localhost·127.0.0.1 + HTTP"
+    },
+    "popupUrlScopeFilesName": {
+        "message": "+ 파일"
+    },
+    "popupUrlScopeFilesHint": {
+        "message": "HTTPS + localhost·127.0.0.1 + HTTP + file·ftp"
     },
     "popupFeedbackUrlScopeChanged": {
         "message": "주소 범위를 바꿨습니다"

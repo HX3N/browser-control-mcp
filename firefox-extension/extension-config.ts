@@ -74,6 +74,7 @@ export const AVAILABLE_TOOLS: ToolInfo[] = [
 ];
 
 export const INTERACTION_TOOL_IDS = [
+  "capture-tab-screenshot",
   "interact-click",
   "interact-type",
   "execute-javascript",
@@ -140,12 +141,27 @@ function normalizePermissionMode(stored: string | undefined): PermissionMode {
     : DEFAULT_PERMISSION_MODE;
 }
 
-export type UrlScope = "https" | "loopback" | "any";
+export type UrlScope = "https" | "loopback" | "any" | "files";
 
-export const DEFAULT_URL_SCOPE: UrlScope = "https";
+export type ConsoleCaptureLevel = "error" | "warn" | "log";
+
+export const DEFAULT_CONSOLE_LEVEL: ConsoleCaptureLevel = "error";
+
+function normalizeConsoleLevel(
+  stored: string | undefined
+): ConsoleCaptureLevel {
+  return stored === "error" || stored === "warn" || stored === "log"
+    ? stored
+    : DEFAULT_CONSOLE_LEVEL;
+}
+
+export const DEFAULT_URL_SCOPE: UrlScope = "loopback";
 
 function normalizeUrlScope(stored: string | undefined): UrlScope {
-  return stored === "https" || stored === "loopback" || stored === "any"
+  return stored === "https" ||
+    stored === "loopback" ||
+    stored === "any" ||
+    stored === "files"
     ? stored
     : DEFAULT_URL_SCOPE;
 }
@@ -188,6 +204,8 @@ export interface ExtensionConfig {
   backgroundMode?: boolean;
   includeHiddenElements?: boolean;
   urlScope?: UrlScope;
+  consoleCapture?: boolean;
+  consoleLevel?: ConsoleCaptureLevel;
   overlayTimings?: Partial<OverlayTimings>;
   overlayColors?: StoredOverlayColors;
 }
@@ -559,6 +577,30 @@ export async function setHiddenElementsIncluded(
   await saveConfig(config);
 }
 
+export async function isConsoleCaptureEnabled(): Promise<boolean> {
+  const config = await getConfig();
+  return config.consoleCapture !== false;
+}
+
+export async function setConsoleCapture(enabled: boolean): Promise<void> {
+  const config = await getConfig();
+  config.consoleCapture = enabled;
+  await saveConfig(config);
+}
+
+export async function getConsoleCaptureLevel(): Promise<ConsoleCaptureLevel> {
+  const config = await getConfig();
+  return normalizeConsoleLevel(config.consoleLevel);
+}
+
+export async function setConsoleCaptureLevel(
+  level: ConsoleCaptureLevel
+): Promise<void> {
+  const config = await getConfig();
+  config.consoleLevel = level;
+  await saveConfig(config);
+}
+
 export async function getUrlScope(): Promise<UrlScope> {
   const config = await getConfig();
   return normalizeUrlScope(config.urlScope);
@@ -580,10 +622,13 @@ export function isUrlInScope(url: string, scope: UrlScope): boolean {
   if (parsed.protocol === "https:") {
     return true;
   }
+  if (parsed.protocol === "file:" || parsed.protocol === "ftp:") {
+    return scope === "files";
+  }
   if (parsed.protocol !== "http:") {
     return false;
   }
-  if (scope === "any") {
+  if (scope === "any" || scope === "files") {
     return true;
   }
   return scope === "loopback" && isLoopbackHost(parsed.hostname);
@@ -591,6 +636,8 @@ export function isUrlInScope(url: string, scope: UrlScope): boolean {
 
 export function describeUrlScope(scope: UrlScope): string {
   switch (scope) {
+    case "files":
+      return "HTTP and HTTPS pages, plus file:// and ftp:// URLs";
     case "any":
       return "HTTP and HTTPS pages only";
     case "loopback":

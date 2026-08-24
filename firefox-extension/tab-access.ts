@@ -49,7 +49,7 @@ export async function ensureTabAccess(
 
 export async function hasAllUrlsPermission(): Promise<boolean> {
   try {
-    return await browser.permissions.contains({ origins: ["*://*/*"] });
+    return await browser.permissions.contains({ origins: ["<all_urls>"] });
   } catch (error) {
     console.error("Failed to read the broad host permission:", error);
     return false;

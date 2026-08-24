@@ -35,10 +35,11 @@ The tools the MCP server exposes.
 - Create tab groups with a name and a colour
 - Reorder tabs
 - Read and search browsing history
-- Read page text and links
+- Read page text and links, either the whole page or one element of it
 - Find and highlight text inside a page
-- Capture a screenshot of a tab
-- `get-page-snapshot` — list the interactive elements, each stamped with a `ref`
+- Capture a screenshot of a tab, either the visible screen or one element of it
+- `get-page-snapshot` — list the interactive elements, each stamped with a `ref`,
+  for the whole page or inside one element
 
 **Interact**
 
@@ -107,7 +108,9 @@ switched on its own in the popup, so the ones you find intrusive can stay off.
   session holds the tab.
 - **Status badge** — a small tag at the top centre naming the action in progress.
 
-The overlay colour follows the kind of action in progress.
+The overlay colour follows the kind of action in progress. Every colour, the aurora's four
+included, can be changed on the options page, and so can how long the overlay lingers.
+A change reaches the tabs the session is already holding right away.
 
 The overlay is injected DOM, so a navigation wipes it; it is drawn again once the new page
 finishes loading, for as long as the session still holds the tab.
@@ -118,12 +121,21 @@ notion of a turn ending, so a model that thinks for minutes must not lose the ta
 A hold ends with the `release-browser-tab` tool, with the tab closing, with the socket closing,
 or after five minutes without a command.
 
+A read is the exception: its mark stays up until the next command replaces it. Everything else
+leaves a trace on the page you can see afterwards, whereas a read changes nothing, so the mark
+is all there is to tell you it happened.
+
 While a tab is held, the page's own `alert`, `confirm` and `prompt` are replaced. A native dialog
 freezes the page's script, which would leave every later command hanging until it timed out, so
 the dialog is answered before it can open and its text is handed back with the action's result.
 
 Animation stops where `prefers-reduced-motion` is set. The overlay is removed just before a
 screenshot is taken, so the effects never end up in the resulting image.
+
+A screenshot can also be cropped to one element by passing a `ref` or a `selector`. The element is
+scrolled into view first and the image keeps a small margin around it. Only what is on screen can
+be captured, so an element taller than the window comes back cropped - the result says so and
+reports the element's full size, which is enough to scroll on and capture the rest.
 
 ## Example prompts
 
@@ -255,9 +267,11 @@ This works in Zen Browser. Whether stock Firefox accepts it has not been tested.
 
 #### The easy way: `setup.ps1`
 
-Run this in the repository root. It asks for a language, builds the project if it has not been
-built, looks for the clients itself, offers to install the ones that are missing, and registers all
-of them. Run it again whenever you issue a new Secret Key.
+Run this in the repository root. Every question it asks comes before the Secret Key: the language,
+and whether to install anything it could not find. Then it shows both clients at once, says what is
+about to happen, and asks for the key. After that it runs to the end without stopping - it installs
+the dependencies, builds, registers, writes the Desktop config, and packages the extension zip.
+Run it again whenever you issue a new Secret Key.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1
@@ -266,20 +280,35 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1
 ```
 Language / 언어  [1] English  [2] 한국어
 
-  Checking the build
-
-  Build            the MCP server and the extension are ready
-
   Looking for the clients
 
+============================================================
+  Current state
+============================================================
+
+  Build            ready
   Claude Code      the MCP server is registered, its Secret Key will be refreshed
+                   running right now (2 process(es))
   Claude Desktop   the app is there but the MCP server is not registered, it will be added
                    config: C:\Users\me\AppData\Local\Packages\Claude_…\LocalCache\Roaming\Claude\claude_desktop_config.json
+
+============================================================
+  What happens after the Secret Key
+============================================================
+
+  Claude Desktop is not running, so it only has to be started again afterwards.
+  Claude Code sessions that are already open keep their old settings. Open a new
+  session once this is done.
+
+  Nothing else is asked from here on: the build, the registration, the config file
+  and the extension zip all run in one go.
 
 Secret Key
 ```
 
-Nothing is installed without a `y/N` answer, and it tells you what it is about to do at each step.
+Nothing is installed without a `y/N` answer. Claude Desktop reads its config only at startup and
+rewrites it on exit, so the script closes it by force before writing - it says so above the key
+prompt rather than asking again half way through.
 
 What follows is for setting the commands up by hand.
 

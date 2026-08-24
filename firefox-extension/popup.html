@@ -312,11 +312,11 @@
     }
 
     #url-scope {
-      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-columns: 1fr 1fr 1fr 1fr;
     }
 
     #url-scope .seg-thumb {
-      width: calc(33.333% - 2px);
+      width: calc(25% - 1.5px);
     }
 
     #url-scope:has(#scope-loopback:checked) .seg-thumb {
@@ -324,6 +324,26 @@
     }
 
     #url-scope:has(#scope-any:checked) .seg-thumb {
+      transform: translateX(200%);
+    }
+
+    #url-scope:has(#scope-files:checked) .seg-thumb {
+      transform: translateX(300%);
+    }
+
+    #console-level {
+      grid-template-columns: 1fr 1fr 1fr;
+    }
+
+    #console-level .seg-thumb {
+      width: calc(33.333% - 2px);
+    }
+
+    #console-level:has(#console-warn:checked) .seg-thumb {
+      transform: translateX(100%);
+    }
+
+    #console-level:has(#console-log:checked) .seg-thumb {
       transform: translateX(200%);
     }
 
@@ -639,6 +659,10 @@
         <input type="radio" id="scope-any" name="url-scope" value="any">
         <span data-i18n="popupUrlScopeAnyName"></span>
       </label>
+      <label class="seg" for="scope-files">
+        <input type="radio" id="scope-files" name="url-scope" value="files">
+        <span data-i18n="popupUrlScopeFilesName"></span>
+      </label>
     </div>
     <div id="url-scope-hint" class="mode-hint"></div>
   </section>
@@ -654,6 +678,13 @@
   </section>
   <section class="section">
     <h2 data-i18n="popupSectionInteraction"></h2>
+    <label class="toggle" for="toggle-capture-tab-screenshot">
+      <input type="checkbox" id="toggle-capture-tab-screenshot" data-tool-id="capture-tab-screenshot">
+      <span class="toggle-body">
+        <span class="toggle-name" data-i18n="popupToggleScreenshotName"></span><br>
+        <span class="toggle-hint" data-i18n="popupToggleScreenshotHint"></span>
+      </span>
+    </label>
     <label class="toggle" for="toggle-interact-click">
       <input type="checkbox" id="toggle-interact-click" data-tool-id="interact-click">
       <span class="toggle-body">
@@ -682,6 +713,29 @@
         <span class="toggle-hint toggle-warn" data-i18n="popupToggleHiddenHint"></span>
       </span>
     </label>
+    <label class="toggle" for="toggle-console-capture">
+      <input type="checkbox" id="toggle-console-capture">
+      <span class="toggle-body">
+        <span class="toggle-name" data-i18n="popupToggleConsoleName"></span><br>
+        <span class="toggle-hint" data-i18n="popupToggleConsoleHint"></span>
+      </span>
+    </label>
+    <div id="console-level" class="segmented" style="margin-top: 6px;">
+      <span class="seg-thumb" aria-hidden="true"></span>
+      <label class="seg" for="console-error">
+        <input type="radio" id="console-error" name="console-level" value="error">
+        <span data-i18n="popupConsoleLevelErrorName"></span>
+      </label>
+      <label class="seg" for="console-warn">
+        <input type="radio" id="console-warn" name="console-level" value="warn">
+        <span data-i18n="popupConsoleLevelWarnName"></span>
+      </label>
+      <label class="seg" for="console-log">
+        <input type="radio" id="console-log" name="console-level" value="log">
+        <span data-i18n="popupConsoleLevelLogName"></span>
+      </label>
+    </div>
+    <div id="console-level-hint" class="mode-hint"></div>
     <label class="toggle" for="toggle-background-mode">
       <input type="checkbox" id="toggle-background-mode">
       <span class="toggle-body">

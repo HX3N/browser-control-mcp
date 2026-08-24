@@ -37,6 +37,7 @@ export interface ElementBoxResult {
 }
 
 export const CAPTURE_PADDING_PX = 8;
+const MAX_CAPTURE_HEIGHT_PX = 2000;
 
 const VALUE_SETTER_SOURCE = `
 function __bcmSetValue(el, value) {
@@ -406,43 +407,46 @@ export function buildElementBoxCode(target: ElementTarget): string {
 ${ELEMENT_RESOLVER_SOURCE}
   var el = __bcmResolve(${targetLiteral(target)});
   var pad = ${jsValue(CAPTURE_PADDING_PX)};
+  var maxHeight = ${jsValue(MAX_CAPTURE_HEIGHT_PX)};
 
-  function viewport() {
-    return {
-      width: window.innerWidth || document.documentElement.clientWidth,
-      height: window.innerHeight || document.documentElement.clientHeight
-    };
-  }
-
-  var view = viewport();
   var box = el.getBoundingClientRect();
-  var outOfView = box.bottom <= 0 || box.top >= view.height ||
-    box.right <= 0 || box.left >= view.width;
-
-  // An element taller than the window is aligned to its top, not centred: the capture starts at
-  // the beginning of it, so scrolling down and capturing again walks through the whole thing.
-  if (outOfView && typeof el.scrollIntoView === 'function') {
-    el.scrollIntoView({ block: box.height > view.height ? 'start' : 'center', inline: 'nearest' });
-    view = viewport();
-    box = el.getBoundingClientRect();
+  if (box.width <= 0 || box.height <= 0) {
+    throw new Error('The element ' + __bcmLabel(el) + ' has no size on the page, so there is nothing to capture.');
   }
 
-  var left = Math.max(0, box.left - pad);
-  var top = Math.max(0, box.top - pad);
-  var right = Math.min(view.width, box.right + pad);
-  var bottom = Math.min(view.height, box.bottom + pad);
+  var doc = document.scrollingElement || document.documentElement;
+  var elementTop = box.top + window.scrollY;
+  var elementBottom = elementTop + box.height;
 
-  if (right <= left || bottom <= top) {
-    throw new Error('The element ' + __bcmLabel(el) + ' is not on screen, so there is nothing to capture. Scroll to it first with scroll-browser-tab.');
+  var fullTop = Math.max(0, elementTop - pad);
+  var fullBottom = elementBottom + pad;
+  var wanted = fullBottom - fullTop;
+
+  var top = fullTop;
+  var height = Math.max(1, Math.min(wanted, maxHeight));
+
+  // Only an element too tall to fit in one shot follows the scroll; every other one is captured
+  // whole, wherever the reader is standing.
+  if (wanted > maxHeight && window.scrollY > fullTop) {
+    top = Math.max(fullTop, Math.min(window.scrollY, fullBottom - maxHeight));
+    height = Math.max(1, Math.min(fullBottom - top, maxHeight));
   }
+
+  var left = Math.max(0, box.left + window.scrollX - pad);
+  var width = Math.max(1, Math.min(box.width + pad * 2, doc.scrollWidth - left));
 
   var scroll = __bcmScroll();
   return {
-    rect: { x: left, y: top, width: right - left, height: bottom - top },
+    rect: {
+      x: Math.round(left),
+      y: Math.round(top),
+      width: Math.round(width),
+      height: Math.round(height)
+    },
     label: __bcmLabel(el),
     elementWidth: Math.round(box.width),
     elementHeight: Math.round(box.height),
-    clipped: box.top < 0 || box.left < 0 || box.bottom > view.height || box.right > view.width,
+    clipped: top > fullTop || top + height < fullBottom,
     scrollY: scroll.scrollY,
     scrollHeight: scroll.scrollHeight
   };

@@ -15,6 +15,7 @@ import type {
   ExtensionError,
   ScreenshotExtensionMessage,
   TabNavigatedExtensionMessage,
+  OpenedTabIdExtensionMessage,
 } from "@browser-control-mcp/common";
 import { isPortInUse } from "./util";
 import * as crypto from "crypto";
@@ -188,14 +189,16 @@ export class BrowserAPI {
     return this.boundPort ?? undefined;
   }
 
-  async openTab(url: string, cookieStoreId?: string): Promise<number | undefined> {
+  async openTab(
+    url: string,
+    cookieStoreId?: string
+  ): Promise<OpenedTabIdExtensionMessage> {
     const correlationId = this.sendMessageToExtension({
       cmd: "open-tab",
       url,
       cookieStoreId,
     });
-    const message = await this.waitForResponse(correlationId, "opened-tab-id");
-    return message.tabId;
+    return await this.waitForResponse(correlationId, "opened-tab-id");
   }
 
   async navigateTab(

@@ -239,16 +239,22 @@ ${SNAPSHOT_HELPERS_SOURCE}
   var scopeRoot = ${scopeExpression};
   var roots = __bcmRoots(scopeRoot);
 
+  if (!scopeRoot) { __bcmForgetAll(); }
+
   for (var r = 0; r < roots.length; r++) {
     var previous = roots[r].querySelectorAll('[${REF_ATTRIBUTE}]');
     for (var p = 0; p < previous.length; p++) {
+      __bcmForget(previous[p].getAttribute('${REF_ATTRIBUTE}'));
       previous[p].removeAttribute('${REF_ATTRIBUTE}');
     }
   }
 
   var base = 0;
   if (scopeRoot) {
-    if (scopeRoot.hasAttribute('${REF_ATTRIBUTE}')) { scopeRoot.removeAttribute('${REF_ATTRIBUTE}'); }
+    if (scopeRoot.hasAttribute('${REF_ATTRIBUTE}')) {
+      __bcmForget(scopeRoot.getAttribute('${REF_ATTRIBUTE}'));
+      scopeRoot.removeAttribute('${REF_ATTRIBUTE}');
+    }
     var stamped = __bcmQueryAll('[${REF_ATTRIBUTE}]');
     for (var s = 0; s < stamped.length; s++) {
       var seen = /^e(\\d+)$/.exec(stamped[s].getAttribute('${REF_ATTRIBUTE}') || '');
@@ -297,6 +303,7 @@ ${SNAPSHOT_HELPERS_SOURCE}
   for (var k = 0; k < found.length && elements.length < maxElements; k++) {
     var ref = 'e' + (base + k + 1);
     found[k].el.setAttribute('${REF_ATTRIBUTE}', ref);
+    __bcmRemember(ref, found[k].el);
     elements.push(__bcmDescribe(found[k].el, ref, found[k].hidden, found[k].frame));
   }
 

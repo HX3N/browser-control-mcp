@@ -34,6 +34,10 @@ import {
   setPortEnabled,
   setPorts,
   setToolEnabled,
+  isConsoleCaptureEnabled,
+  getConsoleCaptureLevel,
+  setConsoleCapture,
+  setConsoleCaptureLevel,
 } from "./extension-config";
 import {
   grantCaptureConsent,
@@ -42,6 +46,8 @@ import {
   showConsentGrantedFeedback,
 } from "./capture-consent";
 import { hasAllUrlsPermission } from "./tab-access";
+import { isPageEventMessage, recordPageEvent } from "./page-events";
+import type { PageEventMessage } from "./page-events";
 import type {
   ActiveTabStatus,
   PopupRequest,
@@ -274,6 +280,8 @@ async function buildStatus(): Promise<PopupStatus> {
     inheritContainer: await isContainerInherited(),
     backgroundMode: await isBackgroundMode(),
     includeHidden: await isHiddenElementsIncluded(),
+    consoleCapture: await isConsoleCaptureEnabled(),
+    consoleLevel: await getConsoleCaptureLevel(),
     urlScope: await getUrlScope(),
     allUrlsGranted: await hasAllUrlsPermission(),
     activeTab: await describeActiveTab(),
@@ -322,6 +330,12 @@ async function handlePopupRequest(request: PopupRequest): Promise<PopupStatus> {
     case "set-include-hidden":
       await setHiddenElementsIncluded(request.enabled);
       break;
+    case "set-console-capture":
+      await setConsoleCapture(request.enabled);
+      break;
+    case "set-console-level":
+      await setConsoleCaptureLevel(request.level);
+      break;
     case "set-domain-deny-list":
       await setDomainDenyList(request.domains);
       break;
@@ -347,9 +361,23 @@ async function handlePopupRequest(request: PopupRequest): Promise<PopupStatus> {
 }
 
 function initPopupChannel() {
-  browser.runtime.onMessage.addListener((message: PopupRequest) => {
-    return handlePopupRequest(message);
-  });
+  browser.runtime.onMessage.addListener(
+    (message: PopupRequest | PageEventMessage, sender) => {
+      if (isPageEventMessage(message)) {
+        if (sender.tab?.id !== undefined) {
+          recordPageEvent(
+            sender.tab.id,
+            message.channel,
+            message.text,
+            message.id
+          );
+        }
+        // The answer is the guard's only proof that the report survived its document.
+        return Promise.resolve(true);
+      }
+      return handlePopupRequest(message);
+    }
+  );
 }
 
 async function initExtension() {

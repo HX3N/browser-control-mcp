@@ -60,8 +60,9 @@ A monorepo with three components:
 - MCP Server ↔ extension: WebSocket, every frame HMAC-signed with a shared secret. Each
   session runs its own server, so a server claims the first free port from 8089 upward and
   the extension keeps one idle slot above the highest connected port
-- Extension → page: `browser.tabs.executeScript` with generated source strings. There are no
-  registered content scripts; everything is injected on demand.
+- Extension → page: `browser.tabs.executeScript` with generated source strings. No content
+  scripts are registered permanently; the dialog guard is registered for the target origin just
+  before an open or navigation and unregistered once the load settles.
 
 ### Key files
 
@@ -78,9 +79,10 @@ A monorepo with three components:
 | `firefox-extension/capture-consent.ts` | Per-tab activeTab consent tracking |
 | `firefox-extension/injected-common.ts` | Shared injected source: root walk across frames and shadow roots, element resolution, labels |
 | `firefox-extension/page-snapshot.ts` | Snapshot script that stamps `data-bcm-ref` |
-| `firefox-extension/interaction-scripts.ts` | Click, type, key, scroll, select, execute, wait |
+| `firefox-extension/interaction-scripts.ts` | Click, type, key, scroll, select, execute, wait, element box |
 | `firefox-extension/highlight-overlay.ts` | Element glow and viewport aurora, in a shadow root |
-| `firefox-extension/dialog-guard.ts` | Replaces the page's `alert`, `confirm` and `prompt` while a tab is held |
+| `firefox-extension/dialog-guard.ts` | Guard source (answers dialogs, hooks the console, queues reports) and its registration helpers |
+| `firefox-extension/page-events.ts` | Per-tab store for what the guard reports and the documents it announced |
 | `firefox-extension/popup.html` / `popup.ts` | Toolbar popup |
 | `firefox-extension/popup-messages.ts` | Popup ↔ background message contract |
 | `firefox-extension/options.html` / `options.ts` | Options page |
@@ -90,8 +92,8 @@ A monorepo with three components:
 Two independent gates, both enforced in `message-handler.ts` before anything touches a page.
 
 1. **Tool switches** — `COMMAND_TO_TOOL_ID` maps every command to a tool id; `isCommandAllowed`
-   rejects disabled ones. The popup exposes `interact-click`, `interact-type` and
-   `execute-javascript`; the options page exposes the rest. `execute-javascript` is listed in
+   rejects disabled ones. The popup exposes `capture-tab-screenshot`, `interact-click`,
+   `interact-type` and `execute-javascript`; the options page exposes the rest. `execute-javascript` is listed in
    `DISABLED_BY_DEFAULT_TOOL_IDS`, so it starts off and has to be switched on by hand.
    The popup also carries a `Read hidden elements` switch, which is not a tool id but a snapshot
    setting: it is off by default because hidden text is text the user cannot see.
@@ -100,9 +102,11 @@ Two independent gates, both enforced in `message-handler.ts` before anything tou
    popup, which relies on `activeTab` and therefore expires when the tab navigates. The domain
    deny list applies in both modes. A stored `full` mode from an older build reads as `denylist`.
 
-The extension declares `*://*/*` as a **required** host permission, so Firefox grants it at load
-and never prompts per domain. That removes the browser as a backstop: these two gates are the
-only thing between the server and a page. The defaults are locked down to compensate.
+The extension declares `<all_urls>` as a **required** host permission — the literal string,
+because `captureVisibleTab` compares it verbatim and an equivalent pattern such as `*://*/*` is
+refused. Firefox grants it at load and never prompts per domain. That removes the browser as a
+backstop: these two gates are the only thing between the server and a page. The defaults are
+locked down to compensate.
 
 ### Containers
 
@@ -119,41 +123,103 @@ snapshot and the ref resolver in `injected-common.ts` iterate `__bcmRoots()` rat
 `document` alone; an element from one carries a `frame` label. A cross-origin frame throws on
 `contentDocument` and stays out of reach.
 
+`__bcmRoots(start)` takes the node to walk from, which is what makes a scoped read possible.
+
 Elements the page hides are listed only when the user turns that on in the popup, and they are
 appended after the visible ones so that `maxElements` truncates them first. Each is marked
 `hidden`, and the snapshot header warns that their text is untrusted: text nobody can see is a
 carrier for prompt injection.
 
 Refs die when the page re-renders, so a stale ref is an error that tells the caller to snapshot
-again.
+again. The stamp is an attribute, so a page that copies markup copies the ref with it: the
+snapshot also records the element itself in `window.__bcmRefs`, which a copy cannot inherit, and
+resolution trusts that record over the attribute.
+
+### Scoped reads
+
+`get-page-snapshot` and `get-tab-web-content` both take an `ElementTarget`. With a `ref` or a
+`selector` they read that element's subtree alone, which is what a page whose interesting part is
+one region costs the fewest tokens to read - the navigation, the sidebars and the footer never
+enter the answer. Without one, both behave exactly as before.
+
+A scoped snapshot clears only the stamps inside its own scope and then numbers from above the
+highest `eN` still on the page, so refs from an earlier full snapshot keep working and the two can
+be mixed. `querySelectorAll` reaches descendants only, so the scope element itself is matched
+separately against the selector. Both scoped paths pass the target to `attachOverlay`, so a read
+draws the same element outline that a click or a keystroke does, and the badge says which of the
+two kinds of read is running through `overlaySnapshotElement` / `overlayReadingElement`.
+
+`capture-tab-screenshot` takes the same target, captured through `captureTab` with a rect in
+page coordinates: the tab is never brought to the front, and the part of the element outside the
+viewport is still in the shot. The rect always starts at the element's top; only an element
+taller than `MAX_CAPTURE_HEIGHT_PX` (2000) follows the scroll position instead, and the
+`captured` block reports it through `clipped`, which the server turns into the sentence that
+tells the model to scroll on and capture the rest. When `captureTab` is refused, the fallback
+foregrounds the tab and uses `captureVisibleTab`. For the shot the overlay is hidden and
+restored (`conceal`/`reveal`), never detached.
 
 ### Overlay
 
 `highlight-overlay.ts` mounts a shadow root on `documentElement` and leaves it there for as
-long as the session holds the tab. The aurora is a port of a separable two-axis gradient mask
-and stays a fixed rainbow; only the top-centre status badge and the element outline take the
-action colour, through `--bcm-accent` and `--bcm-focus-color`. Both are registered with
-`@property` because a custom property will not transition otherwise. The tab is also marked by
+long as the session holds the tab. The aurora is a port of a separable two-axis gradient mask and
+is a rainbow of four colours by default, carried in `--bcm-flow-colors`; only the top-centre
+status badge and the element outline take the action colour, through `--bcm-accent` and
+`--bcm-focus-color`. Both are registered with `@property` because a custom property will not
+transition otherwise. Every one of those colours is a setting: the options page writes
+`overlayColors`, and `attach` applies the palette on each call, so a change lands on tabs that are
+already held rather than waiting for the next command. The tab is also marked by
 swapping its favicon, which is restored on release. Sites re-write their own icon link on route
 changes and a later link wins, so a MutationObserver on `document.head` reclaims the mark for as
 long as the session holds the tab.
 
-Holding a tab and acting on it are separate clocks. The badge falls back to its resting label
-after `STATUS_RESET_MS`, while the hold runs for `HOLD_RELEASE_MS` (five minutes): MCP has no
-notion of a turn ending, so a model that thinks for minutes between two clicks must not lose the
-tab underneath it. A hold also ends with the `release-browser-tab` tool, with the tab closing, or
-with the socket closing. Overlay failures are swallowed; they must never break an interaction.
+Holding a tab and acting on it are separate clocks, and both lengths live in `overlayTimings`
+(`statusResetMs`, `holdReleaseMs`, `leadMs`), defaulting to the values the extension shipped with.
+The badge falls back to its resting label after `statusResetMs`, while the hold runs for
+`holdReleaseMs` (five minutes by default): MCP has no notion of a turn ending, so a model that
+thinks for minutes between two clicks must not lose the tab underneath it. A read is the one
+action that never fades - it is sent with `resetAfterMs: 0`, so its mark stands until the next
+command replaces it, because a read leaves nothing else on screen to show what happened. A hold
+also ends with the `release-browser-tab` tool, with the tab closing, or with the socket closing.
+Overlay failures are swallowed; they must never break an interaction.
 
-### Native dialogs
+An overlay is injected DOM and never re-reads storage, so `background.ts` watches
+`browser.storage.onChanged` for a change to the overlay look and reapplies it to every held tab,
+detaching instead when every part has been switched off.
+
+The element outline is re-measured every animation frame while it shows, so it rides the element
+through scrolling and the page's own movement; the geometry transition is dropped while tracking
+(`is-tracking`) or the box would lag behind. Attaching with a target scrolls the page so the
+element's top sits at the vertical middle of the screen.
+
+### Native dialogs and page events
 
 `alert`, `confirm` and `prompt` freeze the page's own script, so `executeScript` would never
-return and every later command would hang until it timed out. There is no API to dismiss a
-dialog that is already open, so `dialog-guard.ts` replaces the three functions through
-`window.wrappedJSObject` and `exportFunction` before one can be raised: `alert` is ignored,
-`confirm` answers OK, `prompt` returns its own default. What the page tried to say is buffered
-on the content-script side and drained by `sendResource`, which attaches it as `dialogs` to every
-page command's response - reads included, not just interactions - and the server prints it after
-the result.
+return, and no API can dismiss a dialog that is already open. The guard in `dialog-guard.ts`
+replaces the three (and `print`) through `window.wrappedJSObject` and `exportFunction`, and stops
+`beforeunload` handlers in the capture phase. It has to be in the page before its first line
+runs: `open-browser-tab` parks the new tab on `about:blank`, registers the guard for the target
+origin and container with `browser.contentScripts.register` at `document_start`, and only then
+navigates — registration resolves in the parent process before the content processes have heard
+of it, so creating the tab straight onto the URL can beat it. `navigate-browser-tab` registers
+the same way before moving the tab, the `webNavigation.onCommitted` listener re-injects on every
+navigation of a tab the session holds, and after the load settles `verifyGuard` compares the
+documents that committed against the ones a guard announced itself in, naming any it missed -
+probing the tab afterwards would only ever reach the last document of a redirect chain. A page frozen by a dialog that still
+won the race is recovered once by reloading it with the guard registered; a second freeze is
+reported to the user.
+
+What the guard sees is reported, not buffered in the page: the dialog and console hooks run with
+page code on the stack, where the extension APIs are silently unreachable, so reports are queued
+and flushed on a microtask through `runtime.sendMessage`. The background answers each one, which
+is the guard's only proof the report survived its document: a page that navigates away right
+after raising a dialog tears down the channel the report travels on, so anything still
+unanswered at `pagehide` goes to `sessionStorage` and the next document's guard sends it again
+under the same id, which the background uses to drop the repeat. The
+background keeps them per tab in `page-events.ts`, and `sendResource` drains them into every
+command's response as `dialogs` and `consoleMessages` — `open-browser-tab` and
+`navigate-browser-tab` wait for the load to settle so a dialog raised during it rides their own
+response. Console capture (errors, uncaught exceptions, rejected promises, failed loads,
+optionally warn and log) is a popup switch, on by default at the `error` level.
 
 ## Adding a tool
 
@@ -194,9 +260,13 @@ Injected scripts are built as strings inside TypeScript template literals. Escap
   popup also opens with `Alt+Shift+B`; split view makes `captureVisibleTab` include both tabs
 - Setting `default_popup` means `browserAction.onClicked` never fires; tab authorization comes
   from the popup instead
-- `setup.ps1` bootstraps the whole client side: it offers to `winget install` a missing Claude
-  Code CLI or Claude Desktop, then registers the MCP server with both, re-registering with a fresh
-  secret because reloading the extension changes the key. Nothing installs without a y/N. The
+- `setup.ps1` bootstraps the whole client side. Every question it asks comes before the Secret
+  Key: it offers to `winget install` a missing Node, Claude Code CLI or Claude Desktop, then
+  reports the state of both clients in one block and says what is about to happen - Desktop will
+  be closed by force, and Claude Code sessions already open keep their old settings. After the key
+  it runs to the end with nothing further to answer: dependencies, build, registration, the Desktop
+  config, the DXT package and the extension zip (`npm run package`). It re-registers with a fresh
+  secret because reloading the extension changes the key. The
   Store build of Claude Desktop is MSIX, which redirects `%APPDATA%`, so the config path is
   resolved from `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\` first and only falls
   back to `%APPDATA%\Claude\`. Desktop reads that file only at startup and rewrites it on exit, so
@@ -205,5 +275,5 @@ Injected scripts are built as strings inside TypeScript template literals. Escap
   up and deletes a leftover `%APPDATA%\Claude\claude_desktop_config.json`, which the package copy
   shadows and the app never reads. `EXTENSION_PORT` is not passed: the server falls back to
   8089 on its own
-- Injected script builders are covered by no unit test; verify them by parsing their output
-  with `new Function` before trusting a change
+- `__tests__/injected-parse.test.ts` parses the output of every injected script builder with
+  `new Function`; add a case there when a builder gains an option

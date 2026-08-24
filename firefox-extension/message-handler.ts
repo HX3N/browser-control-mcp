@@ -34,6 +34,8 @@ import {
   getUrlScope,
   isUrlInScope,
   describeUrlScope,
+  isConsoleCaptureEnabled,
+  getConsoleCaptureLevel,
 } from "./extension-config";
 import { hasCaptureConsent, markTabAsAwaitingConsent } from "./capture-consent";
 import { ensureTabAccess, hasAllUrlsPermission } from "./tab-access";
@@ -45,11 +47,25 @@ import {
 } from "./injected-common";
 import {
   buildAttachOverlayCode,
+  buildConcealOverlayCode,
   buildDetachOverlayCode,
+  buildRevealOverlayCode,
   OverlayResult,
   OverlayState,
 } from "./highlight-overlay";
-import { buildDialogGuardCode, buildDrainDialogsCode } from "./dialog-guard";
+import {
+  buildDialogGuardCode,
+  registerDialogGuard,
+  unregisterDialogGuard,
+} from "./dialog-guard";
+import type { ConsoleLevel, RegisteredDialogGuard } from "./dialog-guard";
+import {
+  drainPageEvents,
+  forgetPageEvents,
+  noteCommittedDocument,
+  recordPageEvent,
+  takeUnguardedDocuments,
+} from "./page-events";
 import {
   buildClickCode,
   buildElementBoxCode,
@@ -66,7 +82,13 @@ import {
 
 // Time to let a newly foregrounded tab paint before capturing it
 const TAB_PAINT_DELAY_MS = 250;
+
+const SCRIPT_STALL_MS = 3000;
+const SCRIPT_STALLED = "__bcm_script_stalled__";
+
+class StalledPageError extends Error {}
 const SCROLL_SETTLE_MS = 150;
+const BLANK_URL = "about:blank";
 
 const idleStatus = () => t("overlayIdle");
 
@@ -92,14 +114,25 @@ function elementTargetOf(target: ElementTarget): ElementTarget | undefined {
 export class MessageHandler {
   private client: WebsocketClient;
   private claimedTabs: Map<number, ReturnType<typeof setTimeout>> = new Map();
+  private openedTabs: Set<number> = new Set();
 
   constructor(client: WebsocketClient) {
     this.client = client;
     browser.tabs.onRemoved.addListener((tabId) => {
       this.forgetTab(tabId);
     });
-    // The overlay is injected DOM, so a navigation wipes it. Nothing redraws it on its own:
-    // there is no registered content script.
+    // A page that calls alert() while loading freezes before any command arrives, and no API can
+    // answer a dialog that is already open: the guard has to be in before the document runs a line.
+    browser.webNavigation.onCommitted.addListener((details) => {
+      if (details.frameId !== 0 || !this.isGuarded(details.tabId)) {
+        return;
+      }
+      if (details.url && details.url !== BLANK_URL) {
+        noteCommittedDocument(details.tabId, details.url);
+      }
+      this.guardDialogs(details.tabId, "document_start").catch(() => undefined);
+    });
+    // The overlay is injected DOM, so a navigation wipes it and nothing puts it back on its own.
     browser.tabs.onUpdated.addListener(
       (tabId, changeInfo) => {
         if (changeInfo.status !== "complete" || !this.claimedTabs.has(tabId)) {
@@ -109,6 +142,12 @@ export class MessageHandler {
       },
       { properties: ["status"] }
     );
+  }
+
+  private async consoleLevel(): Promise<ConsoleLevel> {
+    return (await isConsoleCaptureEnabled())
+      ? await getConsoleCaptureLevel()
+      : "off";
   }
 
   private async redrawOverlay(tabId: number): Promise<void> {
@@ -253,17 +292,73 @@ export class MessageHandler {
       throw new Error("Domain in user defined deny list");
     }
 
+    // contentScripts.register resolves in the parent process before the content processes have
+    // heard of it, so a tab created straight onto the URL can load its first document unguarded.
+    // Parking on about:blank and navigating afterwards buys the registration time to spread.
     const container = await this.resolveCookieStore(cookieStoreId);
     const active = !(await isBackgroundMode());
     const tab = await browser.tabs.create(
-      container ? { url, cookieStoreId: container, active } : { url, active }
+      container
+        ? { url: BLANK_URL, cookieStoreId: container, active }
+        : { url: BLANK_URL, active }
     );
 
-    await this.client.sendResourceToServer({
+    if (tab.id !== undefined) {
+      this.openedTabs.add(tab.id);
+    }
+
+    const registration = await registerDialogGuard(
+      url,
+      buildDialogGuardCode(await this.consoleLevel()),
+      container
+    );
+
+    if (tab.id !== undefined) {
+      const settling = this.waitForTabToSettle(tab.id);
+      await browser.tabs.update(tab.id, { url });
+      if (!registration) {
+        this.guardDialogs(tab.id, "document_start").catch(() => undefined);
+      }
+      await settling;
+      await unregisterDialogGuard(registration);
+      await this.verifyGuard(tab.id);
+      await this.attachOverlay(tab.id, "read", t("overlayOpen"));
+    } else {
+      await unregisterDialogGuard(registration);
+    }
+
+    const opened: ExtensionMessage = {
       resource: "opened-tab-id",
       correlationId,
       tabId: tab.id,
-    });
+    };
+    if (tab.id === undefined) {
+      await this.client.sendResourceToServer(opened);
+      return;
+    }
+    await this.sendResource(opened, tab.id);
+  }
+
+  // A redirect leaves more than one document behind, and only the guard that ran in each of them
+  // can say it was there: probing the tab afterwards only ever reaches the last one.
+  private async verifyGuard(tabId: number): Promise<void> {
+    const missed = takeUnguardedDocuments(tabId);
+    if (missed.length === 0) {
+      return;
+    }
+    for (const url of missed) {
+      recordPageEvent(
+        tabId,
+        "console",
+        `guard: no dialog guard reported itself on ${url}, so a dialog raised while ` +
+          "that document loaded may have gone unanswered and unreported"
+      );
+    }
+    try {
+      await this.guardDialogs(tabId);
+    } catch (error) {
+      console.error("Could not re-inject the dialog guard on tab", tabId, error);
+    }
   }
 
   private async navigateTab(
@@ -275,23 +370,33 @@ export class MessageHandler {
       throw new Error("Domain in user defined deny list");
     }
 
-    await this.prepareTabAccess(req.tabId);
+    const current = await this.prepareTabAccess(req.tabId);
     await this.attachOverlay(req.tabId, "read", t("overlayNavigate"));
     await delay((await getOverlayTimings()).leadMs);
 
+    const registration = await registerDialogGuard(
+      req.url,
+      buildDialogGuardCode(await this.consoleLevel()),
+      current.cookieStoreId
+    );
     const settling = this.waitForTabToSettle(req.tabId);
     await browser.tabs.update(req.tabId, { url: req.url });
     const settled = await settling;
+    await unregisterDialogGuard(registration);
+    await this.verifyGuard(req.tabId);
     const tab = await browser.tabs.get(req.tabId);
 
-    await this.client.sendResourceToServer({
-      resource: "tab-navigated",
-      correlationId: req.correlationId,
-      tabId: req.tabId,
-      url: tab.url ?? req.url,
-      title: tab.title ?? "",
-      settled,
-    });
+    await this.sendResource(
+      {
+        resource: "tab-navigated",
+        correlationId: req.correlationId,
+        tabId: req.tabId,
+        url: tab.url ?? req.url,
+        title: tab.title ?? "",
+        settled,
+      },
+      req.tabId
+    );
   }
 
   // The tab the command lands on is still showing the old page for a moment, so a "complete"
@@ -587,8 +692,8 @@ export class MessageHandler {
 
     await ensureTabAccess(tab);
 
-    // captureVisibleTab is gated on the broad host permission or on activeTab, and an
-    // origin-scoped grant satisfies neither, so the per-tab authorization is still required.
+    // captureVisibleTab compares the permission string literally, so an equivalent pattern such
+    // as *://*/* leaves this passing here and refused by the browser.
     if (!(await hasAllUrlsPermission()) && !hasCaptureConsent(tabId, tab.url)) {
       await markTabAsAwaitingConsent(tabId);
       throw new Error(
@@ -602,41 +707,47 @@ export class MessageHandler {
     }
 
     await browser.tabs
-      .executeScript(tabId, { code: buildDetachOverlayCode() })
+      .executeScript(tabId, { code: buildConcealOverlayCode() })
       .catch(() => undefined);
+    await delay(SCROLL_SETTLE_MS);
 
     if (tab.windowId === undefined) {
       throw new Error(`Tab ${tabId} does not belong to a window`);
     }
 
-    // captureVisibleTab() captures whichever tab is active in the window, and activeTab is
-    // only granted for the tab the user clicked, so the target tab has to be foregrounded
-    // first. Restore the previous tab afterwards so the capture is not disruptive.
-    const restoreTabId = tab.active
-      ? undefined
-      : await this.activateTabForCapture(tabId, tab.windowId);
-
+    let restoreTabId: number | undefined;
     try {
       const box = isElementTargeted(req)
         ? await this.measureElement(tabId, req)
         : null;
+      const options = {
+        format,
+        quality,
+        scale,
+        ...(box ? { rect: box.rect } : {}),
+      };
+
       let dataUrl: string;
       try {
-        dataUrl = await browser.tabs.captureVisibleTab(tab.windowId, {
-          format,
-          quality,
-          scale,
-          ...(box ? { rect: box.rect } : {}),
-        });
+        dataUrl = await browser.tabs.captureTab(tabId, options);
       } catch (error) {
-        // The browser is the real enforcer of the activeTab grant, so it can still refuse
-        // even when the tracked consent looks valid.
-        throw new Error(
-          `Firefox refused to capture tab ${tabId}: ${
-            error instanceof Error ? error.message : String(error)
-          }. Capturing with per-tab authorization requires Firefox 126 or later. ` +
-            `Otherwise, ask the user to click the extension's toolbar button on that tab again.`
-        );
+        // captureTab reaches a tab wherever it sits, while captureVisibleTab only ever returns
+        // the window's active tab, so falling back means bringing the target to the front.
+        restoreTabId = tab.active
+          ? undefined
+          : await this.activateTabForCapture(tabId, tab.windowId);
+        try {
+          dataUrl = await browser.tabs.captureVisibleTab(tab.windowId, options);
+        } catch (fallbackError) {
+          throw new Error(
+            `Firefox refused to capture tab ${tabId}: ${
+              fallbackError instanceof Error
+                ? fallbackError.message
+                : String(fallbackError)
+            }. Ask the user to reinstall the extension so that it holds the <all_urls> ` +
+              `permission, or to click its toolbar button on that tab.`
+          );
+        }
       }
       const { mimeType, imageData } = parseImageDataUrl(dataUrl);
       await this.sendResource(
@@ -671,6 +782,9 @@ export class MessageHandler {
           console.error("Failed to restore the previously active tab:", error);
         }
       }
+      await browser.tabs
+        .executeScript(tabId, { code: buildRevealOverlayCode() })
+        .catch(() => undefined);
     }
   }
 
@@ -681,9 +795,7 @@ export class MessageHandler {
     const results = await browser.tabs.executeScript(tabId, {
       code: buildElementBoxCode(target),
     });
-    const box = results[0] as ElementBoxResult;
-    await delay(SCROLL_SETTLE_MS);
-    return box;
+    return results[0] as ElementBoxResult;
   }
 
   // Foregrounds the tab to be captured, returning the tab that was active before, if any.
@@ -714,36 +826,117 @@ export class MessageHandler {
 
   // A native dialog blocks the page's own script, so executeScript would never return and the
   // command would only time out. The dialog has to be stopped before it opens.
-  private async guardDialogs(tabId: number): Promise<void> {
+  private async guardDialogs(
+    tabId: number,
+    runAt: "document_start" | "document_idle" = "document_idle"
+  ): Promise<void> {
     try {
-      await browser.tabs.executeScript(tabId, { code: buildDialogGuardCode() });
+      const code = buildDialogGuardCode(await this.consoleLevel());
+      await this.runScript(tabId, { code, runAt });
     } catch (error) {
+      // A page that cannot be scripted at all is not worth failing a command over, but a
+      // frozen one is: every later command would hang the same way.
+      if (error instanceof StalledPageError) {
+        throw error;
+      }
       console.error("Could not install the dialog guard on tab", tabId, error);
     }
+  }
+
+  // An open dialog suspends the page, so executeScript never settles. Racing it against a timer
+  // is the only way to tell that apart from a slow script, and the tab itself still answers.
+  private async runScript(
+    tabId: number,
+    details: browser.extensionTypes.InjectDetails,
+    recovered = false
+  ): Promise<any[]> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const stalled = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(SCRIPT_STALLED)), SCRIPT_STALL_MS);
+    });
+
+    try {
+      return await Promise.race([
+        browser.tabs.executeScript(tabId, details),
+        stalled,
+      ]);
+    } catch (error) {
+      if (error instanceof Error && error.message === SCRIPT_STALLED) {
+        if (!recovered && (await this.recoverStalledTab(tabId))) {
+          return await this.runScript(tabId, details, true);
+        }
+        throw new StalledPageError(
+          await this.describeStalledTab(tabId, recovered)
+        );
+      }
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  // No API dismisses a dialog that is already open, but reloading tears the document down and
+  // takes it along; the guard has to be registered first or the new document raises it again.
+  private async recoverStalledTab(tabId: number): Promise<boolean> {
+    let registration: RegisteredDialogGuard | null = null;
+    try {
+      const tab = await browser.tabs.get(tabId);
+      registration = tab.url
+        ? await registerDialogGuard(
+            tab.url,
+            buildDialogGuardCode(await this.consoleLevel()),
+            tab.cookieStoreId
+          )
+        : null;
+      const settling = this.waitForTabToSettle(tabId);
+      await browser.tabs.reload(tabId);
+      await settling;
+      return true;
+    } catch (error) {
+      console.error("Could not reload the stalled tab", tabId, error);
+      return false;
+    } finally {
+      await unregisterDialogGuard(registration);
+    }
+  }
+
+  private async describeStalledTab(
+    tabId: number,
+    reloaded: boolean
+  ): Promise<string> {
+    let title = "";
+    try {
+      const tab = await browser.tabs.get(tabId);
+      title = tab.title ? ` ("${tab.title}")` : "";
+    } catch (error) {
+      return `Tab ${tabId} stopped responding and can no longer be read; it may have been closed.`;
+    }
+
+    return (
+      `Tab ${tabId}${title} is open but its scripts are frozen, which is what a native dialog does: ` +
+      `alert, confirm and prompt suspend the page until someone answers them. The extension ` +
+      `answers them silently, but only through a guard that has to be in place before the page runs. ` +
+      (reloaded
+        ? `The tab was reloaded once with that guard registered and froze again. `
+        : `The tab could not be reloaded to clear it. `) +
+      `Ask the user to close the dialog in the browser, then run this command again.`
+    );
   }
 
   private async sendResource(
     message: ExtensionMessage,
     tabId: number
   ): Promise<void> {
-    const dialogs = await this.drainDialogs(tabId);
-    if (dialogs.length > 0) {
-      message.dialogs = dialogs;
+    const seen = drainPageEvents(tabId);
+    if (seen.dialogs.length > 0) {
+      message.dialogs = seen.dialogs;
+    }
+    if (seen.console.length > 0) {
+      message.consoleMessages = seen.console;
     }
     await this.client.sendResourceToServer(message);
   }
 
-  private async drainDialogs(tabId: number): Promise<string[]> {
-    try {
-      const results = await browser.tabs.executeScript(tabId, {
-        code: buildDrainDialogsCode(),
-      });
-      const seen = results?.[0];
-      return Array.isArray(seen) ? seen : [];
-    } catch (error) {
-      return [];
-    }
-  }
 
   // The overlay stays up for as long as this session holds the tab, so every command renews
   // the idle timer rather than scheduling its own teardown.
@@ -822,7 +1015,13 @@ export class MessageHandler {
     }
   }
 
+  private isGuarded(tabId: number): boolean {
+    return this.claimedTabs.has(tabId) || this.openedTabs.has(tabId);
+  }
+
   private forgetTab(tabId: number): void {
+    this.openedTabs.delete(tabId);
+    forgetPageEvents(tabId);
     const timer = this.claimedTabs.get(tabId);
     if (timer === undefined) {
       return;

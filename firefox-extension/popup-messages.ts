@@ -1,4 +1,9 @@
-import type { PermissionMode, ToolSettings, UrlScope } from "./extension-config";
+import type {
+  ConsoleCaptureLevel,
+  PermissionMode,
+  ToolSettings,
+  UrlScope,
+} from "./extension-config";
 
 export interface ConnectionStatus {
   port: number;
@@ -35,6 +40,8 @@ export interface PopupStatus {
   inheritContainer: boolean;
   backgroundMode: boolean;
   includeHidden: boolean;
+  consoleCapture: boolean;
+  consoleLevel: ConsoleCaptureLevel;
   allUrlsGranted: boolean;
   activeTab: ActiveTabStatus;
 }
@@ -53,6 +60,8 @@ export type PopupRequest =
   | { kind: "set-inherit-container"; enabled: boolean }
   | { kind: "set-background-mode"; enabled: boolean }
   | { kind: "set-include-hidden"; enabled: boolean }
+  | { kind: "set-console-capture"; enabled: boolean }
+  | { kind: "set-console-level"; level: ConsoleCaptureLevel }
   | { kind: "set-domain-deny-list"; domains: string[] }
   | { kind: "set-allowed-origins"; origins: string[] }
   | { kind: "authorize-tab"; tabId: number }

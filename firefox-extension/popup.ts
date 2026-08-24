@@ -1,4 +1,8 @@
-import type { PermissionMode, UrlScope } from "./extension-config";
+import type {
+  ConsoleCaptureLevel,
+  PermissionMode,
+  UrlScope,
+} from "./extension-config";
 import { localizeDocument, t } from "./i18n";
 import type { PopupRequest, PopupStatus } from "./popup-messages";
 
@@ -80,6 +84,18 @@ const toolToggles = Array.from(
 );
 const modeRadios = Array.from(
   document.querySelectorAll<HTMLInputElement>("input[name='permission-mode']")
+);
+const consoleCaptureToggle = document.getElementById(
+  "toggle-console-capture"
+) as HTMLInputElement;
+const consoleLevelGroup = document.getElementById(
+  "console-level"
+) as HTMLDivElement;
+const consoleLevelHint = document.getElementById(
+  "console-level-hint"
+) as HTMLDivElement;
+const consoleLevelRadios = Array.from(
+  document.querySelectorAll<HTMLInputElement>("input[name='console-level']")
 );
 const urlScopeRadios = Array.from(
   document.querySelectorAll<HTMLInputElement>("input[name='url-scope']")
@@ -349,14 +365,55 @@ function render(status: PopupStatus): void {
       : "popupModeDenylistHint"
   );
 
-  for (const radio of urlScopeRadios) {
+  consoleCaptureToggle.addEventListener("change", () => {
+  void send({
+    kind: "set-console-capture",
+    enabled: consoleCaptureToggle.checked,
+  }).then((status) => {
+    render(status);
+    showFeedback(t("popupFeedbackSaved"));
+  });
+});
+
+for (const radio of consoleLevelRadios) {
+  radio.addEventListener("change", () => {
+    if (!radio.checked) {
+      return;
+    }
+    void send({
+      kind: "set-console-level",
+      level: radio.value as ConsoleCaptureLevel,
+    }).then((status) => {
+      render(status);
+      showFeedback(t("popupFeedbackSaved"));
+    });
+  });
+}
+
+for (const radio of urlScopeRadios) {
     radio.checked = radio.value === status.urlScope;
   }
+  consoleCaptureToggle.checked = status.consoleCapture;
+  consoleLevelGroup.classList.toggle("hidden", !status.consoleCapture);
+  for (const radio of consoleLevelRadios) {
+    radio.checked = radio.value === status.consoleLevel;
+  }
+  consoleLevelHint.textContent = status.consoleCapture
+    ? t(
+        status.consoleLevel === "warn"
+          ? "popupConsoleLevelWarnHint"
+          : status.consoleLevel === "log"
+          ? "popupConsoleLevelLogHint"
+          : "popupConsoleLevelErrorHint"
+      )
+    : "";
   urlScopeHint.textContent = t(
     status.urlScope === "loopback"
       ? "popupUrlScopeLoopbackHint"
       : status.urlScope === "any"
       ? "popupUrlScopeAnyHint"
+      : status.urlScope === "files"
+      ? "popupUrlScopeFilesHint"
       : "popupUrlScopeHttpsHint"
   );
 

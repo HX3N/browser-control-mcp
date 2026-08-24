@@ -51,6 +51,23 @@ function __bcmFrameLabel(root) {
 `;
 
 export const RESOLVER_SOURCE = `
+function __bcmMemory() {
+  if (!window.__bcmRefs) { window.__bcmRefs = new Map(); }
+  return window.__bcmRefs;
+}
+
+function __bcmRemember(ref, el) {
+  __bcmMemory().set(ref, el);
+}
+
+function __bcmForget(ref) {
+  if (ref) { __bcmMemory().delete(ref); }
+}
+
+function __bcmForgetAll() {
+  __bcmMemory().clear();
+}
+
 function __bcmQueryAll(selector, start) {
   var roots = __bcmRoots(start);
   var found = [];
@@ -63,9 +80,20 @@ function __bcmQueryAll(selector, start) {
 
 function __bcmResolve(target) {
   if (target && target.ref) {
-    var byRef = __bcmQueryAll('[${REF_ATTRIBUTE}="' + String(target.ref).replace(/"/g, '') + '"]');
-    if (byRef.length > 0) { return byRef[0]; }
-    throw new Error('No element carries ref "' + target.ref + '" any more. Refs are stamped by page-snapshot and are dropped when the page re-renders or navigates, so take a fresh snapshot and retry.');
+    var ref = String(target.ref);
+    // The stamp is an attribute, so a page that copies markup copies the ref with it. The element
+    // behind a ref is remembered as well, and a copy cannot inherit that.
+    var known = __bcmMemory().get(ref);
+    if (known) {
+      if (known.isConnected && known.getAttribute('${REF_ATTRIBUTE}') === ref) { return known; }
+      throw new Error('The element behind ref "' + ref + '" has left the page. Refs are stamped by page-snapshot and are dropped when the page re-renders or navigates, so take a fresh snapshot and retry.');
+    }
+    var byRef = __bcmQueryAll('[${REF_ATTRIBUTE}="' + ref.replace(/"/g, '') + '"]');
+    if (byRef.length === 1) { return byRef[0]; }
+    if (byRef.length > 1) {
+      throw new Error('Ref "' + ref + '" is stamped on ' + byRef.length + ' elements, which is what a page that copies markup carrying a ref leaves behind. Take a fresh snapshot and retry.');
+    }
+    throw new Error('No element carries ref "' + ref + '" any more. Refs are stamped by page-snapshot and are dropped when the page re-renders or navigates, so take a fresh snapshot and retry.');
   }
   if (target && target.selector) {
     var matches;

@@ -25,8 +25,8 @@ import type { OverlayAccentKey, OverlayTimings } from "./extension-config";
 import { clamp01, hexToHsv, hsvToHex } from "./color";
 import { localizeDocument, t } from "./i18n";
 
-// The popup owns these three, so listing them here as well would give the user two switches
-// for one setting.
+// The popup owns these, so listing them here as well would give the user two switches for one
+// setting.
 const POPUP_OWNED_TOOL_IDS: readonly string[] = INTERACTION_TOOL_IDS;
 
 const MASKED_SECRET = "••••••••-••••-••••-••••-••••••••••••";

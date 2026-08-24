@@ -2,6 +2,7 @@ export interface ExtensionMessageBase {
   resource: string;
   correlationId: string;
   dialogs?: string[];
+  consoleMessages?: string[];
 }
 
 export interface TabContentExtensionMessage extends ExtensionMessageBase {
