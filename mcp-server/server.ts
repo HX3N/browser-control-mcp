@@ -103,14 +103,12 @@ const elementTargetShape = {
     .string()
     .optional()
     .describe(
-      "A ref such as e12 taken from the most recent get-page-snapshot of this tab. Prefer this over selector."
+      "A ref such as e12 from the latest get-page-snapshot of this tab; prefer this over selector"
     ),
   selector: z
     .string()
     .optional()
-    .describe(
-      "A CSS selector, used when no ref is available. Ignored when ref is set."
-    ),
+    .describe("CSS selector fallback, ignored when ref is set"),
   index: z
     .number()
     .int()
@@ -173,9 +171,9 @@ mcpServer.tool(
 mcpServer.tool(
   "navigate-browser-tab",
   `
-    Send a tab that is already open to another URL, keeping the same tab.
-    Prefer this over open-browser-tab once a tab is being worked in: it keeps the session on one
-    tab instead of leaving a trail of them behind, and the tab keeps its container and its hold.
+    Send a tab that is already open to another URL.
+    Prefer this over open-browser-tab once a tab is being worked in: the session stays on one tab
+    instead of leaving a trail of them, and the tab keeps its container and its hold.
     Clicking a link with click-page-element also stays in the tab; use this one when the address
     is known up front or the destination is not reachable by a link.
     The tool answers once the new page has finished loading, and element refs from an earlier
@@ -235,7 +233,9 @@ mcpServer.tool(
     // Add pagination info as the first content item
     const paginationInfo = {
       type: "text" as const,
-      text: `Showing tabs ${offset + 1}-${offset + paginatedTabs.length} of ${totalTabs} total tabs${hasMore ? ` (use offset=${offset + effectiveLimit} to see more)` : ''}`,
+      text:
+        `Showing tabs ${offset + 1}-${offset + paginatedTabs.length} of ${totalTabs} total tabs${hasMore ? ` (use offset=${offset + effectiveLimit} to see more)` : ''}\n` +
+        "Each line: id | url | title | last accessed | container (- if none)",
     };
 
     const tabContent = paginatedTabs.map((tab) => {
@@ -243,12 +243,9 @@ mcpServer.tool(
       if (tab.lastAccessed) {
         lastAccessed = dayjs(tab.lastAccessed).fromNow(); // LLM-friendly time ago
       }
-      const container = tab.cookieStoreId
-        ? `, container=${tab.cookieStoreId}`
-        : "";
       return {
         type: "text" as const,
-        text: `tab id=${tab.id}, tab url=${tab.url}, tab title=${tab.title}, last accessed=${lastAccessed}${container}`,
+        text: `${tab.id} | ${tab.url} | ${tab.title} | ${lastAccessed} | ${tab.cookieStoreId ?? "-"}`,
       };
     });
 
@@ -291,8 +288,8 @@ mcpServer.tool(
 mcpServer.tool(
   "get-tab-web-content",
   `
-    Get the full text content of the webpage and the list of links in the webpage, by tab ID.
-    Use "offset" only for larger documents when the first call was truncated and if you require more content in order to assist the user.
+    Get the full text content and the links of the webpage, by tab ID.
+    Use "offset" only when the first call was truncated and more content is needed.
     Pass "ref" or "selector" to read one element instead of the whole page: the text and the
     links are then taken from inside that element alone. Prefer this whenever the part you need
     is a known region - a results list, an article body, a table - because a whole page carries
@@ -312,31 +309,36 @@ mcpServer.tool(
       scoped ? elementTarget({ ref, selector, index }) : undefined
     );
     let links: { type: "text"; text: string }[] = [];
-    if (offset === 0) {
+    if (offset === 0 && content.links.length > 0) {
       // Only include the links if offset is 0 (default value). Otherwise, we can
       // assume this is not the first call. Adding the links again would be redundant.
-      links = content.links.map((link: { text: string; url: string }) => {
-        return {
+      links = [
+        {
           type: "text",
-
-          text: `Link text: ${link.text}, Link URL: ${link.url}`,
-        };
-      });
+          text:
+            "Links on this page:\n" +
+            content.links
+              .map(
+                (link: { text: string; url: string }) =>
+                  `[${link.text}](${link.url})`
+              )
+              .join("\n"),
+        },
+      ];
     }
 
     let text = content.fullText;
     let hint: { type: "text"; text: string }[] = [];
     if (content.isTruncated || offset > 0) {
-      // If the content is truncated, add a "tip" suggesting
-      // that another tool, search in page, can be used to
-      // discover additional data.
       const rangeString = `${offset}-${offset + text.length}`;
       hint = [
         {
           type: "text",
           text:
-            `The following text content is truncated due to size (includes character range ${rangeString} out of ${content.totalLength}). ` +
-            "If you want to read characters beyond this range, please use the 'get-tab-web-content' tool with an offset. ",
+            offset === 0
+              ? `The following text content is truncated due to size (includes character range ${rangeString} out of ${content.totalLength}). ` +
+                "If you want to read characters beyond this range, please use the 'get-tab-web-content' tool with an offset. "
+              : `Characters ${rangeString} of ${content.totalLength}. Continue with a larger offset.`,
         },
       ];
     }
@@ -451,9 +453,8 @@ mcpServer.tool(
     cheaper and easier to read than a full screen you have to hunt through. An element capture
     neither scrolls the page nor brings the tab forward: it is cropped in page coordinates, so the
     part of the element below the fold is in the image too.
-    Only an element taller than 2000 pixels comes back cropped, and there the scroll position
-    decides which slice you get. The result says so and gives the element's full size; scroll with
-    scroll-browser-tab and capture again to see the rest.
+    Only an element taller than 2000 pixels comes back cropped to the slice near the scroll
+    position; the result then says how to capture the rest.
   `,
   {
     tabId: z.number(),
@@ -556,9 +557,15 @@ mcpServer.tool(
     and more accurate call, because the navigation, the sidebars and the footer are left out.
     Refs stamped outside the scope survive, and the new refs are numbered above them, so a scoped
     snapshot can be mixed with an earlier full one.
+    Elements are listed with their ref only. Set includeSelectors to true when a CSS selector is
+    needed for a later step, such as wait-for-page-element.
   `,
   {
     tabId: z.number(),
+    includeSelectors: z
+      .boolean()
+      .default(false)
+      .describe("Also list each element's CSS selector, which costs many tokens"),
     maxElements: z
       .number()
       .int()
@@ -574,7 +581,7 @@ mcpServer.tool(
       ),
     ...elementTargetShape,
   },
-  async ({ tabId, maxElements, interactiveOnly, ref, selector, index }) => {
+  async ({ tabId, includeSelectors, maxElements, interactiveOnly, ref, selector, index }) => {
     const scoped = !!(ref || selector);
     const snapshot = await browserApi.pageSnapshot(
       tabId,
@@ -584,7 +591,9 @@ mcpServer.tool(
     );
 
     const lines = snapshot.elements.map((element) => {
-      const attributes: string[] = [`selector: ${element.selector}`];
+      const attributes: string[] = includeSelectors
+        ? [`selector: ${element.selector}`]
+        : [];
       if (element.value) {
         attributes.push(`value: ${element.value}`);
       }
@@ -612,9 +621,10 @@ mcpServer.tool(
       if (element.hidden) {
         attributes.push("hidden");
       }
-      return `[${element.ref}] ${element.role} <${element.tag}> "${
-        element.name
-      }" - ${attributes.join(", ")}`;
+      const attributeSuffix = attributes.length
+        ? ` - ${attributes.join(", ")}`
+        : "";
+      return `[${element.ref}] ${element.role} <${element.tag}> "${element.name}"${attributeSuffix}`;
     });
 
     const header = [
@@ -716,15 +726,13 @@ mcpServer.tool(
     ArrowDown or a single character.
     A synthetic key event carries no default action of its own, so the extension performs the
     common ones itself whenever the page does not cancel the event: Enter submits the owning
-    form, Control+A selects all, Control+C and Control+X copy and cut, Control+V pastes at the
-    caret over whatever is selected, Control+Z and Control+Y undo and redo, the arrow keys, Home
-    and End move or extend the caret, and Backspace and Delete remove text. Control with an arrow
-    key, Home or End works on whole words or the whole field.
+    form, and the editing and caret keys (arrows, Home/End, Backspace/Delete, and the
+    select-all/copy/cut/paste/undo/redo shortcuts) work as usual, with Control widening a move
+    to whole words or the whole field.
     Control+V is off until the user turns it on in the extension popup, and only plain text is
     pasted, never an image. The clipboard belongs to the user and holds whatever they last copied,
     so paste only where the user asked you to and never to find out what is on it.
-    What this cannot do is a browser shortcut such as Control+T or Control+F, which never reaches
-    the page at all.
+    Browser shortcuts such as Control+T or Control+F never reach the page at all.
     The response says which default action ran, or that the page cancelled it.
   `,
   {
@@ -890,9 +898,8 @@ mcpServer.tool(
     Call this once you are done with the browser for now, so the user's tabs stop showing that
     you are attached. It is not destructive: nothing is closed or navigated, and any later tool
     call simply takes the tab again.
-    Tabs are also released on their own after ninety seconds without a command, so forgetting this
-    is not fatal, only untidy. Do call it, though: an overlay left on a tab you have finished with
-    is time the user spends looking at something that is no longer true.
+    Tabs are also released on their own after ninety seconds without a command, but do call this:
+    an overlay left on a finished tab shows the user something that is no longer true.
   `,
   {
     tabIds: z
