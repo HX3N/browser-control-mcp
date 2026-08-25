@@ -169,3 +169,170 @@ export function targetLiteral(target: ElementTarget): string {
     index: target.index,
   });
 }
+
+export const PAGE_READ_SOURCE = `
+function __bcmFlatText(el, limit) {
+  var raw = el.getAttribute('aria-label') || el.innerText || el.textContent || '';
+  raw = raw.replace(/\\s+/g, ' ').trim();
+  return raw.length > limit ? raw.slice(0, limit) + '...' : raw;
+}
+
+function __bcmOnScreen(el) {
+  var rect = el.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) { return false; }
+  var view = el.ownerDocument && el.ownerDocument.defaultView;
+  var style = view ? view.getComputedStyle(el) : null;
+  if (!style) { return false; }
+  return style.visibility !== 'hidden' && style.display !== 'none';
+}
+
+function __bcmPanelFor(el) {
+  var controls = el.getAttribute('aria-controls');
+  if (!controls) { return null; }
+  var doc = el.ownerDocument;
+  var ids = controls.split(/\\s+/);
+  for (var i = 0; i < ids.length; i++) {
+    var panel = ids[i] && doc.getElementById ? doc.getElementById(ids[i]) : null;
+    if (panel) { return panel; }
+  }
+  return null;
+}
+
+// Only frame documents are added: a shadow root's text already rides the host's innerText.
+function __bcmReadRoots(scope) {
+  var roots = __bcmRoots(scope);
+  var out = [scope];
+  for (var i = 0; i < roots.length; i++) {
+    var root = roots[i];
+    if (root !== scope && root.nodeType === 9 && root !== document && root.body) { out.push(root.body); }
+  }
+  return out;
+}
+
+function __bcmUnreachableFrames(scope) {
+  var roots = __bcmRoots(scope);
+  var count = 0;
+  for (var i = 0; i < roots.length; i++) {
+    if (!roots[i].querySelectorAll) { continue; }
+    var frames = roots[i].querySelectorAll('iframe,frame');
+    for (var f = 0; f < frames.length; f++) {
+      var inner = null;
+      try { inner = frames[f].contentDocument; } catch (err) { inner = null; }
+      if (!inner) { count++; }
+    }
+  }
+  return count;
+}
+
+function __bcmReadText(scope) {
+  var roots = __bcmReadRoots(scope);
+  var parts = [scope.innerText || ''];
+  for (var i = 1; i < roots.length; i++) {
+    var text = roots[i].innerText || '';
+    if (!text) { continue; }
+    var label = __bcmFrameLabel(roots[i].ownerDocument) || 'frame';
+    parts.push('[' + label + ']\\n' + text);
+  }
+  return parts.join('\\n\\n');
+}
+
+function __bcmFieldLabel(el) {
+  var aria = el.getAttribute('aria-label');
+  if (aria && aria.trim()) { return aria.trim().slice(0, 80); }
+  var labels = el.labels;
+  if (labels && labels.length) {
+    var text = (labels[0].textContent || '').replace(/\\s+/g, ' ').trim();
+    if (text) { return text.slice(0, 80); }
+  }
+  var fallback = el.getAttribute('placeholder') || el.getAttribute('title') || el.getAttribute('name') || el.id || '';
+  return fallback.slice(0, 80);
+}
+
+function __bcmFields(scope, limit) {
+  var roots = __bcmReadRoots(scope);
+  var out = [];
+  for (var r = 0; r < roots.length && out.length < limit; r++) {
+    if (!roots[r].querySelectorAll) { continue; }
+    var nodes = roots[r].querySelectorAll('input,textarea,select');
+    for (var i = 0; i < nodes.length && out.length < limit; i++) {
+      var el = nodes[i];
+      var tag = el.tagName.toLowerCase();
+      var type = (el.getAttribute('type') || '').toLowerCase();
+      if (tag === 'input' && (type === 'password' || type === 'hidden')) { continue; }
+      if (!__bcmOnScreen(el)) { continue; }
+      var entry = { label: __bcmFieldLabel(el), kind: tag };
+      if (tag === 'select') {
+        var chosen = el.options && el.selectedIndex >= 0 ? el.options[el.selectedIndex] : null;
+        entry.value = chosen ? __bcmFlatText(chosen, 120) : '';
+        entry.options = el.options ? el.options.length : 0;
+      } else if (type === 'checkbox' || type === 'radio') {
+        entry.value = el.checked ? 'checked' : 'unchecked';
+      } else {
+        var value = typeof el.value === 'string' ? el.value.trim() : '';
+        if (!value) { continue; }
+        entry.value = value.length > 200 ? value.slice(0, 200) + '...' : value;
+      }
+      out.push(entry);
+    }
+  }
+  return out;
+}
+
+function __bcmCollapsed(scope, limit) {
+  var found = [];
+  if (!scope || !scope.querySelectorAll) { return found; }
+  var roots = __bcmReadRoots(scope);
+
+  for (var r = 0; r < roots.length && found.length < limit; r++) {
+    var root = roots[r];
+    if (!root.querySelectorAll) { continue; }
+
+    var closed = [];
+    if (root.matches && root.matches('details:not([open])')) { closed.push(root); }
+    var nested = root.querySelectorAll('details:not([open])');
+    for (var d = 0; d < nested.length; d++) {
+      var details = nested[d];
+      var parent = details.parentElement;
+      // A closed details inside another closed one is already covered by the outer entry.
+      if (parent && parent.closest && parent.closest('details:not([open])')) { continue; }
+      closed.push(details);
+    }
+
+    for (var c = 0; c < closed.length && found.length < limit; c++) {
+      var summary = closed[c].querySelector('summary');
+      if (summary && !__bcmOnScreen(summary)) { continue; }
+      var summaryLength = summary ? summary.textContent.length : 0;
+      found.push({
+        label: summary ? __bcmFlatText(summary, 120) : '',
+        kind: 'details',
+        chars: Math.max(0, closed[c].textContent.length - summaryLength)
+      });
+    }
+
+    var toggles = root.querySelectorAll('[aria-expanded="false"],[role="tab"][aria-selected="false"],[aria-controls]');
+    for (var t = 0; t < toggles.length && found.length < limit; t++) {
+      var toggle = toggles[t];
+      if (toggle.tagName.toLowerCase() === 'summary') { continue; }
+      if (toggle.closest && toggle.closest('details:not([open])')) { continue; }
+      if (!__bcmOnScreen(toggle)) { continue; }
+
+      var expanded = toggle.getAttribute('aria-expanded');
+      var selected = toggle.getAttribute('aria-selected');
+      if (expanded === 'true' || selected === 'true') { continue; }
+
+      var panel = __bcmPanelFor(toggle);
+      // Without aria-expanded the only proof of a collapse is a panel this control names and
+      // the page does not show; a control with neither says nothing.
+      if (expanded !== 'false' && !panel) { continue; }
+      if (panel && __bcmOnScreen(panel)) { continue; }
+
+      var kind = toggle.getAttribute('role') === 'tab' || selected === 'false' ? 'tab' : 'expandable';
+      var entry = { label: __bcmFlatText(toggle, 120), kind: kind };
+      if (panel) { entry.chars = panel.textContent.length; }
+      found.push(entry);
+    }
+  }
+
+  return found;
+}
+`;

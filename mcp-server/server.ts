@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { BrowserAPI } from "./browser-api";
+import type { CollapsedSection, FormField } from "@browser-control-mcp/common";
 import { consoleSummary, dialogSummary } from "./util";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
@@ -35,6 +36,66 @@ function dialogNotice(message: {
   return [dialogSummary(message), consoleSummary(message)]
     .filter((line): line is string => line !== null)
     .map((text) => ({ type: "text" as const, text }));
+}
+
+function collapsedNotice(
+  sections?: CollapsedSection[]
+): { type: "text"; text: string }[] {
+  if (!sections || sections.length === 0) {
+    return [];
+  }
+  const lines = sections.map((section) => {
+    const label = section.label || "(no label)";
+    const size =
+      section.chars !== undefined ? `, ~${section.chars} characters` : "";
+    return `- "${label}" (${section.kind}${size})`;
+  });
+  return [
+    {
+      type: "text",
+      text:
+        `${sections.length} collapsed section(s) on this page are NOT part of the text below, because the page does not render them while they are closed: ` +
+        `a closed <details>, or a control with aria-expanded="false". Their toggles are on screen. ` +
+        "If one of them may hold what the user asked for, take a get-page-snapshot, click the toggle by its ref, then read the tab again:\n" +
+        lines.join("\n") +
+        "\n",
+    },
+  ];
+}
+
+function fieldNotice(fields?: FormField[]): { type: "text"; text: string }[] {
+  if (!fields || fields.length === 0) {
+    return [];
+  }
+  const lines = fields.map((field) => {
+    const label = field.label || "(no label)";
+    const choices =
+      field.options !== undefined ? ` of ${field.options} choices` : "";
+    return `- ${label} (${field.kind}): ${field.value}${choices}`;
+  });
+  return [
+    {
+      type: "text",
+      text:
+        "Form fields on this page, which the page text below never carries because a value is not rendered text. Passwords and hidden inputs are left out:\n" +
+        lines.join("\n") +
+        "\n",
+    },
+  ];
+}
+
+function frameNotice(count?: number): { type: "text"; text: string }[] {
+  if (!count) {
+    return [];
+  }
+  return [
+    {
+      type: "text",
+      text:
+        `${count} frame(s) on this page are cross-origin, so none of their text, links or elements are below. ` +
+        "Open a frame's own URL in a tab if the user asked for something it holds.\n",
+    },
+  ];
 }
 
 const elementTargetShape = {
@@ -294,6 +355,9 @@ mcpServer.tool(
     return {
       content: [
         ...scopeNotice,
+        ...(offset === 0 ? collapsedNotice(content.collapsed) : []),
+        ...(offset === 0 ? frameNotice(content.unreachableFrames) : []),
+        ...(offset === 0 ? fieldNotice(content.fields) : []),
         ...hint,
         { type: "text", text },
         ...links,

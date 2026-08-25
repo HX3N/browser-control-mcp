@@ -211,6 +211,9 @@ function __bcmDescribe(el, ref, hidden, frame) {
 
   var expanded = el.getAttribute('aria-expanded');
   if (expanded === 'true' || expanded === 'false') { entry.expanded = expanded === 'true'; }
+  if (tag === 'summary' && el.parentElement && el.parentElement.tagName.toLowerCase() === 'details') {
+    entry.expanded = el.parentElement.open === true;
+  }
 
   if (tag === 'select') {
     var options = [];

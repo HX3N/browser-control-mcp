@@ -12,6 +12,22 @@ export interface TabContentExtensionMessage extends ExtensionMessageBase {
   isTruncated: boolean;
   totalLength: number;
   links: { url: string; text: string }[];
+  collapsed?: CollapsedSection[];
+  fields?: FormField[];
+  unreachableFrames?: number;
+}
+
+export interface CollapsedSection {
+  label: string;
+  kind: "details" | "expandable" | "tab";
+  chars?: number;
+}
+
+export interface FormField {
+  label: string;
+  kind: "input" | "textarea" | "select";
+  value: string;
+  options?: number;
 }
 
 export interface BrowserTab {

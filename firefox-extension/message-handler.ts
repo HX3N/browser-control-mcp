@@ -43,6 +43,7 @@ import { buildSnapshotCode } from "./page-snapshot";
 import {
   ELEMENT_RESOLVER_SOURCE,
   isElementTargeted,
+  PAGE_READ_SOURCE,
   targetLiteral,
 } from "./injected-common";
 import {
@@ -623,27 +624,35 @@ export class MessageHandler {
     );
 
     const MAX_CONTENT_LENGTH = 50_000;
+    const MAX_COLLAPSED_SECTIONS = 30;
+    const MAX_FORM_FIELDS = 40;
     const results = await this.runScript(
       tabId,
       {
         code: `
       (function () {
         ${ELEMENT_RESOLVER_SOURCE}
+        ${PAGE_READ_SOURCE}
         const scope = ${
           scoped ? `__bcmResolve(${targetLiteral(req)})` : "document.body"
         };
 
         function getLinks() {
-          const linkElements = scope.querySelectorAll('a[href]');
-          return Array.from(linkElements).map(el => ({
+          const linkElements = [];
+          __bcmReadRoots(scope).forEach(root => {
+            linkElements.push(...Array.from(root.querySelectorAll('a[href]')));
+          });
+          return linkElements.map(el => ({
             url: el.href,
             text: el.innerText.trim() || el.getAttribute('aria-label') || el.getAttribute('title') || ''
           })).filter(link => link.text !== '' && !link.url.includes('#'));
         }
 
+        const pageText = __bcmReadText(scope);
+
         function getTextContent() {
           let isTruncated = false;
-          let text = (scope.innerText || '').substring(${Number(offset) || 0});
+          let text = pageText.substring(${Number(offset) || 0});
           if (text.length > ${MAX_CONTENT_LENGTH}) {
             text = text.substring(0, ${MAX_CONTENT_LENGTH});
             isTruncated = true;
@@ -659,14 +668,18 @@ export class MessageHandler {
           links: getLinks(),
           fullText: textContent.text,
           isTruncated: textContent.isTruncated,
-          totalLength: (scope.innerText || '').length
+          totalLength: pageText.length,
+          collapsed: __bcmCollapsed(scope, ${MAX_COLLAPSED_SECTIONS}),
+          fields: __bcmFields(scope, ${MAX_FORM_FIELDS}),
+          unreachableFrames: __bcmUnreachableFrames(scope)
         };
       })();
     `,
       },
       LONG_SCRIPT_STALL_MS
     );
-    const { isTruncated, fullText, totalLength } = results[0];
+    const { isTruncated, fullText, totalLength, collapsed, fields, unreachableFrames } =
+      results[0];
     const scope = await getUrlScope();
     const links = (
       results[0].links as { url: string; text: string }[]
@@ -680,6 +693,9 @@ export class MessageHandler {
         fullText,
         links,
         totalLength,
+        collapsed,
+        fields,
+        unreachableFrames,
       },
       tabId
     );

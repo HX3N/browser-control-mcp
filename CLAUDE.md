@@ -77,7 +77,7 @@ A monorepo with three components:
 | `firefox-extension/extension-config.ts` | Tool registry, command mapping, permission mode, storage |
 | `firefox-extension/tab-access.ts` | Permission mode enforcement |
 | `firefox-extension/tab-authorization.ts` | Per-tab activeTab authorization granted from the popup |
-| `firefox-extension/injected-common.ts` | Shared injected source: root walk across frames and shadow roots, element resolution, labels |
+| `firefox-extension/injected-common.ts` | Shared injected source: root walk across frames and shadow roots, element resolution, labels, and the collapse / frame / form-field scan a read reports |
 | `firefox-extension/page-snapshot.ts` | Snapshot script that stamps `data-bcm-ref` |
 | `firefox-extension/interaction-scripts.ts` | Click, type, key, scroll, select, execute, wait, element box |
 | `firefox-extension/highlight-overlay.ts` | Element glow and viewport aurora, in a shadow root |
@@ -157,6 +157,28 @@ taller than `MAX_CAPTURE_HEIGHT_PX` (2000) follows the scroll position instead, 
 tells the model to scroll on and capture the rest. When `captureTab` is refused, the fallback
 foregrounds the tab and uses `captureVisibleTab`. For the shot the overlay is hidden and
 restored (`conceal`/`reveal`), never detached.
+
+### What a read leaves out
+
+`get-tab-web-content` reads `innerText`, which is rendered text alone: a closed `<details>`, the
+panel behind an unselected tab and anything a control keeps collapsed are simply absent, and
+`totalLength` gave no sign of it either. `PAGE_READ_SOURCE` reports what was left out rather than
+smuggling it in - the toggle's label and the size of what sits behind it, never the text, because
+text the user cannot see is the same injection carrier the snapshot's hidden elements are. That is
+also why this is not tied to the popup's `Read hidden elements`: that switch is about elements a
+condition has to reveal, while these toggles are already on screen.
+
+A collapse is reported only when something proves it: `details:not([open])`, `aria-expanded="false"`,
+`aria-selected="false"` on a `role=tab`, or a control whose `aria-controls` names a panel the page
+does not show. A control with none of those says nothing. `line-clamp`, `text-overflow` and a
+scrolled container are not collapses at all - that text is rendered and already in the answer.
+
+The same read walks same-origin frames through `__bcmReadRoots` and appends each frame body under a
+`[frame:name]` heading, because the snapshot crossed frames while the text read stopped at
+`document.body`; frames it cannot open are counted and reported instead. Form values go out as
+their own list - a value is not rendered text - with `type=password` and `type=hidden` left out.
+Only frame documents are added to the roots: a shadow root's text already rides its host's
+`innerText`. All three notices ride the `offset === 0` response only, as the links do.
 
 ### Overlay
 

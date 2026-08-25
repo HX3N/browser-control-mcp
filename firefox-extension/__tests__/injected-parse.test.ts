@@ -18,6 +18,7 @@ import {
   buildTypeCode,
   buildWaitProbeCode,
 } from "../interaction-scripts";
+import { PAGE_READ_SOURCE } from "../injected-common";
 import { DEFAULT_OVERLAY_COLORS } from "../extension-config";
 
 const target = { ref: "e7", selector: undefined, index: 0 };
@@ -180,6 +181,7 @@ const cases: [string, string][] = [
       timeoutMs: 5000,
     }),
   ],
+  ["page read helpers", PAGE_READ_SOURCE],
 ];
 
 describe("injected script builders emit parsable JavaScript", () => {
