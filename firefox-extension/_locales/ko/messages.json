@@ -21,55 +21,55 @@
         "message": "MCP 서버가 브라우저 탭을 닫을 수 있게 합니다"
     },
     "toolGetListOfOpenTabsName": {
-        "message": "열린 탭 목록 조회"
+        "message": "열린 탭 보기"
     },
     "toolGetListOfOpenTabsDescription": {
         "message": "MCP 서버가 열려 있는 모든 탭의 목록을 가져올 수 있게 합니다"
     },
     "toolGetRecentBrowserHistoryName": {
-        "message": "최근 방문 기록 조회"
+        "message": "방문 기록 보기"
     },
     "toolGetRecentBrowserHistoryDescription": {
         "message": "MCP 서버가 최근 브라우징 기록에 접근할 수 있게 합니다"
     },
     "toolGetTabWebContentName": {
-        "message": "페이지 내용 읽기"
+        "message": "페이지 읽기"
     },
     "toolGetTabWebContentDescription": {
         "message": "MCP 서버가 웹 페이지의 본문과 요소 스냅샷을 읽을 수 있게 합니다"
     },
     "toolReorderBrowserTabsName": {
-        "message": "탭 재정렬 / 그룹화"
+        "message": "탭 재정렬·그룹화"
     },
     "toolReorderBrowserTabsDescription": {
         "message": "MCP 서버가 탭 순서를 바꾸거나 그룹으로 묶을 수 있게 합니다"
     },
     "toolFindHighlightInBrowserTabName": {
-        "message": "페이지 내 찾기 및 강조"
+        "message": "페이지에서 찾기"
     },
     "toolFindHighlightInBrowserTabDescription": {
         "message": "MCP 서버가 웹 페이지에서 텍스트를 찾아 강조할 수 있게 합니다"
     },
     "toolCaptureTabScreenshotName": {
-        "message": "탭 스크린샷"
+        "message": "화면 캡처"
     },
     "toolCaptureTabScreenshotDescription": {
         "message": "MCP 서버가 탭 화면을 캡처할 수 있게 합니다"
     },
     "toolInteractMouseName": {
-        "message": "마우스"
+        "message": "클릭·스크롤"
     },
     "toolInteractMouseDescription": {
         "message": "MCP 서버가 페이지의 요소를 클릭하고, 선택 항목을 고르고, 스크롤할 수 있게 합니다"
     },
     "toolInteractKeyboardName": {
-        "message": "키보드"
+        "message": "텍스트 입력"
     },
     "toolInteractKeyboardDescription": {
         "message": "MCP 서버가 입력란에 텍스트를 넣고 키를 누를 수 있게 합니다"
     },
     "toolExecuteJavascriptName": {
-        "message": "JavaScript"
+        "message": "JavaScript 실행"
     },
     "toolExecuteJavascriptDescription": {
         "message": "MCP 서버가 페이지에서 임의 스크립트를 실행할 수 있게 합니다"
@@ -78,7 +78,7 @@
         "message": "미디어 파일 가져오기"
     },
     "toolGetMediaContentDescription": {
-        "message": "MCP 서버가 페이지의 쿠키로 페이지에 보이는 이미지를 내려받을 수 있게 합니다"
+        "message": "MCP 서버가 페이지에 보이는 이미지 파일을 받아 올 수 있게 합니다"
     },
     "overlayIdle": {
         "message": "Claude 연결됨"
@@ -87,22 +87,22 @@
         "message": "본문 읽는 중"
     },
     "overlayNavigate": {
-        "message": "다른 페이지로 이동"
+        "message": "다른 페이지로 이동 중"
     },
     "overlayOpen": {
-        "message": "페이지 열었음"
+        "message": "페이지 열림"
     },
     "overlaySnapshot": {
-        "message": "페이지 훑는 중"
+        "message": "페이지 살펴보는 중"
     },
     "overlaySnapshotElement": {
-        "message": "요소 하나 훑는 중"
+        "message": "이 부분 살펴보는 중"
     },
     "overlayReadingElement": {
-        "message": "요소 하나 읽는 중"
+        "message": "이 부분 읽는 중"
     },
     "overlayClick": {
-        "message": "클릭"
+        "message": "클릭 중"
     },
     "overlayType": {
         "message": "입력 중"
@@ -114,13 +114,13 @@
         "message": "스크롤 중"
     },
     "overlaySelect": {
-        "message": "항목 선택"
+        "message": "항목 선택 중"
     },
     "overlayExecuteJs": {
         "message": "JavaScript 실행 중"
     },
     "overlayWait": {
-        "message": "요소 기다리는 중"
+        "message": "페이지 바뀌길 기다리는 중"
     },
     "popupStatusChecking": {
         "message": "확인 중…"
@@ -134,8 +134,8 @@
     "popupSectionInteraction": {
         "message": "상호작용 권한"
     },
-    "popupSectionNewTab": {
-        "message": "새 탭"
+    "popupSectionBehavior": {
+        "message": "동작 방식"
     },
     "popupSectionDisplay": {
         "message": "표시"
@@ -174,10 +174,10 @@
         "message": "미디어 파일 가져오기"
     },
     "popupToggleMediaFetchHint": {
-        "message": "페이지 이미지를 내 쿠키로 내려받음"
+        "message": "페이지 이미지 파일 접근"
     },
     "popupToggleHiddenName": {
-        "message": "숨은 요소 읽기"
+        "message": "숨은 내용 읽기"
     },
     "popupToggleHiddenHint": {
         "message": "프롬프트 인젝션 공격에 취약해질 수 있습니다!"
@@ -192,7 +192,7 @@
         "message": "백그라운드에서 작업"
     },
     "popupToggleBackgroundHint": {
-        "message": "작업 중에도 현재 화면의 포커스를 유지합니다"
+        "message": "동작 중 현재 화면 유지"
     },
     "popupToggleConsoleName": {
         "message": "콘솔"
@@ -294,7 +294,7 @@
         "message": "로그인 세션 유지"
     },
     "popupToggleInheritContainerHint": {
-        "message": "새 탭을 지금 탭과 같은 컨테이너에 엶"
+        "message": "지금 탭과 같은 컨테이너로 새 탭 열기"
     },
     "popupToggleAuroraName": {
         "message": "탭 오로라"
@@ -306,7 +306,7 @@
         "message": "동작 강조"
     },
     "popupToggleFocusHint": {
-        "message": "동작 시 대상 요소 강조"
+        "message": "동작 시 대상 강조"
     },
     "popupToggleMarkName": {
         "message": "탭 아이콘"
@@ -420,10 +420,10 @@
         "message": "저장했습니다. 읽을 수 없는 $1줄은 제외했습니다"
     },
     "popupFeedbackHiddenOn": {
-        "message": "숨은 요소를 포함합니다"
+        "message": "숨은 내용을 포함합니다"
     },
     "popupFeedbackHiddenOff": {
-        "message": "숨은 요소를 제외합니다"
+        "message": "숨은 내용을 제외합니다"
     },
     "popupFeedbackClipboardOn": {
         "message": "Control+V가 클립보드를 읽을 수 있습니다"
@@ -627,16 +627,16 @@
         "message": "기본 색으로 되돌리기"
     },
     "optionsAppearanceSaved": {
-        "message": "색을 저장했습니다."
+        "message": "색을 저장했습니다"
     },
     "optionsAppearanceRestored": {
-        "message": "기본 색으로 되돌렸습니다."
+        "message": "기본 색으로 되돌렸습니다"
     },
     "optionsAccent_idle": {
         "message": "대기 (탭을 잡고 있는 중)"
     },
     "optionsAccent_read": {
-        "message": "읽기와 스냅샷"
+        "message": "읽기와 살펴보기"
     },
     "optionsAccent_click": {
         "message": "클릭"
@@ -657,10 +657,10 @@
         "message": "기본 시간으로 되돌리기"
     },
     "optionsTimingSaved": {
-        "message": "시간을 저장했습니다."
+        "message": "시간을 저장했습니다"
     },
     "optionsTimingRestored": {
-        "message": "기본 시간으로 되돌렸습니다."
+        "message": "기본 시간으로 되돌렸습니다"
     },
     "optionsTiming_statusResetMs": {
         "message": "배지 되돌림 (초)"

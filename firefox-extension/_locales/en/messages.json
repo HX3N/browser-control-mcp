@@ -51,25 +51,25 @@
         "message": "Lets the MCP server find text in a page and highlight it"
     },
     "toolCaptureTabScreenshotName": {
-        "message": "Capture screenshots"
+        "message": "Capture the screen"
     },
     "toolCaptureTabScreenshotDescription": {
         "message": "Lets the MCP server capture the visible tab"
     },
     "toolInteractMouseName": {
-        "message": "Mouse"
+        "message": "Click and scroll"
     },
     "toolInteractMouseDescription": {
         "message": "Lets the MCP server click elements, pick options and scroll"
     },
     "toolInteractKeyboardName": {
-        "message": "Keyboard"
+        "message": "Text entry"
     },
     "toolInteractKeyboardDescription": {
         "message": "Lets the MCP server enter text into fields and press keys"
     },
     "toolExecuteJavascriptName": {
-        "message": "JavaScript"
+        "message": "Run JavaScript"
     },
     "toolExecuteJavascriptDescription": {
         "message": "Lets the MCP server run arbitrary scripts in a page"
@@ -78,7 +78,7 @@
         "message": "Fetch media files"
     },
     "toolGetMediaContentDescription": {
-        "message": "Lets the MCP server download images a page shows, with the page's cookies"
+        "message": "Lets the MCP server fetch the image files a page shows"
     },
     "overlayIdle": {
         "message": "Claude connected"
@@ -134,8 +134,8 @@
     "popupSectionInteraction": {
         "message": "Interaction permissions"
     },
-    "popupSectionNewTab": {
-        "message": "New tabs"
+    "popupSectionBehavior": {
+        "message": "Behaviour"
     },
     "popupSectionDisplay": {
         "message": "Display"
@@ -174,7 +174,7 @@
         "message": "Fetch media files"
     },
     "popupToggleMediaFetchHint": {
-        "message": "Downloads page images with your cookies"
+        "message": "Page image file access"
     },
     "popupToggleHiddenName": {
         "message": "Read hidden elements"
@@ -192,13 +192,13 @@
         "message": "Work in the background"
     },
     "popupToggleBackgroundHint": {
-        "message": "Maintains focus on the current screen, even during tasks."
+        "message": "Keeps the focus on the current screen while acting"
     },
     "popupToggleConsoleName": {
         "message": "Console"
     },
     "popupToggleConsoleHint": {
-        "message": "Report page errors back to the model"
+        "message": "Reports page errors back to the model"
     },
     "popupConsoleLevelErrorName": {
         "message": "error"
@@ -627,10 +627,10 @@
         "message": "Restore the default colours"
     },
     "optionsAppearanceSaved": {
-        "message": "Colour saved."
+        "message": "Colour saved"
     },
     "optionsAppearanceRestored": {
-        "message": "The default colours are back."
+        "message": "The default colours are back"
     },
     "optionsAccent_idle": {
         "message": "Resting (holding the tab)"
@@ -657,10 +657,10 @@
         "message": "Restore the default timing"
     },
     "optionsTimingSaved": {
-        "message": "Timing saved."
+        "message": "Timing saved"
     },
     "optionsTimingRestored": {
-        "message": "The default timing is back."
+        "message": "The default timing is back"
     },
     "optionsTiming_statusResetMs": {
         "message": "Badge reset (s)"
