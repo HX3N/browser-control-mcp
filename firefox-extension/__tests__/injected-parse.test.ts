@@ -258,6 +258,34 @@ describe("injected source contracts", () => {
     expect(code).not.toContain("scrollIntoView");
   });
 
+  it("adds the enclosing frames' offsets before mixing a rect with the top window's scroll", () => {
+    const codes = [
+      buildElementBoxCode(target),
+      buildAttachOverlayCode({
+        status: "Clicking",
+        state: "click",
+        markTab: false,
+        showAurora: false,
+        showFocus: true,
+        showBadge: true,
+        idleStatus: "Claude connected",
+        resetAfterMs: 0,
+        accents: DEFAULT_OVERLAY_COLORS.accents,
+        aurora: DEFAULT_OVERLAY_COLORS.aurora,
+        target,
+      }),
+    ];
+
+    for (const code of codes) {
+      expect(code).toContain("win.frameElement");
+      expect(code).toContain("frame.clientTop");
+      expect(code).toContain("frame.clientLeft");
+      // A rect that reaches the top window's scroll must have come through __bcmRect.
+      expect(code).not.toContain("window.scrollY + el.getBoundingClientRect()");
+      expect(code).not.toContain("var box = el.getBoundingClientRect()");
+    }
+  });
+
   it("guards every blocking dialog the page can raise", () => {
     const code = buildDialogGuardCode("error");
 

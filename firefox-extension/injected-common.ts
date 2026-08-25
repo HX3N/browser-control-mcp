@@ -114,9 +114,23 @@ function __bcmResolve(target) {
   throw new Error('Provide either a ref from a page-snapshot or a CSS selector');
 }
 
+// A rect from inside a frame is measured against that frame's viewport, while everything that
+// consumes one - the capture rect, the scroll goal, the fixed overlay - lives in the top document.
 function __bcmRect(el) {
   var r = el.getBoundingClientRect();
-  return { top: r.top, left: r.left, width: r.width, height: r.height };
+  var top = r.top;
+  var left = r.left;
+  var win = el.ownerDocument && el.ownerDocument.defaultView;
+  while (win && win !== window) {
+    var frame = null;
+    try { frame = win.frameElement; } catch (err) { frame = null; }
+    if (!frame) { break; }
+    var fr = frame.getBoundingClientRect();
+    top += fr.top + (frame.clientTop || 0);
+    left += fr.left + (frame.clientLeft || 0);
+    win = frame.ownerDocument && frame.ownerDocument.defaultView;
+  }
+  return { top: top, left: left, width: r.width, height: r.height };
 }
 
 function __bcmLabel(el) {
@@ -140,7 +154,7 @@ function __bcmScrollToAnchor(el, smooth) {
   var doc = document.scrollingElement || document.documentElement;
   var viewportHeight = window.innerHeight || document.documentElement.clientHeight;
   var goal = Math.max(0, Math.min(
-    window.scrollY + el.getBoundingClientRect().top - viewportHeight / 3,
+    window.scrollY + __bcmRect(el).top - viewportHeight / 3,
     Math.max(0, doc.scrollHeight - viewportHeight)
   ));
   if (Math.abs(goal - window.scrollY) > 1) {

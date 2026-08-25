@@ -308,14 +308,14 @@ const OVERLAY_RUNTIME_SOURCE = `
     trackFrame = 0;
     if (!host || !host.isConnected || !tracked) { return; }
     if (!tracked.isConnected) { clearFocus(); return; }
-    place(tracked.getBoundingClientRect());
+    place(__bcmRect(tracked));
     trackFrame = requestAnimationFrame(track);
   }
 
   function focus(el, state) {
     if (!host || !host.isConnected) { return; }
     host.style.setProperty('--bcm-focus-color', ACCENTS[state] || ACCENTS.idle);
-    var rect = el && el.getBoundingClientRect ? el.getBoundingClientRect() : null;
+    var rect = el && el.getBoundingClientRect ? __bcmRect(el) : null;
     if (!rect || rect.width <= 0 || rect.height <= 0) {
       clearFocus();
       return;
@@ -419,11 +419,11 @@ ${OVERLAY_RUNTIME_SOURCE}
   }
 
   var el = __bcmResolve(target);
-  var before = el.getBoundingClientRect();
+  var before = __bcmRect(el);
   var viewportHeight = window.innerHeight || document.documentElement.clientHeight;
   var viewportWidth = window.innerWidth || document.documentElement.clientWidth;
-  var wasInView = before.bottom > 0 && before.top < viewportHeight &&
-    before.right > 0 && before.left < viewportWidth;
+  var wasInView = before.top + before.height > 0 && before.top < viewportHeight &&
+    before.left + before.width > 0 && before.left < viewportWidth;
   __bcmScrollToAnchor(el, true);
 
   var rect = __bcmRect(el);

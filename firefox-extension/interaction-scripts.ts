@@ -730,7 +730,7 @@ ${ELEMENT_RESOLVER_SOURCE}
   var pad = ${jsValue(CAPTURE_PADDING_PX)};
   var maxHeight = ${jsValue(MAX_CAPTURE_HEIGHT_PX)};
 
-  var box = el.getBoundingClientRect();
+  var box = __bcmRect(el);
   if (box.width <= 0 || box.height <= 0) {
     throw new Error('The element ' + __bcmLabel(el) + ' has no size on the page, so there is nothing to capture.');
   }
