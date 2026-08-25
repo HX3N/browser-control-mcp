@@ -963,11 +963,11 @@ export class MessageHandler {
     await this.prepareTabAccess(tabId);
 
     // The model must not be able to point the user's cookies at an address of its own choosing:
-    // only what get-page-media saw on this page is reachable.
+    // only what list-page-media saw on this page is reachable.
     const known = this.knownMediaUrls.get(tabId);
     if (!known || !known.has(url)) {
       throw new Error(
-        `This URL was not listed by get-page-media on tab ${tabId}. Call get-page-media ` +
+        `This URL was not listed by list-page-media on tab ${tabId}. Call list-page-media ` +
           `first; only URLs from its answer for this page can be fetched.`
       );
     }

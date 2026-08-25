@@ -70,7 +70,7 @@ A monorepo with three components:
 | --- | --- |
 | `common/server-messages.ts` | Commands the server sends to the extension |
 | `common/extension-messages.ts` | Responses the extension sends back |
-| `mcp-server/server.ts` | MCP tool definitions (19 tools) |
+| `mcp-server/server.ts` | MCP tool definitions (21 tools) |
 | `mcp-server/browser-api.ts` | Request/response round trip with the extension |
 | `firefox-extension/background.ts` | Entry point, WebSocket clients, popup message channel |
 | `firefox-extension/message-handler.ts` | Executes every command |
@@ -93,8 +93,11 @@ Two independent gates, both enforced in `message-handler.ts` before anything tou
 
 1. **Tool switches** — `COMMAND_TO_TOOL_ID` maps every command to a tool id; `isCommandAllowed`
    rejects disabled ones. The popup exposes `capture-tab-screenshot`, `interact-click`,
-   `interact-type` and `execute-javascript`; the options page exposes the rest. `execute-javascript` is listed in
-   `DISABLED_BY_DEFAULT_TOOL_IDS`, so it starts off and has to be switched on by hand.
+   `interact-type`, `execute-javascript` and `get-media-content`; the options page exposes the
+   rest. `execute-javascript` and `get-media-content` are listed in
+   `DISABLED_BY_DEFAULT_TOOL_IDS`, so they start off and have to be switched on by hand.
+   A tool id is not the MCP tool name: ids are storage keys for the user's switches, so a
+   renamed tool keeps its old id rather than resetting what the user turned on.
    The popup also carries a `Read hidden elements` switch, which is not a tool id but a snapshot
    setting: it is off by default because hidden text is text the user cannot see.
 2. **Permission mode** — `allowlist` (default) or `denylist`, checked by `ensureTabAccess` for
@@ -117,7 +120,7 @@ the tab in front, and `default` or a literal `cookieStoreId` targets one directl
 
 ### Element refs
 
-`get-page-snapshot` writes `data-bcm-ref="eN"` onto each interactive element and clears the
+`list-page-elements` writes `data-bcm-ref="eN"` onto each interactive element and clears the
 previous stamps first. The walk crosses into same-origin frames and shadow roots, so both the
 snapshot and the ref resolver in `injected-common.ts` iterate `__bcmRoots()` rather than querying
 `document` alone; an element from one carries a `frame` label. A cross-origin frame throws on
@@ -137,7 +140,7 @@ resolution trusts that record over the attribute.
 
 ### Scoped reads
 
-`get-page-snapshot` and `get-tab-web-content` both take an `ElementTarget`. With a `ref` or a
+`list-page-elements` and `read-page-text` both take an `ElementTarget`. With a `ref` or a
 `selector` they read that element's subtree alone, which is what a page whose interesting part is
 one region costs the fewest tokens to read - the navigation, the sidebars and the footer never
 enter the answer. Without one, both behave exactly as before.
@@ -160,7 +163,7 @@ restored (`conceal`/`reveal`), never detached.
 
 ### What a read leaves out
 
-`get-tab-web-content` reads `innerText`, which is rendered text alone: a closed `<details>`, the
+`read-page-text` reads `innerText`, which is rendered text alone: a closed `<details>`, the
 panel behind an unselected tab and anything a control keeps collapsed are simply absent, and
 `totalLength` gave no sign of it either. `PAGE_READ_SOURCE` reports what was left out rather than
 smuggling it in - the toggle's label and the size of what sits behind it, never the text, because

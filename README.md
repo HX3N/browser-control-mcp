@@ -39,11 +39,11 @@ The tools the MCP server exposes.
 - Find and highlight text inside a page
 - Capture a screenshot of a tab, either the visible screen or one element of it; a tall
   element is split into several images, and every capture reports its pixel size and bytes
-- `get-page-media` — list the images, videos and audio a page shows, with URLs and
+- `list-page-media` — list the images, videos and audio a page shows, with URLs and
   original sizes, for the whole page or inside one element
-- `get-media-content` — fetch an image file a page shows, with the page's own cookies
-  (off by default; only URLs `get-page-media` listed can be fetched)
-- `get-page-snapshot` — list the interactive elements, each stamped with a `ref`,
+- `fetch-media-file` — fetch an image file a page shows, with the page's own cookies
+  (off by default; only URLs `list-page-media` listed can be fetched)
+- `list-page-elements` — list the interactive elements, each stamped with a `ref`,
   for the whole page or inside one element
 
 **Interact**
@@ -91,7 +91,7 @@ The popup also decides which addresses the model may open or navigate to. `HTTPS
 and refuses everything else; `+ Local` additionally allows `http://` on loopback hosts, which is
 what a local dev server such as `http://localhost:5173/` needs; `+ HTTP` allows plain HTTP
 anywhere. The setting gates `open-browser-tab` and `navigate-browser-tab`, and the link list
-returned by `get-tab-web-content` follows it too. Pages you opened by hand are unaffected — they
+returned by `read-page-text` follows it too. Pages you opened by hand are unaffected — they
 go through the access scope above.
 
 Allowlist being the default is deliberate. Rather than opening every page the moment the
@@ -227,7 +227,7 @@ as they happen. You use it at your own risk.
   ```
 
   So **the popup is the usual behaviour and a tool parameter is the exception for one call**.
-  `get-list-of-open-tabs` reports `container=` per tab, so a specific container can be picked.
+  `list-open-tabs` reports `container=` per tab, so a specific container can be picked.
 
 ## Installation
 

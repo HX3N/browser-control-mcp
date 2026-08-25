@@ -64,7 +64,7 @@
             "description": "Close tabs in the browser"
         },
         {
-            "name": "get-list-of-open-tabs",
+            "name": "list-open-tabs",
             "description": "Get the list of open tabs in the browser"
         },
         {
@@ -72,7 +72,7 @@
             "description": "Get the list of recent browser history"
         },
         {
-            "name": "get-tab-web-content",
+            "name": "read-page-text",
             "description": "Get the full text content of the webpage and the list of links in the webpage (requires user consent)"
         },
         {
@@ -84,7 +84,7 @@
             "description": "Group browser tabs into a new tab group"
         },
         {
-            "name": "find-highlight-in-browser-tab",
+            "name": "find-text-in-page",
             "description": "Find and highlight text in a browser tab"
         },
         {
@@ -92,15 +92,15 @@
             "description": "Capture a screenshot of the visible area of a browser tab (requires per-tab user consent)"
         },
         {
-            "name": "get-page-media",
+            "name": "list-page-media",
             "description": "List the images, videos and audio a page shows, with URLs and original sizes"
         },
         {
-            "name": "get-media-content",
+            "name": "fetch-media-file",
             "description": "Fetch an image file a page shows, with the page's cookies (off by default)"
         },
         {
-            "name": "get-page-snapshot",
+            "name": "list-page-elements",
             "description": "List the interactive elements of a tab, each stamped with a ref the interaction tools accept"
         },
         {

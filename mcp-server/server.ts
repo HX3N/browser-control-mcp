@@ -19,7 +19,7 @@ const mcpServer = new McpServer(
       What this server cannot do, and what to reach for instead:
       - It cannot attach a file to an upload field. Ask the user to pick the file themselves.
       - It cannot press browser shortcuts such as Control+T, Control+W or Control+F: they never
-        reach the page. Use the tab tools and find-highlight-in-browser-tab instead.
+        reach the page. Use the tab tools and find-text-in-page instead.
       - It cannot see into a cross-origin frame - no snapshot, ref or click reaches one. Open the
         frame's own URL in a tab and work there.
       - Every tool can be switched off in the extension, and page access can be limited to the
@@ -66,7 +66,7 @@ function collapsedNotice(
       text:
         `${sections.length} collapsed section(s) on this page are NOT part of the text below, because the page does not render them while they are closed: ` +
         `a closed <details>, or a control with aria-expanded="false". Their toggles are on screen. ` +
-        "If one of them may hold what the user asked for, take a get-page-snapshot, click the toggle by its ref, then read the tab again:\n" +
+        "If one of them may hold what the user asked for, take a list-page-elements, click the toggle by its ref, then read the tab again:\n" +
         lines.join("\n") +
         "\n",
     },
@@ -113,7 +113,7 @@ const elementTargetShape = {
     .string()
     .optional()
     .describe(
-      "A ref such as e12 from the latest get-page-snapshot of this tab; prefer this over selector"
+      "A ref such as e12 from the latest list-page-elements of this tab; prefer this over selector"
     ),
   selector: z
     .string()
@@ -149,7 +149,7 @@ mcpServer.tool(
       .string()
       .default("auto")
       .describe(
-        'Leave as "auto" (default) to follow the user\'s own setting in the extension popup, which normally keeps the signed-in session. Pass "inherit" to force the container of the tab in front, "default" for the browser default container, or a cookieStoreId from get-list-of-open-tabs to target a specific one.'
+        'Leave as "auto" (default) to follow the user\'s own setting in the extension popup, which normally keeps the signed-in session. Pass "inherit" to force the container of the tab in front, "default" for the browser default container, or a cookieStoreId from list-open-tabs to target a specific one.'
       ),
   },
   async ({ url, container }) => {
@@ -223,7 +223,7 @@ mcpServer.tool(
 );
 
 mcpServer.tool(
-  "get-list-of-open-tabs",
+  "list-open-tabs",
   "Get the list of open tabs in the user's browser. Use offset and limit parameters for pagination when there are many tabs.",
   {
     offset: z.number().int().min(0).default(0).describe("Starting index for pagination (0-based, must be >= 0)"),
@@ -296,14 +296,14 @@ mcpServer.tool(
 );
 
 mcpServer.tool(
-  "get-tab-web-content",
+  "read-page-text",
   `
     Get the full text content and the links of the webpage, by tab ID.
     Use "offset" only when the first call was truncated and more content is needed.
     Pass "ref" or "selector" to read one element instead of the whole page: the text and the
     links are then taken from inside that element alone. Prefer this whenever the part you need
     is a known region - a results list, an article body, a table - because a whole page carries
-    navigation, sidebars and footers you did not ask for. Take a get-page-snapshot with
+    navigation, sidebars and footers you did not ask for. Take a list-page-elements with
     interactiveOnly false first if you do not know which element holds the part you want.
   `,
   {
@@ -347,7 +347,7 @@ mcpServer.tool(
           text:
             offset === 0
               ? `The following text content is truncated due to size (includes character range ${rangeString} out of ${content.totalLength}). ` +
-                "If you want to read characters beyond this range, please use the 'get-tab-web-content' tool with an offset. "
+                "If you want to read characters beyond this range, please use the 'read-page-text' tool with an offset. "
               : `Characters ${rangeString} of ${content.totalLength}. Continue with a larger offset.`,
         },
       ];
@@ -394,7 +394,7 @@ mcpServer.tool(
 );
 
 mcpServer.tool(
-  "find-highlight-in-browser-tab",
+  "find-text-in-page",
   "Find and highlight text in a browser tab (use a query phrase that exists in the web content)",
   { tabId: z.number(), queryPhrase: z.string() },
   async ({ tabId, queryPhrase }) => {
@@ -580,13 +580,13 @@ function formatInteraction(result: {
 }
 
 mcpServer.tool(
-  "get-page-media",
+  "list-page-media",
   `
     List the images, videos and audio a page shows, with their URLs and original pixel sizes,
     walking same-origin frames and shadow roots. Pass "ref" or "selector" to list one region only.
     Use this to decide between capturing a screenshot and fetching the original file with
-    get-media-content: the original size tells you whether a screenshot would lose resolution.
-    Only URLs this tool has listed can be fetched with get-media-content, and the list is
+    fetch-media-file: the original size tells you whether a screenshot would lose resolution.
+    Only URLs this tool has listed can be fetched with fetch-media-file, and the list is
     forgotten when the tab navigates.
     In allowlist mode the tab has to be authorized from the extension popup first.
   `,
@@ -643,19 +643,19 @@ mcpServer.tool(
 );
 
 mcpServer.tool(
-  "get-media-content",
+  "fetch-media-file",
   `
     Fetch one image from a page by URL and return the original file, fetched inside the page
     with its cookies, so it works where a plain download would be refused. Prefer this over a
     screenshot when the original is larger than it is displayed, or when the exact file matters.
-    The URL must be one that get-page-media listed for this tab, on the page it is showing now.
+    The URL must be one that list-page-media listed for this tab, on the page it is showing now.
     Only jpeg, png, gif and webp answers are returned, capped at 8MB.
     This tool is off by default; when it is refused, ask the user to enable "Fetch media files"
     in the extension popup.
   `,
   {
     tabId: z.number(),
-    url: z.string().describe("A URL from this tab's latest get-page-media answer"),
+    url: z.string().describe("A URL from this tab's latest list-page-media answer"),
   },
   async ({ tabId, url }) => {
     const media = await browserApi.fetchMediaContent(tabId, url);
@@ -681,7 +681,7 @@ mcpServer.tool(
 );
 
 mcpServer.tool(
-  "get-page-snapshot",
+  "list-page-elements",
   `
     List the interactive elements of a browser tab, each stamped with a ref such as e12 that
     the interaction tools accept. Call this before clicking or typing: it is far more reliable
@@ -799,7 +799,7 @@ mcpServer.tool(
 mcpServer.tool(
   "click-page-element",
   `
-    Click an element in a browser tab, addressed by a ref from get-page-snapshot or by a CSS
+    Click an element in a browser tab, addressed by a ref from list-page-elements or by a CSS
     selector. The element is scrolled into view and highlighted before the click so the user
     can see what is being touched.
     Middle and right clicks dispatch the matching events but do not perform the browser's own
@@ -936,7 +936,7 @@ mcpServer.tool(
   `
     Choose one or more options in a select element. Each value is matched against the option's
     value attribute first and against its visible text second.
-    Call get-page-snapshot first: it lists the available options of every select on the page.
+    Call list-page-elements first: it lists the available options of every select on the page.
   `,
   {
     tabId: z.number(),
