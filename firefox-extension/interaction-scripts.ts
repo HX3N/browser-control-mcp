@@ -9,6 +9,7 @@ import type {
 } from "@browser-control-mcp/common/server-messages";
 import {
   ELEMENT_RESOLVER_SOURCE,
+  PAGE_READ_SOURCE,
   SCROLL_ANCHOR_SOURCE,
   jsValue,
   targetLiteral,
@@ -29,6 +30,8 @@ export interface WaitProbeResult {
 
 export interface ElementBoxResult {
   rect: { x: number; y: number; width: number; height: number };
+  fullTop: number;
+  fullBottom: number;
   label: string;
   elementWidth: number;
   elementHeight: number;
@@ -37,8 +40,28 @@ export interface ElementBoxResult {
   scrollHeight: number;
 }
 
+export interface MediaListResult {
+  items: {
+    url: string;
+    kind: "image" | "video" | "audio";
+    naturalWidth?: number;
+    naturalHeight?: number;
+    alt?: string;
+    frame?: string;
+  }[];
+  totalItems: number;
+  isTruncated: boolean;
+  unreachableFrames: number;
+}
+
+export interface MediaFetchResult {
+  base64: string;
+  mimeType: string;
+  byteLength: number;
+}
+
 export const CAPTURE_PADDING_PX = 8;
-const MAX_CAPTURE_HEIGHT_PX = 2000;
+export const MAX_CAPTURE_HEIGHT_PX = 2000;
 
 const VALUE_SETTER_SOURCE = `
 function __bcmSetValue(el, value) {
@@ -741,6 +764,8 @@ ${ELEMENT_RESOLVER_SOURCE}
       width: Math.round(width),
       height: Math.round(height)
     },
+    fullTop: Math.round(fullTop),
+    fullBottom: Math.round(fullBottom),
     label: __bcmLabel(el),
     elementWidth: Math.round(box.width),
     elementHeight: Math.round(box.height),
@@ -748,5 +773,115 @@ ${ELEMENT_RESOLVER_SOURCE}
     scrollY: scroll.scrollY,
     scrollHeight: scroll.scrollHeight
   };
+})();`;
+}
+
+export const MAX_MEDIA_ITEMS = 100;
+
+export function buildMediaListCode(target?: ElementTarget): string {
+  const scoped = !!(target && (target.ref || target.selector));
+  return `(function () {
+${ELEMENT_RESOLVER_SOURCE}
+${PAGE_READ_SOURCE}
+  var scope = ${
+    scoped ? `__bcmResolve(${targetLiteral(target!)})` : "document.body"
+  };
+  var limit = ${jsValue(MAX_MEDIA_ITEMS)};
+  var seen = {};
+  var items = [];
+  var total = 0;
+
+  function frameOf(el) {
+    var doc = el.ownerDocument;
+    if (doc === document) { return undefined; }
+    return __bcmFrameLabel(doc) || 'frame';
+  }
+
+  function add(el, kind, url, extra) {
+    if (!url || url.slice(0, 5) === 'data:') { return; }
+    if (seen[url]) { return; }
+    seen[url] = true;
+    total++;
+    if (items.length >= limit) { return; }
+    var item = { url: url, kind: kind };
+    var frame = frameOf(el);
+    if (frame) { item.frame = frame; }
+    if (extra) {
+      for (var key in extra) {
+        if (extra[key] || extra[key] === 0) { item[key] = extra[key]; }
+      }
+    }
+    items.push(item);
+  }
+
+  function addImage(img) {
+    add(img, 'image', img.currentSrc || img.src, {
+      naturalWidth: img.naturalWidth,
+      naturalHeight: img.naturalHeight,
+      alt: (img.getAttribute('alt') || '').trim().slice(0, 120)
+    });
+  }
+
+  function addPlayable(el) {
+    var kind = el.tagName.toLowerCase() === 'video' ? 'video' : 'audio';
+    var url = el.currentSrc || el.src;
+    if (!url) {
+      var source = el.querySelector && el.querySelector('source[src]');
+      url = source ? source.src : '';
+    }
+    add(el, kind, url);
+    if (kind === 'video' && el.poster) { add(el, 'image', el.poster); }
+  }
+
+  // querySelectorAll reaches descendants only, so a scope that is itself media is added here.
+  if (scope.matches) {
+    if (scope.matches('img')) { addImage(scope); }
+    else if (scope.matches('video,audio')) { addPlayable(scope); }
+  }
+
+  var roots = __bcmReadRoots(scope);
+  for (var r = 0; r < roots.length; r++) {
+    var root = roots[r];
+    if (!root.querySelectorAll) { continue; }
+    var imgs = root.querySelectorAll('img');
+    for (var i = 0; i < imgs.length; i++) { addImage(imgs[i]); }
+    var playable = root.querySelectorAll('video,audio');
+    for (var m = 0; m < playable.length; m++) { addPlayable(playable[m]); }
+  }
+
+  return {
+    items: items,
+    totalItems: total,
+    isTruncated: total > items.length,
+    unreachableFrames: __bcmUnreachableFrames(scope)
+  };
+})();`;
+}
+
+export function buildMediaFetchCode(url: string, maxBytes: number): string {
+  return `(function () {
+  var url = ${jsValue(url)};
+  var maxBytes = ${jsValue(maxBytes)};
+  return fetch(url, { credentials: 'include' }).then(function (res) {
+    if (!res.ok) {
+      throw new Error('The server answered ' + res.status + ' for ' + url);
+    }
+    var type = (res.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+    var declared = parseInt(res.headers.get('content-length') || '', 10);
+    if (declared && declared > maxBytes) {
+      throw new Error('The file is ' + declared + ' bytes, over the ' + maxBytes + ' byte limit.');
+    }
+    return res.arrayBuffer().then(function (buffer) {
+      if (buffer.byteLength > maxBytes) {
+        throw new Error('The file is ' + buffer.byteLength + ' bytes, over the ' + maxBytes + ' byte limit.');
+      }
+      var bytes = new Uint8Array(buffer);
+      var chunks = [];
+      for (var i = 0; i < bytes.length; i += 8192) {
+        chunks.push(String.fromCharCode.apply(null, bytes.subarray(i, i + 8192)));
+      }
+      return { base64: btoa(chunks.join('')), mimeType: type, byteLength: buffer.byteLength };
+    });
+  });
 })();`;
 }

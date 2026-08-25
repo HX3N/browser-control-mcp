@@ -5,6 +5,8 @@ import type {
   ElementTarget,
   ExtensionMessage,
   ExecuteJsServerMessage,
+  FetchMediaServerMessage,
+  GetPageMediaServerMessage,
   GetTabContentServerMessage,
   PageSnapshotServerMessage,
   PressKeyServerMessage,
@@ -71,6 +73,11 @@ import {
   buildClickCode,
   buildElementBoxCode,
   buildExecuteJsCode,
+  buildMediaFetchCode,
+  buildMediaListCode,
+  MAX_CAPTURE_HEIGHT_PX,
+  MediaFetchResult,
+  MediaListResult,
   buildPressKeyCode,
   buildScrollCode,
   buildSelectOptionCode,
@@ -107,6 +114,17 @@ const DEFAULT_SNAPSHOT_LIMIT = 200;
 const MAX_SCRIPT_RESULT_LENGTH = 20_000;
 const DEFAULT_WAIT_TIMEOUT_MS = 5_000;
 const MAX_WAIT_TIMEOUT_MS = 60_000;
+const MAX_CAPTURE_SLICES = 8;
+const SLICE_OVERLAP_PX = 80;
+// A fetch spends real network time, so it gets a longer leash than an in-page script.
+const MEDIA_FETCH_STALL_MS = 20_000;
+const MAX_MEDIA_BYTES = 8 * 1024 * 1024;
+const MEDIA_IMAGE_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+]);
 const WAIT_POLL_INTERVAL_MS = 200;
 
 function delay(ms: number): Promise<void> {
@@ -124,6 +142,7 @@ export class MessageHandler {
   private client: WebsocketClient;
   private claimedTabs: Map<number, ReturnType<typeof setTimeout>> = new Map();
   private openedTabs: Set<number> = new Set();
+  private knownMediaUrls: Map<number, Set<string>> = new Map();
 
   private readonly onTabRemoved = (tabId: number) => {
     this.forgetTab(tabId);
@@ -136,7 +155,11 @@ export class MessageHandler {
     tabId: number;
     url: string;
   }) => {
-    if (details.frameId !== 0 || !this.isGuarded(details.tabId)) {
+    if (details.frameId !== 0) {
+      return;
+    }
+    this.knownMediaUrls.delete(details.tabId);
+    if (!this.isGuarded(details.tabId)) {
       return;
     }
     if (details.url && details.url !== BLANK_URL) {
@@ -254,6 +277,12 @@ export class MessageHandler {
         break;
       case "capture-screenshot":
         await this.captureScreenshot(req);
+        break;
+      case "get-media":
+        await this.sendPageMedia(req);
+        break;
+      case "fetch-media":
+        await this.fetchMedia(req);
         break;
       case "page-snapshot":
         await this.sendPageSnapshot(req);
@@ -774,27 +803,45 @@ export class MessageHandler {
 
     let restoreTabId: number | undefined;
     try {
+      const maxSlices = Math.max(
+        1,
+        Math.min(req.maxSlices ?? 1, MAX_CAPTURE_SLICES)
+      );
       const box = isElementTargeted(req)
         ? await this.measureElement(tabId, req)
         : null;
-      const options = {
-        format,
-        quality,
-        scale,
-        ...(box ? { rect: box.rect } : {}),
-      };
+      const rects = box ? sliceRects(box, maxSlices) : [undefined];
 
-      let dataUrl: string;
+      let sliced = rects.length > 1;
+      const dataUrls: string[] = [];
       try {
-        dataUrl = await browser.tabs.captureTab(tabId, options);
+        for (const rect of rects) {
+          dataUrls.push(
+            await browser.tabs.captureTab(tabId, {
+              format,
+              quality,
+              scale,
+              ...(rect ? { rect } : {}),
+            })
+          );
+        }
       } catch (error) {
         // captureTab reaches a tab wherever it sits, while captureVisibleTab only ever returns
         // the window's active tab, so falling back means bringing the target to the front.
+        dataUrls.length = 0;
+        sliced = false;
         restoreTabId = tab.active
           ? undefined
           : await this.activateTabForCapture(tabId, tab.windowId);
         try {
-          dataUrl = await browser.tabs.captureVisibleTab(tab.windowId, options);
+          dataUrls.push(
+            await browser.tabs.captureVisibleTab(tab.windowId, {
+              format,
+              quality,
+              scale,
+              ...(box ? { rect: box.rect } : {}),
+            })
+          );
         } catch (fallbackError) {
           throw new Error(
             `Firefox refused to capture tab ${tabId}: ${
@@ -806,14 +853,29 @@ export class MessageHandler {
           );
         }
       }
-      const { mimeType, imageData } = parseImageDataUrl(dataUrl);
+      const parsed = dataUrls.map(parseImageDataUrl);
+      const imageBytes = parsed.reduce(
+        (sum, image) => sum + base64ByteLength(image.imageData),
+        0
+      );
+      const size = await measureImage(dataUrls[0]);
+      const lastRect = rects[rects.length - 1];
+      const clipped =
+        sliced && box && lastRect
+          ? lastRect.y + lastRect.height < box.fullBottom
+          : box?.clipped ?? false;
       await this.sendResource(
         {
           resource: "screenshot",
           correlationId,
           tabId,
-          imageData,
-          mimeType,
+          imageData: parsed[0].imageData,
+          mimeType: parsed[0].mimeType,
+          ...(size ? { imageWidth: size.width, imageHeight: size.height } : {}),
+          imageBytes,
+          ...(parsed.length > 1
+            ? { extraSlices: parsed.slice(1).map((image) => image.imageData) }
+            : {}),
           ...(box
             ? {
                 captured: {
@@ -822,7 +884,8 @@ export class MessageHandler {
                   height: Math.round(box.rect.height),
                   elementWidth: box.elementWidth,
                   elementHeight: box.elementHeight,
-                  clipped: box.clipped,
+                  clipped,
+                  ...(sliced ? { slices: parsed.length } : {}),
                   scrollY: box.scrollY,
                   scrollHeight: box.scrollHeight,
                 },
@@ -843,6 +906,103 @@ export class MessageHandler {
         () => undefined
       );
     }
+  }
+
+  private async sendPageMedia(
+    req: GetPageMediaServerMessage & { correlationId: string }
+  ): Promise<void> {
+    const { correlationId, tabId } = req;
+    const scoped = isElementTargeted(req);
+
+    await this.prepareTabAccess(tabId);
+
+    await this.attachOverlay(
+      tabId,
+      "read",
+      scoped ? t("overlayReadingElement") : t("overlayReadingContent"),
+      scoped ? req : undefined
+    );
+
+    const results = await this.runScript(
+      tabId,
+      { code: buildMediaListCode(scoped ? req : undefined) },
+      LONG_SCRIPT_STALL_MS
+    );
+    const media = results[0] as MediaListResult;
+    const scope = await getUrlScope();
+    const items = media.items.filter((item) => isUrlInScope(item.url, scope));
+
+    let known = this.knownMediaUrls.get(tabId);
+    if (!known) {
+      known = new Set();
+      this.knownMediaUrls.set(tabId, known);
+    }
+    for (const item of items) {
+      known.add(item.url);
+    }
+
+    await this.sendResource(
+      {
+        resource: "page-media",
+        correlationId,
+        tabId,
+        items,
+        totalItems: media.totalItems,
+        isTruncated: media.isTruncated,
+        unreachableFrames: media.unreachableFrames,
+      },
+      tabId
+    );
+  }
+
+  private async fetchMedia(
+    req: FetchMediaServerMessage & { correlationId: string }
+  ): Promise<void> {
+    const { correlationId, tabId, url } = req;
+
+    await this.prepareTabAccess(tabId);
+
+    // The model must not be able to point the user's cookies at an address of its own choosing:
+    // only what get-page-media saw on this page is reachable.
+    const known = this.knownMediaUrls.get(tabId);
+    if (!known || !known.has(url)) {
+      throw new Error(
+        `This URL was not listed by get-page-media on tab ${tabId}. Call get-page-media ` +
+          `first; only URLs from its answer for this page can be fetched.`
+      );
+    }
+
+    await this.attachOverlay(tabId, "read", t("overlayReadingContent"));
+
+    const results = await this.runScript(
+      tabId,
+      { code: buildMediaFetchCode(url, MAX_MEDIA_BYTES) },
+      MEDIA_FETCH_STALL_MS
+    );
+    const fetched = results[0] as MediaFetchResult;
+    if (!MEDIA_IMAGE_TYPES.has(fetched.mimeType)) {
+      throw new Error(
+        `The server answered with ${
+          fetched.mimeType || "an unknown content type"
+        }, not an image format the client can display (jpeg, png, gif, webp).`
+      );
+    }
+
+    const size = await measureImage(
+      `data:${fetched.mimeType};base64,${fetched.base64}`
+    );
+    await this.sendResource(
+      {
+        resource: "media-content",
+        correlationId,
+        tabId,
+        imageData: fetched.base64,
+        mimeType: fetched.mimeType,
+        byteLength: fetched.byteLength,
+        ...(size ? { imageWidth: size.width, imageHeight: size.height } : {}),
+      },
+      tabId
+    );
   }
 
   private async measureElement(
@@ -1043,6 +1203,7 @@ export class MessageHandler {
 
   private forgetTab(tabId: number): void {
     this.openedTabs.delete(tabId);
+    this.knownMediaUrls.delete(tabId);
     forgetPageEvents(tabId);
     const timer = this.claimedTabs.get(tabId);
     if (timer === undefined) {
@@ -1377,6 +1538,45 @@ export class MessageHandler {
       correlationId,
       groupId: tabGroup.id,
     });
+  }
+}
+
+function sliceRects(
+  box: ElementBoxResult,
+  maxSlices: number
+): { x: number; y: number; width: number; height: number }[] {
+  if (maxSlices <= 1 || !box.clipped) {
+    return [box.rect];
+  }
+  const rects = [];
+  let top = box.fullTop;
+  while (top < box.fullBottom && rects.length < maxSlices) {
+    const height = Math.min(MAX_CAPTURE_HEIGHT_PX, box.fullBottom - top);
+    rects.push({ x: box.rect.x, y: top, width: box.rect.width, height });
+    if (top + height >= box.fullBottom) {
+      break;
+    }
+    top = top + height - SLICE_OVERLAP_PX;
+  }
+  return rects;
+}
+
+function base64ByteLength(data: string): number {
+  const padding = data.endsWith("==") ? 2 : data.endsWith("=") ? 1 : 0;
+  return Math.floor((data.length * 3) / 4) - padding;
+}
+
+async function measureImage(
+  dataUrl: string
+): Promise<{ width: number; height: number } | undefined> {
+  try {
+    const blob = await (await fetch(dataUrl)).blob();
+    const bitmap = await createImageBitmap(blob);
+    const size = { width: bitmap.width, height: bitmap.height };
+    bitmap.close();
+    return size;
+  } catch (error) {
+    return undefined;
   }
 }
 

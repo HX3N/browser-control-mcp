@@ -74,6 +74,12 @@
     "toolExecuteJavascriptDescription": {
         "message": "Lets the MCP server run arbitrary scripts in a page"
     },
+    "toolGetMediaContentName": {
+        "message": "Fetch media files"
+    },
+    "toolGetMediaContentDescription": {
+        "message": "Lets the MCP server download images a page shows, with the page's cookies"
+    },
     "overlayIdle": {
         "message": "Claude connected"
     },
@@ -163,6 +169,12 @@
     },
     "popupToggleJavascriptHint": {
         "message": "Arbitrary script execution"
+    },
+    "popupToggleMediaFetchName": {
+        "message": "Fetch media files"
+    },
+    "popupToggleMediaFetchHint": {
+        "message": "Downloads page images with your cookies"
     },
     "popupToggleHiddenName": {
         "message": "Read hidden elements"

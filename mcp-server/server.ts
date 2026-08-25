@@ -29,6 +29,16 @@ const mcpServer = new McpServer(
   }
 );
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  if (bytes < 1024 * 1024) {
+    return `${Math.round(bytes / 1024)} KB`;
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function dialogNotice(message: {
   dialogs?: string[];
   consoleMessages?: string[];
@@ -453,8 +463,11 @@ mcpServer.tool(
     cheaper and easier to read than a full screen you have to hunt through. An element capture
     neither scrolls the page nor brings the tab forward: it is cropped in page coordinates, so the
     part of the element below the fold is in the image too.
-    Only an element taller than 2000 pixels comes back cropped to the slice near the scroll
-    position; the result then says how to capture the rest.
+    An element taller than 2000 pixels is returned as up to maxSlices images, top to bottom with
+    a small overlap; the result says when even those did not reach the bottom. With maxSlices 1
+    it instead comes back cropped to the slice near the scroll position.
+    The result always reports the image's pixel size and encoded bytes, so decide from those
+    numbers rather than guessing whether a recapture at another scale is needed.
   `,
   {
     tabId: z.number(),
@@ -475,41 +488,69 @@ mcpServer.tool(
       .max(2)
       .default(1)
       .describe("Image scale relative to CSS pixels, lower values produce smaller images"),
+    maxSlices: z
+      .number()
+      .int()
+      .min(1)
+      .max(8)
+      .default(3)
+      .describe(
+        "How many images an element taller than 2000px may be split into; each costs tokens"
+      ),
     ...elementTargetShape,
   },
-  async ({ tabId, format, quality, scale, ref, selector, index }) => {
+  async ({ tabId, format, quality, scale, maxSlices, ref, selector, index }) => {
     const scoped = !!(ref || selector);
     const screenshot = await browserApi.captureScreenshot(
       tabId,
       format,
       quality,
       scale,
+      maxSlices,
       scoped ? elementTarget({ ref, selector, index }) : undefined
     );
 
     const shot = screenshot.captured;
-    const notice: { type: "text"; text: string }[] = shot
-      ? [
-          {
-            type: "text",
-            text: [
-              `Captured ${shot.label} at ${shot.width}x${shot.height}px.`,
-              shot.clipped
-                ? `The element is ${shot.elementWidth}x${shot.elementHeight}px, so this image holds only the part that fits on screen. Scroll with scroll-browser-tab (page is at ${shot.scrollY} of ${shot.scrollHeight}) and capture again for the rest.`
-                : "The whole element is in the image.",
-            ].join(" "),
-          },
-        ]
-      : [];
+    const lines: string[] = [];
+    if (screenshot.imageWidth && screenshot.imageHeight) {
+      lines.push(
+        `The image is ${screenshot.imageWidth}x${screenshot.imageHeight}px` +
+          (screenshot.imageBytes
+            ? ` (${formatBytes(screenshot.imageBytes)} encoded${
+                shot?.slices ? ` across ${shot.slices} slices` : ""
+              }).`
+            : ".")
+      );
+    }
+    if (shot) {
+      lines.push(`Captured ${shot.label}.`);
+      if (shot.slices && shot.slices > 1) {
+        lines.push(
+          `The element is ${shot.elementWidth}x${shot.elementHeight}px and follows as ${shot.slices} images, top to bottom with a small overlap.`
+        );
+      }
+      if (shot.clipped) {
+        lines.push(
+          shot.slices && shot.slices > 1
+            ? `Even ${shot.slices} slices did not reach the bottom of the element; capture again with a higher maxSlices or a lower scale for the rest.`
+            : `The element is ${shot.elementWidth}x${shot.elementHeight}px, so this image holds only the part that fits on screen. Scroll with scroll-browser-tab (page is at ${shot.scrollY} of ${shot.scrollHeight}) and capture again for the rest, or recapture with maxSlices above 1.`
+        );
+      } else if (!shot.slices) {
+        lines.push("The whole element is in the image.");
+      }
+    }
+    const notice: { type: "text"; text: string }[] =
+      lines.length > 0 ? [{ type: "text", text: lines.join(" ") }] : [];
 
+    const images = [screenshot.imageData, ...(screenshot.extraSlices ?? [])];
     return {
       content: [
         ...notice,
-        {
-          type: "image",
-          data: screenshot.imageData,
+        ...images.map((data) => ({
+          type: "image" as const,
+          data,
           mimeType: screenshot.mimeType,
-        },
+        })),
         ...dialogNotice(screenshot),
       ],
     };
@@ -537,6 +578,107 @@ function formatInteraction(result: {
     .filter(Boolean)
     .join("\n");
 }
+
+mcpServer.tool(
+  "get-page-media",
+  `
+    List the images, videos and audio a page shows, with their URLs and original pixel sizes,
+    walking same-origin frames and shadow roots. Pass "ref" or "selector" to list one region only.
+    Use this to decide between capturing a screenshot and fetching the original file with
+    get-media-content: the original size tells you whether a screenshot would lose resolution.
+    Only URLs this tool has listed can be fetched with get-media-content, and the list is
+    forgotten when the tab navigates.
+    In allowlist mode the tab has to be authorized from the extension popup first.
+  `,
+  {
+    tabId: z.number(),
+    ...elementTargetShape,
+  },
+  async ({ tabId, ref, selector, index }) => {
+    const scoped = !!(ref || selector);
+    const media = await browserApi.getPageMedia(
+      tabId,
+      scoped ? elementTarget({ ref, selector, index }) : undefined
+    );
+    const lines = media.items.map((item) => {
+      const parts = [`[${item.kind}] ${item.url}`];
+      if (item.naturalWidth && item.naturalHeight) {
+        parts.push(`${item.naturalWidth}x${item.naturalHeight}px`);
+      }
+      if (item.alt) {
+        parts.push(`alt: ${item.alt}`);
+      }
+      if (item.frame) {
+        parts.push(`frame: ${item.frame}`);
+      }
+      return parts.join(" | ");
+    });
+    const notes: string[] = [];
+    if (media.isTruncated) {
+      notes.push(
+        `Only ${media.items.length} of ${media.totalItems} media elements are listed; scope the call with ref or selector to reach the rest.`
+      );
+    }
+    if (media.unreachableFrames > 0) {
+      notes.push(
+        `${media.unreachableFrames} cross-origin frame(s) could not be read; open the frame's own URL in a tab to list its media.`
+      );
+    }
+    return {
+      content: [
+        {
+          type: "text",
+          text:
+            lines.length > 0
+              ? [...lines, ...notes].join("\n")
+              : [
+                  "The page shows no media elements with a usable URL.",
+                  ...notes,
+                ].join("\n"),
+        },
+        ...dialogNotice(media),
+      ],
+    };
+  }
+);
+
+mcpServer.tool(
+  "get-media-content",
+  `
+    Fetch one image from a page by URL and return the original file, fetched inside the page
+    with its cookies, so it works where a plain download would be refused. Prefer this over a
+    screenshot when the original is larger than it is displayed, or when the exact file matters.
+    The URL must be one that get-page-media listed for this tab, on the page it is showing now.
+    Only jpeg, png, gif and webp answers are returned, capped at 8MB.
+    This tool is off by default; when it is refused, ask the user to enable "Fetch media files"
+    in the extension popup.
+  `,
+  {
+    tabId: z.number(),
+    url: z.string().describe("A URL from this tab's latest get-page-media answer"),
+  },
+  async ({ tabId, url }) => {
+    const media = await browserApi.fetchMediaContent(tabId, url);
+    const size =
+      media.imageWidth && media.imageHeight
+        ? ` at ${media.imageWidth}x${media.imageHeight}px`
+        : "";
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Fetched ${formatBytes(media.byteLength)} of ${media.mimeType}${size}.`,
+        },
+        {
+          type: "image",
+          data: media.imageData,
+          mimeType: media.mimeType,
+        },
+        ...dialogNotice(media),
+      ],
+    };
+  }
+);
 
 mcpServer.tool(
   "get-page-snapshot",

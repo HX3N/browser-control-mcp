@@ -63,6 +63,20 @@ export interface CaptureScreenshotServerMessage
   format?: "jpeg" | "png";
   quality?: number;
   scale?: number;
+  maxSlices?: number;
+}
+
+export interface GetPageMediaServerMessage
+  extends ServerMessageBase,
+    ElementTarget {
+  cmd: "get-media";
+  tabId: number;
+}
+
+export interface FetchMediaServerMessage extends ServerMessageBase {
+  cmd: "fetch-media";
+  tabId: number;
+  url: string;
 }
 
 export interface ElementTarget {
@@ -155,6 +169,8 @@ export type ServerMessage =
   | FindHighlightServerMessage
   | GroupTabsServerMessage
   | CaptureScreenshotServerMessage
+  | GetPageMediaServerMessage
+  | FetchMediaServerMessage
   | PageSnapshotServerMessage
   | ClickElementServerMessage
   | TypeTextServerMessage

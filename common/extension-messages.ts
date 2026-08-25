@@ -93,6 +93,12 @@ export interface ScreenshotExtensionMessage extends ExtensionMessageBase {
   // Base64-encoded image, without the data-URL prefix
   imageData: string;
   mimeType: string;
+  imageWidth?: number;
+  imageHeight?: number;
+  // Decoded size of every image in this message combined
+  imageBytes?: number;
+  // Further slices of an element too tall for one image, top to bottom after imageData
+  extraSlices?: string[];
   captured?: CapturedElement;
 }
 
@@ -103,8 +109,38 @@ export interface CapturedElement {
   elementWidth: number;
   elementHeight: number;
   clipped: boolean;
+  slices?: number;
   scrollY: number;
   scrollHeight: number;
+}
+
+export interface MediaItem {
+  url: string;
+  kind: "image" | "video" | "audio";
+  naturalWidth?: number;
+  naturalHeight?: number;
+  alt?: string;
+  frame?: string;
+}
+
+export interface PageMediaExtensionMessage extends ExtensionMessageBase {
+  resource: "page-media";
+  tabId: number;
+  items: MediaItem[];
+  totalItems: number;
+  isTruncated: boolean;
+  unreachableFrames: number;
+}
+
+export interface MediaContentExtensionMessage extends ExtensionMessageBase {
+  resource: "media-content";
+  tabId: number;
+  // Base64-encoded image, without the data-URL prefix
+  imageData: string;
+  mimeType: string;
+  byteLength: number;
+  imageWidth?: number;
+  imageHeight?: number;
 }
 
 export interface SnapshotElement {
@@ -179,6 +215,8 @@ export type ExtensionMessage =
   | TabsClosedExtensionMessage
   | TabGroupCreatedExtensionMessage
   | ScreenshotExtensionMessage
+  | PageMediaExtensionMessage
+  | MediaContentExtensionMessage
   | PageSnapshotExtensionMessage
   | InteractionResultExtensionMessage
   | ScriptResultExtensionMessage

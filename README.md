@@ -37,7 +37,12 @@ The tools the MCP server exposes.
 - Read and search browsing history
 - Read page text and links, either the whole page or one element of it
 - Find and highlight text inside a page
-- Capture a screenshot of a tab, either the visible screen or one element of it
+- Capture a screenshot of a tab, either the visible screen or one element of it; a tall
+  element is split into several images, and every capture reports its pixel size and bytes
+- `get-page-media` — list the images, videos and audio a page shows, with URLs and
+  original sizes, for the whole page or inside one element
+- `get-media-content` — fetch an image file a page shows, with the page's own cookies
+  (off by default; only URLs `get-page-media` listed can be fetched)
 - `get-page-snapshot` — list the interactive elements, each stamped with a `ref`,
   for the whole page or inside one element
 
@@ -65,7 +70,7 @@ Clicking the toolbar icon (or pressing `Alt+Shift+B`) opens the popup.
   entry per line, saved as you type. Allowlist mode also offers a one-off grant for the current
   tab that expires when it navigates.
 - **New tabs** — whether a new tab inherits the container of the tab in front
-- **Interaction permissions** — separate switches for screenshots, mouse, keyboard and JavaScript, plus
+- **Interaction permissions** — separate switches for screenshots, mouse, keyboard, JavaScript and media file fetching, plus
   whether a snapshot may read the elements the page keeps hidden, and whether work stays in the
   background. With that last one on (the default) a new tab opens behind the tab you are on and
   page search does not jump to it. A screenshot stays in the background too, and only falls back

@@ -70,6 +70,11 @@ export const AVAILABLE_TOOLS: ToolInfo[] = [
     id: "execute-javascript",
     nameKey: "toolExecuteJavascriptName",
     descriptionKey: "toolExecuteJavascriptDescription"
+  },
+  {
+    id: "get-media-content",
+    nameKey: "toolGetMediaContentName",
+    descriptionKey: "toolGetMediaContentDescription"
   }
 ];
 
@@ -78,12 +83,14 @@ export const INTERACTION_TOOL_IDS = [
   "interact-click",
   "interact-type",
   "execute-javascript",
+  "get-media-content",
 ] as const;
 
 // The extension holds a blanket host permission, so the browser no longer stands between the
 // server and a page. Arbitrary scripting is the one tool that has to be switched on by hand.
 export const DISABLED_BY_DEFAULT_TOOL_IDS: readonly string[] = [
   "execute-javascript",
+  "get-media-content",
 ];
 
 // Map command names to tool IDs
@@ -98,6 +105,8 @@ export const COMMAND_TO_TOOL_ID: Record<ServerMessageRequest["cmd"], string> = {
   "find-highlight": "find-highlight-in-browser-tab",
   "group-tabs": "reorder-browser-tabs",
   "capture-screenshot": "capture-tab-screenshot",
+  "get-media": "get-tab-web-content",
+  "fetch-media": "get-media-content",
   "page-snapshot": "get-tab-web-content",
   "wait-for-element": "get-tab-web-content",
   "click-element": "interact-click",
@@ -117,6 +126,8 @@ export const PAGE_ACCESS_COMMANDS: ReadonlySet<ServerMessageRequest["cmd"]> =
     "get-tab-content",
     "find-highlight",
     "capture-screenshot",
+    "get-media",
+    "fetch-media",
     "page-snapshot",
     "wait-for-element",
     "click-element",

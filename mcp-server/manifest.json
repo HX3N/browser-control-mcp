@@ -92,6 +92,14 @@
             "description": "Capture a screenshot of the visible area of a browser tab (requires per-tab user consent)"
         },
         {
+            "name": "get-page-media",
+            "description": "List the images, videos and audio a page shows, with URLs and original sizes"
+        },
+        {
+            "name": "get-media-content",
+            "description": "Fetch an image file a page shows, with the page's cookies (off by default)"
+        },
+        {
             "name": "get-page-snapshot",
             "description": "List the interactive elements of a tab, each stamped with a ref the interaction tools accept"
         },

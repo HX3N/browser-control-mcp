@@ -13,6 +13,8 @@ import type {
   TabContentExtensionMessage,
   ServerMessageRequest,
   ExtensionError,
+  MediaContentExtensionMessage,
+  PageMediaExtensionMessage,
   ScreenshotExtensionMessage,
   TabNavigatedExtensionMessage,
   OpenedTabIdExtensionMessage,
@@ -24,7 +26,11 @@ const WS_DEFAULT_PORT = 8089;
 const EXTENSION_RESPONSE_TIMEOUT_MS = 5000;
 // Capturing may foreground the tab, wait for it to paint, encode the image and transfer a
 // payload orders of magnitude larger than the other responses.
-const SCREENSHOT_RESPONSE_TIMEOUT_MS = 10000;
+// Room for a sliced capture: up to eight captureTab calls plus a decode for measuring.
+const SCREENSHOT_RESPONSE_TIMEOUT_MS = 20000;
+
+// A media fetch spends real network time inside the page before the answer starts back.
+const MEDIA_RESPONSE_TIMEOUT_MS = 30000;
 // Interactions draw the overlay, hold it long enough to be seen, and only then act on the
 // page, so they never fit inside the default response budget.
 const INTERACTION_RESPONSE_TIMEOUT_MS = 15000;
@@ -322,6 +328,7 @@ export class BrowserAPI {
     format: "jpeg" | "png",
     quality: number,
     scale: number,
+    maxSlices: number,
     target?: ElementTarget
   ): Promise<ScreenshotExtensionMessage> {
     const correlationId = this.sendMessageToExtension({
@@ -330,12 +337,45 @@ export class BrowserAPI {
       format,
       quality,
       scale,
+      maxSlices,
       ...target,
     });
     return await this.waitForResponse(
       correlationId,
       "screenshot",
       SCREENSHOT_RESPONSE_TIMEOUT_MS
+    );
+  }
+
+  async getPageMedia(
+    tabId: number,
+    target?: ElementTarget
+  ): Promise<PageMediaExtensionMessage> {
+    const correlationId = this.sendMessageToExtension({
+      cmd: "get-media",
+      tabId,
+      ...target,
+    });
+    return await this.waitForResponse(
+      correlationId,
+      "page-media",
+      INTERACTION_RESPONSE_TIMEOUT_MS
+    );
+  }
+
+  async fetchMediaContent(
+    tabId: number,
+    url: string
+  ): Promise<MediaContentExtensionMessage> {
+    const correlationId = this.sendMessageToExtension({
+      cmd: "fetch-media",
+      tabId,
+      url,
+    });
+    return await this.waitForResponse(
+      correlationId,
+      "media-content",
+      MEDIA_RESPONSE_TIMEOUT_MS
     );
   }
 

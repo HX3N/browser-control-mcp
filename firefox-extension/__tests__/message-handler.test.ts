@@ -1260,6 +1260,7 @@ describe("MessageHandler", () => {
           tabId: 123,
           imageData: "QUJD",
           mimeType: "image/jpeg",
+          imageBytes: 3,
         });
       });
 
