@@ -120,6 +120,7 @@ export interface FindMatch {
   tag: string;
   context: string;
   frame?: string;
+  hidden?: boolean;
   controls?: FindControl[];
   moreControls?: number;
 }
@@ -127,12 +128,14 @@ export interface FindMatch {
 export interface FindControl {
   ref: string;
   label: string;
+  hidden?: boolean;
 }
 
 export interface FindHighlightExtensionMessage extends ExtensionMessageBase {
   resource: "find-highlight-result";
   noOfResults: number;
   matches: FindMatch[];
+  hiddenListed: boolean;
 }
 
 export interface TabsClosedExtensionMessage extends ExtensionMessageBase {
@@ -179,6 +182,7 @@ export interface MediaItem {
   naturalHeight?: number;
   alt?: string;
   frame?: string;
+  hidden?: boolean;
 }
 
 export interface PageMediaExtensionMessage extends ExtensionMessageBase {
@@ -186,6 +190,8 @@ export interface PageMediaExtensionMessage extends ExtensionMessageBase {
   tabId: number;
   items: MediaItem[];
   totalItems: number;
+  hiddenItems: number;
+  hiddenListed: boolean;
   isTruncated: boolean;
   unreachableFrames: number;
 }

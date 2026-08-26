@@ -35,7 +35,6 @@ export interface ReadPageServerMessage
   tabId: number;
   offset?: number;
   maxElements?: number;
-  includeHidden?: boolean;
   includeSelectors?: boolean;
   includeHrefs?: boolean;
 }

@@ -1181,6 +1181,7 @@ describe("MessageHandler", () => {
           resource: "find-highlight-result",
           correlationId: "test-correlation-id",
           noOfResults: 5,
+          hiddenListed: false,
           matches: located,
         });
       });
@@ -1251,6 +1252,7 @@ describe("MessageHandler", () => {
           resource: "find-highlight-result",
           correlationId: "test-correlation-id",
           noOfResults: 0,
+          hiddenListed: false,
           matches: [],
         });
       });

@@ -752,8 +752,7 @@ export class MessageHandler {
       scoped ? req : undefined
     );
 
-    const includeHidden =
-      req.includeHidden === true && (await isHiddenElementsIncluded());
+    const includeHidden = await isHiddenElementsIncluded();
     const results = await this.runScript(
       tabId,
       {
@@ -823,6 +822,7 @@ export class MessageHandler {
     await ensureTabAccess(tab);
 
     await this.checkForGlobalPermission(["find"]);
+    const includeHidden = await isHiddenElementsIncluded();
     await this.attachOverlay(tabId, "read", t("overlayFind"));
 
     const findResults = await browser.find.find(queryPhrase, {
@@ -847,7 +847,8 @@ export class MessageHandler {
         {
           code: buildFindCode(
             queryPhrase,
-            Math.max(1, Math.min(MAX_FIND_MATCHES, req.maxMatches ?? MAX_FIND_MATCHES))
+            Math.max(1, Math.min(MAX_FIND_MATCHES, req.maxMatches ?? MAX_FIND_MATCHES)),
+            includeHidden
           ),
         },
         LONG_SCRIPT_STALL_MS
@@ -861,6 +862,7 @@ export class MessageHandler {
         correlationId,
         noOfResults: findResults.count,
         matches,
+        hiddenListed: includeHidden,
       },
       tabId
     );
@@ -1017,9 +1019,10 @@ export class MessageHandler {
       scoped ? req : undefined
     );
 
+    const includeHidden = await isHiddenElementsIncluded();
     const results = await this.runScript(
       tabId,
-      { code: buildMediaListCode(scoped ? req : undefined) },
+      { code: buildMediaListCode(scoped ? req : undefined, includeHidden) },
       LONG_SCRIPT_STALL_MS
     );
     const media = results[0] as MediaListResult;
@@ -1042,6 +1045,8 @@ export class MessageHandler {
         tabId,
         items,
         totalItems: media.totalItems,
+        hiddenItems: media.hiddenItems,
+        hiddenListed: includeHidden,
         isTruncated: media.isTruncated,
         unreachableFrames: media.unreachableFrames,
       },

@@ -283,7 +283,6 @@ export class BrowserAPI {
     options: {
       offset: number;
       maxElements: number;
-      includeHidden: boolean;
       includeSelectors: boolean;
       includeHrefs: boolean;
     },

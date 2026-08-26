@@ -86,7 +86,8 @@ Clicking the toolbar icon (or pressing `Alt+Shift+B`) opens the popup.
   tab that expires when it navigates.
 - **New tabs** — whether a new tab inherits the container of the tab in front
 - **Interaction permissions** — separate switches for screenshots, mouse, keyboard, JavaScript and media file fetching, plus
-  whether a read may list the elements the page keeps hidden, and whether work stays in the
+  whether a read, a find or a media list may include what the page keeps hidden (the count is
+  always reported; the content only with this on, marked hidden), and whether work stays in the
   background. With that last one on (the default) a new tab opens behind the tab you are on and
   page search does not jump to it. A screenshot stays in the background too, and only falls back
   to bringing the tab forward when Firefox refuses to capture it where it sits. Switch it off and

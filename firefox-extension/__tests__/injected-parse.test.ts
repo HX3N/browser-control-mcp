@@ -40,6 +40,7 @@ const cases: [string, string][] = [
   ["page read, scoped by selector", buildSnapshotCode({ maxElements: 200, includeHidden: true, target: bySelector })],
   ["find, plain phrase", buildFindCode("hello world", 10)],
   ["find, phrase with quotes and a backslash", buildFindCode("it's \"quoted\" \\ done", 3)],
+  ["find, hidden included", buildFindCode("hello", 3, true)],
   [
     "overlay attach, no target",
     buildAttachOverlayCode({
@@ -76,6 +77,7 @@ const cases: [string, string][] = [
   ["media list, whole page", buildMediaListCode()],
   ["media list, scoped by ref", buildMediaListCode(target)],
   ["media list, scoped by selector", buildMediaListCode(bySelector)],
+  ["media list, hidden included", buildMediaListCode(undefined, true)],
   ["media fetch", buildMediaFetchCode("https://example.com/a.png?x=1&y='2'", 8 * 1024 * 1024)],
   ["overlay detach", buildDetachOverlayCode()],
   ["overlay conceal", buildConcealOverlayCode()],

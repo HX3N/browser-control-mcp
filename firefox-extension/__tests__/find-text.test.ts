@@ -2,8 +2,8 @@ import { buildFindCode, FindMatchResult } from "../interaction-scripts";
 import { buildSnapshotCode } from "../page-snapshot";
 import { ELEMENT_RESOLVER_SOURCE, REF_ATTRIBUTE } from "../injected-common";
 
-function find(phrase: string, max = 10): FindMatchResult[] {
-  const code = buildFindCode(phrase, max);
+function find(phrase: string, max = 10, includeHidden = false): FindMatchResult[] {
+  const code = buildFindCode(phrase, max, includeHidden);
   return (new Function(`return ${code}`)() as { matches: FindMatchResult[] })
     .matches;
 }
@@ -104,6 +104,34 @@ describe("find script", () => {
     `;
 
     expect(find("Ghosted KR phrase")).toHaveLength(1);
+  });
+
+  it("lists hidden matches after the visible ones, marked hidden, when asked to", () => {
+    document.body.innerHTML = `
+      <p style="display:none">Ghosted KR phrase <button style="display:none">Ghost</button></p>
+      <p>Ghosted KR phrase <button>Edit</button><button aria-hidden="true">Spectre</button></p>
+    `;
+
+    const matches = find("Ghosted KR phrase", 10, true);
+
+    expect(matches.map((match) => match.hidden)).toEqual([undefined, true]);
+    expect(matches[0].controls?.map((control) => [control.label.split(" ")[0], control.hidden])).toEqual([
+      ["button", undefined],
+      ["button", true],
+    ]);
+    expect(matches[1].controls?.[0].hidden).toBe(true);
+  });
+
+  it("truncates hidden matches before visible ones", () => {
+    document.body.innerHTML = `
+      <p style="display:none">Ghosted KR phrase</p>
+      <p>Ghosted KR phrase</p>
+    `;
+
+    const matches = find("Ghosted KR phrase", 1, true);
+
+    expect(matches).toHaveLength(1);
+    expect(matches[0].hidden).toBeUndefined();
   });
 
   it("matches across inline elements", () => {

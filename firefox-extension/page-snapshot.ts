@@ -378,8 +378,9 @@ ${WALKER_SOURCE}
     if (text) { pushItem({ kind: 'text', text: text }); }
   }
 
+  var hiddenDepth = 0;
   function emitElement(el, frame) {
-    var visible = __bcmVisible(el);
+    var visible = hiddenDepth === 0 && __bcmVisible(el);
     totalElements++;
     if (!visible) {
       hiddenElements++;
@@ -434,9 +435,14 @@ ${WALKER_SOURCE}
         continue;
       }
 
-      if (!__bcmRendered(child)) { continue; }
+      if (!__bcmRendered(child)) {
+        hiddenDepth++;
+        walk(child, frame, true);
+        hiddenDepth--;
+        continue;
+      }
 
-      if (tag === 'pre') {
+      if (tag === 'pre' && hiddenDepth === 0) {
         flush();
         var pre = (child.innerText || child.textContent || '').replace(/\\s+$/, '');
         if (pre) { pushItem({ kind: 'text', text: pre }); }
@@ -444,7 +450,7 @@ ${WALKER_SOURCE}
       }
 
       var level = __bcmHeadingLevel(child, tag);
-      if (level) {
+      if (level && hiddenDepth === 0) {
         flush();
         var heading = __bcmText(child);
         if (heading) { pushItem({ kind: 'text', text: heading, level: level }); }
@@ -455,7 +461,7 @@ ${WALKER_SOURCE}
       var block = __bcmIsBlock(tag);
       if (block) { flush(); }
       if ((tag === 'td' || tag === 'th') && buffer.trim()) { buffer += ' | '; }
-      if (tag === 'img' && child.alt) { buffer += ' ' + child.alt + ' '; }
+      if (tag === 'img' && child.alt && hiddenDepth === 0) { buffer += ' ' + child.alt + ' '; }
       walk(child, frame, suppressText);
       if (child.shadowRoot) { walk(child.shadowRoot, 'shadow:' + tag, suppressText); }
       if (block) { flush(); }

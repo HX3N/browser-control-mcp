@@ -9,6 +9,7 @@ interface SnapshotElement {
 
 interface SnapshotResult {
   elements: SnapshotElement[];
+  text: string;
   hiddenElements: number;
   scrollMax: number;
 }
@@ -19,12 +20,16 @@ function snapshot(includeHidden = false): SnapshotResult {
     includeHidden,
   });
   const result = new Function(`return ${code}`)() as {
-    items: ({ kind: string } & SnapshotElement)[];
+    items: ({ kind: string; text?: string } & SnapshotElement)[];
     hiddenElements: number;
     scrollMax: number;
   };
   return {
     elements: result.items.filter((item) => item.kind === "element"),
+    text: result.items
+      .filter((item) => item.kind === "text")
+      .map((item) => item.text ?? "")
+      .join(" "),
     hiddenElements: result.hiddenElements,
     scrollMax: result.scrollMax,
   };
@@ -90,6 +95,26 @@ describe("what a snapshot counts as on screen", () => {
       (e) => e.name === "off to the left"
     );
     expect(parked?.hidden).toBe(true);
+  });
+
+  it("reaches a control inside a container the page does not render", () => {
+    document.body.innerHTML = `
+      <button id="onscreen">on screen</button>
+      <div style="display:none">
+        <h2>Hidden heading</h2>
+        <pre>hidden pre</pre>
+        <img src="x.png" alt="hidden alt">
+        <p>hidden prose</p>
+        <button id="nested">inside a hidden box</button>
+      </div>
+    `;
+    boxes({});
+
+    expect(snapshot(false).hiddenElements).toBe(1);
+    const result = snapshot(true);
+    const nested = result.elements.find((e) => e.name === "inside a hidden box");
+    expect(nested?.hidden).toBe(true);
+    expect(result.text).not.toMatch(/Hidden heading|hidden pre|hidden alt|hidden prose/);
   });
 
   it("counts a hidden element even when it is not listed", () => {

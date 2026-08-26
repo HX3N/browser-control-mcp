@@ -58,8 +58,10 @@ export interface MediaListResult {
     naturalHeight?: number;
     alt?: string;
     frame?: string;
+    hidden?: boolean;
   }[];
   totalItems: number;
+  hiddenItems: number;
   isTruncated: boolean;
   unreachableFrames: number;
 }
@@ -1212,7 +1214,8 @@ export interface FindMatchResult {
   tag: string;
   context: string;
   frame?: string;
-  controls?: { ref: string; label: string }[];
+  hidden?: boolean;
+  controls?: { ref: string; label: string; hidden?: boolean }[];
   moreControls?: number;
 }
 
@@ -1222,12 +1225,17 @@ const MAX_FIND_CONTROLS = 12;
 
 // Refs already on the page are kept: a find is a lookup, not a fresh snapshot, and the caller
 // may still hold refs from the last read.
-export function buildFindCode(phrase: string, maxMatches: number): string {
+export function buildFindCode(
+  phrase: string,
+  maxMatches: number,
+  includeHidden = false
+): string {
   return `(function () {
 ${ELEMENT_RESOLVER_SOURCE}
 ${VISIBILITY_SOURCE}
   var phrase = ${jsValue(phrase)}.replace(/\\s+/g, ' ').trim();
   var maxMatches = ${jsValue(maxMatches)};
+  var includeHidden = ${jsValue(includeHidden)};
   var blockTags = ${jsValue(BLOCK_TAGS)};
   var interactive = ${jsValue(INTERACTIVE_SELECTOR)};
   var maxControls = ${jsValue(MAX_FIND_CONTROLS)};
@@ -1258,60 +1266,72 @@ ${VISIBILITY_SOURCE}
   }
   function controls(block) {
     var found = [];
+    var hiddenFound = [];
     var inner = block.querySelectorAll(interactive);
     for (var i = 0; i < inner.length; i++) {
       if (__bcmVisible(inner[i])) { found.push(inner[i]); }
+      else if (includeHidden) { hiddenFound.push(inner[i]); }
     }
+    var all = found.concat(hiddenFound);
     var listed = [];
-    for (var c = 0; c < found.length && c < maxControls; c++) {
-      listed.push({ ref: stamp(found[c]), label: __bcmLabel(found[c]) });
+    for (var c = 0; c < all.length && c < maxControls; c++) {
+      var control = { ref: stamp(all[c]), label: __bcmLabel(all[c]) };
+      if (c >= found.length) { control.hidden = true; }
+      listed.push(control);
     }
-    return { controls: listed, more: found.length - listed.length };
+    return { controls: listed, more: all.length - listed.length };
   }
 
+  var visibleGroups = [];
+  var hiddenGroups = [];
   var roots = __bcmRoots(null);
-  for (var r = 0; r < roots.length && matches.length < maxMatches; r++) {
+  for (var r = 0; r < roots.length; r++) {
     var root = roots[r];
     var doc = root.nodeType === 9 ? root : root.ownerDocument;
     if (!doc || !doc.createTreeWalker) { continue; }
     var start = root.nodeType === 9 ? root.body : root;
     if (!start) { continue; }
+    var frame = __bcmFrameLabel(root);
     var walker = doc.createTreeWalker(start, 4);
-    var groups = [];
     var byContainer = new Map();
+    var hiddenByContainer = new Map();
     var node;
     while ((node = walker.nextNode())) {
       var parent = node.parentElement;
       if (!parent || skipped.indexOf(parent.tagName.toLowerCase()) !== -1) { continue; }
-      if (!__bcmVisible(parent)) { continue; }
+      var visible = __bcmVisible(parent);
+      if (!visible && !includeHidden) { continue; }
       var block = container(node);
-      var group = byContainer.get(block);
+      var index = visible ? byContainer : hiddenByContainer;
+      var group = index.get(block);
       if (!group) {
-        group = { el: block, text: '' };
-        byContainer.set(block, group);
-        groups.push(group);
+        group = { el: block, text: '', frame: frame, hidden: !visible };
+        index.set(block, group);
+        (visible ? visibleGroups : hiddenGroups).push(group);
       }
       group.text += node.nodeValue;
     }
-    var frame = __bcmFrameLabel(root);
-    for (var g = 0; g < groups.length && matches.length < maxMatches; g++) {
-      var text = groups[g].text.replace(/\\s+/g, ' ');
-      var at = text.indexOf(phrase);
-      while (at !== -1 && matches.length < maxMatches) {
-        var from = Math.max(0, at - ${FIND_CONTEXT_CHARS});
-        var to = Math.min(text.length, at + phrase.length + ${FIND_CONTEXT_CHARS});
-        var entry = {
-          ref: stamp(groups[g].el),
-          tag: groups[g].el.tagName.toLowerCase(),
-          context: (from > 0 ? '...' : '') + text.slice(from, to).trim() + (to < text.length ? '...' : '')
-        };
-        if (frame) { entry.frame = frame; }
-        var inside = controls(groups[g].el);
-        if (inside.controls.length) { entry.controls = inside.controls; }
-        if (inside.more > 0) { entry.moreControls = inside.more; }
-        matches.push(entry);
-        at = text.indexOf(phrase, at + phrase.length);
-      }
+  }
+
+  var groups = visibleGroups.concat(hiddenGroups);
+  for (var g = 0; g < groups.length && matches.length < maxMatches; g++) {
+    var text = groups[g].text.replace(/\\s+/g, ' ');
+    var at = text.indexOf(phrase);
+    while (at !== -1 && matches.length < maxMatches) {
+      var from = Math.max(0, at - ${FIND_CONTEXT_CHARS});
+      var to = Math.min(text.length, at + phrase.length + ${FIND_CONTEXT_CHARS});
+      var entry = {
+        ref: stamp(groups[g].el),
+        tag: groups[g].el.tagName.toLowerCase(),
+        context: (from > 0 ? '...' : '') + text.slice(from, to).trim() + (to < text.length ? '...' : '')
+      };
+      if (groups[g].frame) { entry.frame = groups[g].frame; }
+      if (groups[g].hidden) { entry.hidden = true; }
+      var inside = controls(groups[g].el);
+      if (inside.controls.length) { entry.controls = inside.controls; }
+      if (inside.more > 0) { entry.moreControls = inside.more; }
+      matches.push(entry);
+      at = text.indexOf(phrase, at + phrase.length);
     }
   }
   return { matches: matches };
@@ -1406,18 +1426,25 @@ ${ELEMENT_RESOLVER_SOURCE}
 
 export const MAX_MEDIA_ITEMS = 100;
 
-export function buildMediaListCode(target?: ElementTarget): string {
+export function buildMediaListCode(
+  target?: ElementTarget,
+  includeHidden = false
+): string {
   const scoped = !!(target && (target.ref || target.selector));
   return `(function () {
 ${ELEMENT_RESOLVER_SOURCE}
 ${PAGE_READ_SOURCE}
+${VISIBILITY_SOURCE}
   var scope = ${
     scoped ? `__bcmResolve(${targetLiteral(target!)})` : "document.body"
   };
   var limit = ${jsValue(MAX_MEDIA_ITEMS)};
+  var includeHidden = ${jsValue(includeHidden)};
   var seen = {};
-  var items = [];
+  var visible = [];
+  var hidden = [];
   var total = 0;
+  var hiddenTotal = 0;
 
   function frameOf(el) {
     var doc = el.ownerDocument;
@@ -1429,8 +1456,10 @@ ${PAGE_READ_SOURCE}
     if (!url || url.slice(0, 5) === 'data:') { return; }
     if (seen[url]) { return; }
     seen[url] = true;
+    var shown = __bcmVisible(el);
+    if (!shown) { hiddenTotal++; }
+    if (!shown && !includeHidden) { return; }
     total++;
-    if (items.length >= limit) { return; }
     var item = { url: url, kind: kind };
     var frame = frameOf(el);
     if (frame) { item.frame = frame; }
@@ -1439,7 +1468,7 @@ ${PAGE_READ_SOURCE}
         if (extra[key] || extra[key] === 0) { item[key] = extra[key]; }
       }
     }
-    items.push(item);
+    if (shown) { visible.push(item); } else { item.hidden = true; hidden.push(item); }
   }
 
   function addImage(img) {
@@ -1477,9 +1506,11 @@ ${PAGE_READ_SOURCE}
     for (var m = 0; m < playable.length; m++) { addPlayable(playable[m]); }
   }
 
+  var items = visible.concat(hidden).slice(0, limit);
   return {
     items: items,
     totalItems: total,
+    hiddenItems: hiddenTotal,
     isTruncated: total > items.length,
     unreachableFrames: __bcmUnreachableFrames(scope).length
   };
