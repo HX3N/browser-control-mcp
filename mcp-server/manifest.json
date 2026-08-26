@@ -72,8 +72,8 @@
             "description": "Get the list of recent browser history"
         },
         {
-            "name": "read-page-text",
-            "description": "Get the full text content of the webpage and the list of links in the webpage (requires user consent)"
+            "name": "read-page",
+            "description": "Read a page or one element of it: text and interactive elements in document order, each element stamped with a ref the interaction tools accept"
         },
         {
             "name": "reorder-browser-tabs",
@@ -85,7 +85,7 @@
         },
         {
             "name": "find-text-in-page",
-            "description": "Find and highlight text in a browser tab"
+            "description": "Find and highlight text in a browser tab, returning a ref and the surrounding text for each match"
         },
         {
             "name": "capture-tab-screenshot",
@@ -98,10 +98,6 @@
         {
             "name": "fetch-media-file",
             "description": "Fetch an image file a page shows, with the page's cookies (off by default)"
-        },
-        {
-            "name": "list-page-elements",
-            "description": "List the interactive elements of a tab, each stamped with a ref the interaction tools accept"
         },
         {
             "name": "click-page-element",
@@ -124,12 +120,8 @@
             "description": "Choose one or more options in a select element"
         },
         {
-            "name": "wait-for-page-element",
-            "description": "Wait until a CSS selector becomes visible, hidden, attached or detached"
-        },
-        {
-            "name": "wait-for-page-text-change",
-            "description": "Block until the text of a tab or one element changes, then return only the text that arrived, continuing from where the last call stopped"
+            "name": "wait-for-page",
+            "description": "Wait for a CSS selector to reach a state, or with no selector block until the text of the page or one element changes and return only what arrived"
         },
         {
             "name": "execute-javascript-in-tab",

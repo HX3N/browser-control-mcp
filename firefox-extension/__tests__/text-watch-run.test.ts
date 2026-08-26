@@ -11,7 +11,7 @@ function install(
   minChars = 0
 ): TextWatchResult {
   const code = buildTextWatchCode(
-    { cmd: "wait-for-text-change", tabId: 1, selector, minChars },
+    selector ? { selector } : undefined,
     "token-1",
     carried,
     800,

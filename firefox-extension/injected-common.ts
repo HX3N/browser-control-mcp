@@ -273,48 +273,6 @@ function __bcmReadText(scope) {
   return parts.join('\\n\\n');
 }
 
-function __bcmFieldLabel(el) {
-  var aria = el.getAttribute('aria-label');
-  if (aria && aria.trim()) { return aria.trim().slice(0, 80); }
-  var labels = el.labels;
-  if (labels && labels.length) {
-    var text = (labels[0].textContent || '').replace(/\\s+/g, ' ').trim();
-    if (text) { return text.slice(0, 80); }
-  }
-  var fallback = el.getAttribute('placeholder') || el.getAttribute('title') || el.getAttribute('name') || el.id || '';
-  return fallback.slice(0, 80);
-}
-
-function __bcmFields(scope, limit) {
-  var roots = __bcmReadRoots(scope);
-  var out = [];
-  for (var r = 0; r < roots.length && out.length < limit; r++) {
-    if (!roots[r].querySelectorAll) { continue; }
-    var nodes = roots[r].querySelectorAll('input,textarea,select');
-    for (var i = 0; i < nodes.length && out.length < limit; i++) {
-      var el = nodes[i];
-      var tag = el.tagName.toLowerCase();
-      var type = (el.getAttribute('type') || '').toLowerCase();
-      if (tag === 'input' && (type === 'password' || type === 'hidden')) { continue; }
-      if (!__bcmOnScreen(el)) { continue; }
-      var entry = { label: __bcmFieldLabel(el), kind: tag };
-      if (tag === 'select') {
-        var chosen = el.options && el.selectedIndex >= 0 ? el.options[el.selectedIndex] : null;
-        entry.value = chosen ? __bcmFlatText(chosen, 120) : '';
-        entry.options = el.options ? el.options.length : 0;
-      } else if (type === 'checkbox' || type === 'radio') {
-        entry.value = el.checked ? 'checked' : 'unchecked';
-      } else {
-        var value = typeof el.value === 'string' ? el.value.trim() : '';
-        if (!value) { continue; }
-        entry.value = value.length > 200 ? value.slice(0, 200) + '...' : value;
-      }
-      out.push(entry);
-    }
-  }
-  return out;
-}
-
 function __bcmCollapsed(scope, limit) {
   var found = [];
   if (!scope || !scope.querySelectorAll) { return found; }

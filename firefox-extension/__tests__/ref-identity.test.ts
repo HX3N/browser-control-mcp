@@ -10,14 +10,16 @@ interface Resolved {
 function snapshot(target?: ElementTarget): { ref: string; name: string }[] {
   const code = buildSnapshotCode({
     maxElements: 200,
-    interactiveOnly: true,
     includeHidden: false,
     target,
   });
   const result = new Function(`return ${code}`)() as {
-    elements: { ref: string; name: string }[];
+    items: ({ kind: "element"; ref: string; name: string } | { kind: "text" })[];
   };
-  return result.elements;
+  return result.items.filter(
+    (item): item is { kind: "element"; ref: string; name: string } =>
+      item.kind === "element"
+  );
 }
 
 function resolve(ref: string): Resolved {

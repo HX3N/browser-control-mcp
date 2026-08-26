@@ -36,7 +36,7 @@
         "message": "Read page content"
     },
     "toolGetTabWebContentDescription": {
-        "message": "Lets the MCP server read page text and element snapshots"
+        "message": "Lets the MCP server read page text and elements, find text and wait for changes"
     },
     "toolReorderBrowserTabsName": {
         "message": "Reorder and group tabs"
@@ -672,7 +672,7 @@
         "message": "Resting (holding the tab)"
     },
     "optionsAccent_read": {
-        "message": "Reading and snapshots"
+        "message": "Reading and finding"
     },
     "optionsAccent_click": {
         "message": "Clicking"

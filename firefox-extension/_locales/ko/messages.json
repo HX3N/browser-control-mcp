@@ -36,7 +36,7 @@
         "message": "페이지 읽기"
     },
     "toolGetTabWebContentDescription": {
-        "message": "MCP 서버가 웹 페이지의 본문과 요소 스냅샷을 읽을 수 있게 합니다"
+        "message": "MCP 서버가 웹 페이지의 본문과 요소를 읽고, 텍스트를 찾고, 변화를 기다릴 수 있게 합니다"
     },
     "toolReorderBrowserTabsName": {
         "message": "탭 재정렬·그룹화"
@@ -672,7 +672,7 @@
         "message": "대기 (탭을 잡고 있는 중)"
     },
     "optionsAccent_read": {
-        "message": "읽기와 살펴보기"
+        "message": "읽기와 찾기"
     },
     "optionsAccent_click": {
         "message": "클릭"

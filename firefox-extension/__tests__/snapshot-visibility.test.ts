@@ -16,10 +16,18 @@ interface SnapshotResult {
 function snapshot(includeHidden = false): SnapshotResult {
   const code = buildSnapshotCode({
     maxElements: 200,
-    interactiveOnly: true,
     includeHidden,
   });
-  return new Function(`return ${code}`)() as SnapshotResult;
+  const result = new Function(`return ${code}`)() as {
+    items: ({ kind: string } & SnapshotElement)[];
+    hiddenElements: number;
+    scrollMax: number;
+  };
+  return {
+    elements: result.items.filter((item) => item.kind === "element"),
+    hiddenElements: result.hiddenElements,
+    scrollMax: result.scrollMax,
+  };
 }
 
 function boxes(rects: Record<string, Partial<DOMRect>>) {
@@ -82,5 +90,12 @@ describe("what a snapshot counts as on screen", () => {
       (e) => e.name === "off to the left"
     );
     expect(parked?.hidden).toBe(true);
+  });
+
+  it("counts a hidden element even when it is not listed", () => {
+    boxes({ parked: { left: -9999, width: 60 } });
+    const result = snapshot(false);
+    expect(result.hiddenElements).toBe(1);
+    expect(result.elements.map((e) => e.name)).not.toContain("off to the left");
   });
 });

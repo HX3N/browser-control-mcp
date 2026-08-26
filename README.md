@@ -21,7 +21,7 @@ based on Firefox**. The extension APIs are Firefox's, so it runs on Firefox too.
 
 The upstream reads the browser but never drives it. This fork adds the driving half: clicking,
 typing, pressing keys, picking options, scrolling, and running JavaScript in a page. Elements are
-addressed by a `ref` taken from a page snapshot, or by a CSS selector.
+addressed by a `ref` taken from a page read, or by a CSS selector.
 
 ## Features
 
@@ -39,16 +39,16 @@ The tools the MCP server exposes.
 - Create tab groups with a name and a colour
 - Reorder tabs
 - Read and search browsing history
-- Read page text and links, either the whole page or one element of it
-- Find and highlight text inside a page
+- `read-page` — read the text and the interactive elements of a page together, in the order
+  they sit on it, each element stamped with a `ref`; either the whole page or one element of it
+- `find-text-in-page` — find and highlight text inside a page, and get back a `ref` to the
+  block that holds each match
 - Capture a screenshot of a tab, either the visible screen or one element of it; a tall
   element is split into several images, and every capture reports its pixel size and bytes
 - `list-page-media` — list the images, videos and audio a page shows, with URLs and
   original sizes, for the whole page or inside one element
 - `fetch-media-file` — fetch an image file a page shows, with the page's own cookies
   (off by default; only URLs `list-page-media` listed can be fetched)
-- `list-page-elements` — list the interactive elements, each stamped with a `ref`,
-  for the whole page or inside one element
 
 **Interact**
 
@@ -66,9 +66,9 @@ The tools the MCP server exposes.
 - `upload-files-to-page-element` — attach files from the user's computer to a file input
   (off by default)
 - `run-browser-actions` — run several of these in one call, stopping at the first failure
-- `wait-for-page-element` — wait for an element to appear or disappear
-- `wait-for-page-text-change` — block until the page's text changes, then return only what arrived,
-  picking up where the last call stopped so nothing is lost in between
+- `wait-for-page` — with a selector, wait for an element to appear or disappear; without one,
+  block until the page's text changes and return only what arrived, picking up where the last
+  call stopped so nothing is lost in between
 - `execute-javascript-in-tab` — run arbitrary JavaScript in the page
 
 ## Toolbar popup
@@ -85,7 +85,7 @@ Clicking the toolbar icon (or pressing `Alt+Shift+B`) opens the popup.
   tab that expires when it navigates.
 - **New tabs** — whether a new tab inherits the container of the tab in front
 - **Interaction permissions** — separate switches for screenshots, mouse, keyboard, JavaScript and media file fetching, plus
-  whether a snapshot may read the elements the page keeps hidden, and whether work stays in the
+  whether a read may list the elements the page keeps hidden, and whether work stays in the
   background. With that last one on (the default) a new tab opens behind the tab you are on and
   page search does not jump to it. A screenshot stays in the background too, and only falls back
   to bringing the tab forward when Firefox refuses to capture it where it sits. Switch it off and
@@ -104,9 +104,8 @@ Clicking the toolbar icon (or pressing `Alt+Shift+B`) opens the popup.
 The popup also decides which addresses the model may open or navigate to. `HTTPS` is the default
 and refuses everything else; `+ Local` additionally allows `http://` on loopback hosts, which is
 what a local dev server such as `http://localhost:5173/` needs; `+ HTTP` allows plain HTTP
-anywhere. The setting gates `open-browser-tab` and `navigate-browser-tab`, and the link list
-returned by `read-page-text` follows it too. Pages you opened by hand are unaffected — they
-go through the access scope above.
+anywhere. The setting gates `open-browser-tab` and `navigate-browser-tab`. Pages you opened by hand are
+unaffected — they go through the access scope above.
 
 Allowlist being the default is deliberate. Rather than opening every page the moment the
 extension loads, it makes you widen the scope **explicitly** in the popup.

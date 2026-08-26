@@ -9,17 +9,18 @@ import type {
   ScrollPageServerMessage,
   SelectOptionServerMessage,
   TypeTextServerMessage,
-  WaitForElementServerMessage,
-  WaitForTextChangeServerMessage,
+  ElementWaitState,
 } from "@browser-control-mcp/common/server-messages";
 import {
   ELEMENT_RESOLVER_SOURCE,
   PAGE_READ_SOURCE,
+  REF_ATTRIBUTE,
   SCROLL_ANCHOR_SOURCE,
   isElementTargeted,
   jsValue,
   targetLiteral,
 } from "./injected-common";
+import { BLOCK_TAGS } from "./page-snapshot";
 
 export interface InteractionScriptResult {
   target: string;
@@ -997,9 +998,11 @@ ${code}
 })();`;
 }
 
-export function buildWaitProbeCode(
-  request: WaitForElementServerMessage
-): string {
+export function buildWaitProbeCode(request: {
+  selector: string;
+  state?: ElementWaitState;
+  within?: ElementTarget;
+}): string {
   const state = request.state ?? "visible";
   const scope = isElementTargeted(request.within)
     ? `__bcmResolve(${targetLiteral(request.within!)})`
@@ -1125,7 +1128,7 @@ const TEXT_SCOPE_SOURCE = (target: ElementTarget | undefined) =>
 export const DEFAULT_TEXT_SETTLE_MS = 800;
 
 export function buildTextWatchCode(
-  request: WaitForTextChangeServerMessage,
+  scope: ElementTarget | undefined,
   token: string,
   carried: string | null,
   settleMs: number,
@@ -1136,7 +1139,7 @@ export function buildTextWatchCode(
 ${ELEMENT_RESOLVER_SOURCE}
 ${PAGE_READ_SOURCE}
 ${TEXT_DELTA_SOURCE}
-  function scope() { return ${TEXT_SCOPE_SOURCE(request)}; }
+  function scope() { return ${TEXT_SCOPE_SOURCE(scope)}; }
   var el = scope();
   var label = __bcmLabel(el);
   var carried = ${jsValue(carried)};
@@ -1200,6 +1203,101 @@ ${ELEMENT_RESOLVER_SOURCE}
 ${PAGE_READ_SOURCE}
   try { if (window.__bcmTextWatch) { window.__bcmTextWatch(); window.__bcmTextWatch = null; } } catch (err) { /* nothing was watching */ }
   return __bcmReadText(${TEXT_SCOPE_SOURCE(target)});
+})();`;
+}
+
+export interface FindMatchResult {
+  ref: string;
+  tag: string;
+  context: string;
+  frame?: string;
+}
+
+export const MAX_FIND_MATCHES = 20;
+const FIND_CONTEXT_CHARS = 120;
+
+// Refs already on the page are kept: a find is a lookup, not a fresh snapshot, and the caller
+// may still hold refs from the last read.
+export function buildFindCode(phrase: string, maxMatches: number): string {
+  return `(function () {
+${ELEMENT_RESOLVER_SOURCE}
+  var phrase = ${jsValue(phrase)}.replace(/\\s+/g, ' ').trim();
+  var maxMatches = ${jsValue(maxMatches)};
+  var blockTags = ${jsValue(BLOCK_TAGS)};
+  var skipped = ['script', 'style', 'noscript', 'template'];
+  var matches = [];
+  if (!phrase) { return { matches: matches }; }
+
+  var base = 0;
+  var stamped = __bcmQueryAll('[${REF_ATTRIBUTE}]');
+  for (var s = 0; s < stamped.length; s++) {
+    var seen = /^e(\\d+)$/.exec(stamped[s].getAttribute('${REF_ATTRIBUTE}') || '');
+    if (seen && parseInt(seen[1], 10) > base) { base = parseInt(seen[1], 10); }
+  }
+
+  function rendered(el) {
+    var view = el.ownerDocument && el.ownerDocument.defaultView;
+    var style = view ? view.getComputedStyle(el) : null;
+    return !style || (style.display !== 'none' && style.visibility !== 'hidden');
+  }
+  function container(node) {
+    var el = node.parentElement;
+    while (el && blockTags.indexOf(el.tagName.toLowerCase()) === -1 && el.parentElement) { el = el.parentElement; }
+    return el || node.parentElement;
+  }
+  function stamp(el) {
+    var existing = el.getAttribute('${REF_ATTRIBUTE}');
+    if (existing && __bcmMemory().get(existing) === el) { return existing; }
+    base++;
+    var ref = 'e' + base;
+    el.setAttribute('${REF_ATTRIBUTE}', ref);
+    __bcmRemember(ref, el);
+    return ref;
+  }
+
+  var roots = __bcmRoots(null);
+  for (var r = 0; r < roots.length && matches.length < maxMatches; r++) {
+    var root = roots[r];
+    var doc = root.nodeType === 9 ? root : root.ownerDocument;
+    if (!doc || !doc.createTreeWalker) { continue; }
+    var start = root.nodeType === 9 ? root.body : root;
+    if (!start) { continue; }
+    var walker = doc.createTreeWalker(start, 4);
+    var groups = [];
+    var byContainer = new Map();
+    var node;
+    while ((node = walker.nextNode())) {
+      var parent = node.parentElement;
+      if (!parent || skipped.indexOf(parent.tagName.toLowerCase()) !== -1) { continue; }
+      if (!rendered(parent)) { continue; }
+      var block = container(node);
+      var group = byContainer.get(block);
+      if (!group) {
+        group = { el: block, text: '' };
+        byContainer.set(block, group);
+        groups.push(group);
+      }
+      group.text += node.nodeValue;
+    }
+    var frame = __bcmFrameLabel(root);
+    for (var g = 0; g < groups.length && matches.length < maxMatches; g++) {
+      var text = groups[g].text.replace(/\\s+/g, ' ');
+      var at = text.indexOf(phrase);
+      while (at !== -1 && matches.length < maxMatches) {
+        var from = Math.max(0, at - ${FIND_CONTEXT_CHARS});
+        var to = Math.min(text.length, at + phrase.length + ${FIND_CONTEXT_CHARS});
+        var entry = {
+          ref: stamp(groups[g].el),
+          tag: groups[g].el.tagName.toLowerCase(),
+          context: (from > 0 ? '...' : '') + text.slice(from, to).trim() + (to < text.length ? '...' : '')
+        };
+        if (frame) { entry.frame = frame; }
+        matches.push(entry);
+        at = text.indexOf(phrase, at + phrase.length);
+      }
+    }
+  }
+  return { matches: matches };
 })();`;
 }
 

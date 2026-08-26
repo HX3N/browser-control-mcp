@@ -595,10 +595,11 @@ describe("MessageHandler", () => {
 
       const contentResult = [
         {
-          links: [],
-          fullText: "Page content",
-          isTruncated: false,
-          totalLength: 12,
+          items: [{ kind: "text", text: "Page content" }],
+          totalElements: 0,
+          listedElements: 0,
+          hiddenElements: 0,
+          elementsTruncated: false,
         },
       ];
 
@@ -659,7 +660,7 @@ describe("MessageHandler", () => {
         );
         (browser.tabs.reload as jest.Mock).mockResolvedValue(undefined);
         return messageHandler.handleDecodedMessage({
-          cmd: "get-tab-content",
+          cmd: "read-page",
           tabId: 123,
           correlationId: "test-correlation-id",
         } as ServerMessageRequest);
@@ -852,11 +853,11 @@ describe("MessageHandler", () => {
       });
     });
 
-    describe("get-tab-content command", () => {
-      it("should get tab content and send it to the server", async () => {
+    describe("read-page command", () => {
+      it("reads the page and sends text and elements to the server", async () => {
         // Arrange
         const request: ServerMessageRequest = {
-          cmd: "get-tab-content",
+          cmd: "read-page",
           tabId: 123,
           correlationId: "test-correlation-id",
         };
@@ -867,10 +868,29 @@ describe("MessageHandler", () => {
 
         const mockScriptResult = [
           {
-            links: [{ url: "https://example.com/page", text: "Page" }],
-            fullText: "Page content",
-            isTruncated: false,
-            totalLength: 12,
+            url: "https://example.com",
+            title: "Example",
+            items: [
+              { kind: "text", text: "Page content" },
+              {
+                kind: "element",
+                ref: "e1",
+                role: "link",
+                name: "Page",
+                tag: "a",
+                selector: "a",
+                href: "https://example.com/page",
+              },
+            ],
+            totalElements: 1,
+            listedElements: 1,
+            hiddenElements: 0,
+            elementsTruncated: false,
+            scrollY: 0,
+            scrollHeight: 100,
+            scrollMax: 0,
+            collapsed: [],
+            unreachableFrames: [],
           },
         ];
         (browser.tabs.executeScript as jest.Mock).mockResolvedValue(
@@ -887,13 +907,24 @@ describe("MessageHandler", () => {
         });
         expect(browser.tabs.executeScript).toHaveBeenCalled();
         expect(mockClient.sendResourceToServer).toHaveBeenCalledWith({
-          resource: "tab-content",
+          resource: "page",
           tabId: 123,
           correlationId: "test-correlation-id",
+          url: "https://example.com",
+          title: "Example",
+          text: 'Page content\n[e1] link "Page"',
           isTruncated: false,
-          fullText: "Page content",
-          links: [{ url: "https://example.com/page", text: "Page" }],
-          totalLength: 12,
+          totalLength: 29,
+          totalElements: 1,
+          listedElements: 1,
+          hiddenElements: 0,
+          hiddenListed: false,
+          elementsTruncated: false,
+          scrollY: 0,
+          scrollHeight: 100,
+          scrollMax: 0,
+          collapsed: [],
+          unreachableFrames: [],
         });
       });
 
@@ -916,15 +947,16 @@ describe("MessageHandler", () => {
         (browser.permissions.contains as jest.Mock).mockResolvedValue(true);
         (browser.tabs.executeScript as jest.Mock).mockResolvedValue([
           {
-            links: [],
-            fullText: "",
-            isTruncated: false,
-            totalLength: 0,
+            items: [],
+            totalElements: 0,
+            listedElements: 0,
+            hiddenElements: 0,
+            elementsTruncated: false,
           },
         ]);
 
         await messageHandler.handleDecodedMessage({
-          cmd: "get-tab-content",
+          cmd: "read-page",
           tabId: 123,
           correlationId: "test-correlation-id",
           ...extra,
@@ -934,19 +966,18 @@ describe("MessageHandler", () => {
       it("reads the whole body when no element is targeted", async () => {
         await readTabContent();
 
-        const code = injectedCode("getTextContent");
+        const code = injectedCode("__bcmIsBlock");
         expect(() => new Function(code)).not.toThrow();
-        expect(code).toContain("document.body");
+        expect(code).toContain("var scopeRoot = null");
         expect(code).not.toContain("__bcmResolve({");
       });
 
       it("reads only the targeted element when a selector is given", async () => {
         await readTabContent({ selector: "#list", index: 0 });
 
-        const code = injectedCode("getTextContent");
+        const code = injectedCode("__bcmIsBlock");
         expect(() => new Function(code)).not.toThrow();
-        expect(code).toContain('__bcmResolve({"selector":"#list","index":0})');
-        expect(code).not.toContain("document.body");
+        expect(code).toContain('var scopeRoot = __bcmResolve({"selector":"#list","index":0})');
       });
 
       it("highlights the targeted element while reading it", async () => {
@@ -1006,7 +1037,7 @@ describe("MessageHandler", () => {
         });
 
         const request: ServerMessageRequest = {
-          cmd: "get-tab-content",
+          cmd: "read-page",
           tabId: 123,
           correlationId: "test-correlation-id",
         };
@@ -1024,7 +1055,7 @@ describe("MessageHandler", () => {
       it("should throw an error if permissions are denied", async () => {
         // Arrange
         const request: ServerMessageRequest = {
-          cmd: "get-tab-content",
+          cmd: "read-page",
           tabId: 123,
           correlationId: "test-correlation-id",
         };
@@ -1082,6 +1113,13 @@ describe("MessageHandler", () => {
         (browser.find.find as jest.Mock).mockResolvedValue(mockFindResults);
         (browser.tabs.update as jest.Mock).mockResolvedValue(undefined);
         (browser.permissions.contains as jest.Mock).mockResolvedValue(true);
+        const located = [{ ref: "e3", tag: "p", context: "a test here" }];
+        (browser.tabs.executeScript as jest.Mock).mockImplementation(
+          (_tabId: number, details: { code: string }) =>
+            Promise.resolve(
+              details.code.includes("createTreeWalker") ? [{ matches: located }] : [true]
+            )
+        );
 
         // Act
         await messageHandler.handleDecodedMessage(request);
@@ -1099,6 +1137,7 @@ describe("MessageHandler", () => {
           resource: "find-highlight-result",
           correlationId: "test-correlation-id",
           noOfResults: 5,
+          matches: located,
         });
       });
 
@@ -1134,6 +1173,7 @@ describe("MessageHandler", () => {
         (browser.find.find as jest.Mock).mockResolvedValue({ count: 5 });
         (browser.tabs.update as jest.Mock).mockResolvedValue(undefined);
         (browser.permissions.contains as jest.Mock).mockResolvedValue(true);
+        (browser.tabs.executeScript as jest.Mock).mockResolvedValue([{ matches: [] }]);
 
         // Act
         await messageHandler.handleDecodedMessage(request);
@@ -1167,6 +1207,7 @@ describe("MessageHandler", () => {
           resource: "find-highlight-result",
           correlationId: "test-correlation-id",
           noOfResults: 0,
+          matches: [],
         });
       });
 

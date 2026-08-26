@@ -2,6 +2,7 @@ import type { ElementTarget } from "@browser-control-mcp/common/server-messages"
 import {
   isElementTargeted,
   jsValue,
+  PAGE_READ_SOURCE,
   REF_ATTRIBUTE,
   RESOLVER_SOURCE,
   ROOT_WALKER_SOURCE,
@@ -33,18 +34,15 @@ const INTERACTIVE_SELECTOR = [
   "[tabindex]:not([tabindex='-1'])",
 ].join(",");
 
-const CONTEXT_SELECTOR = [
-  "h1",
-  "h2",
-  "h3",
-  "h4",
-  "h5",
-  "h6",
-  "[role=heading]",
-  "label",
-  "[role=alert]",
-  "[role=status]",
-].join(",");
+// Computed display is not consulted for this: it costs a style flush per element.
+export const BLOCK_TAGS = [
+  "address", "article", "aside", "blockquote", "dd", "details", "dialog", "div", "dl", "dt",
+  "fieldset", "figcaption", "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6",
+  "header", "hr", "li", "main", "nav", "ol", "p", "pre", "section", "table", "tbody", "tfoot",
+  "thead", "tr", "ul", "br", "legend", "caption", "menu", "option", "optgroup",
+];
+
+const SKIPPED_TAGS = ["script", "style", "noscript", "template", "svg", "canvas", "video", "audio", "object", "embed", "map"];
 
 const SNAPSHOT_HELPERS_SOURCE = `
 ${ROOT_WALKER_SOURCE}
@@ -84,6 +82,19 @@ function __bcmText(node) {
   if (!node) { return ''; }
   var raw = node.innerText || node.textContent || '';
   return raw.replace(/\\s+/g, ' ').trim();
+}
+
+function __bcmShortHref(href) {
+  try {
+    var url = new URL(href);
+    if (url.origin === location.origin) {
+      var path = url.pathname + url.search + url.hash;
+      var here = location.pathname.replace(/\\/$/, '');
+      if (here && path.indexOf(here) === 0 && /^[\\/?#]|^$/.test(path.slice(here.length))) { path = path.slice(here.length) || '/'; }
+      return __bcmTrim(path, 120);
+    }
+  } catch (err) { /* not a URL the page can parse */ }
+  return __bcmTrim(href, 120);
 }
 
 function __bcmTrim(value, limit) {
@@ -225,7 +236,7 @@ function __bcmDescribe(el, ref, hidden, frame) {
   }
   var placeholder = el.getAttribute('placeholder');
   if (placeholder) { entry.placeholder = __bcmTrim(placeholder, 80); }
-  if (tag === 'a' && el.href) { entry.href = __bcmTrim(el.href, 200); }
+  if (tag === 'a' && el.href) { entry.href = __bcmShortHref(el.href); }
   if (typeof el.checked === 'boolean' && (el.type === 'checkbox' || el.type === 'radio')) { entry.checked = el.checked; }
 
   var expanded = el.getAttribute('aria-expanded');
@@ -246,9 +257,82 @@ function __bcmDescribe(el, ref, hidden, frame) {
 }
 `;
 
+export interface PageTextItem {
+  kind: "text";
+  text: string;
+  level?: number;
+  frame?: string;
+}
+
+export interface PageElementItem {
+  kind: "element";
+  ref: string;
+  role: string;
+  name: string;
+  tag: string;
+  selector: string;
+  value?: string;
+  placeholder?: string;
+  href?: string;
+  hidden?: boolean;
+  frame?: string;
+  disabled?: boolean;
+  checked?: boolean;
+  expanded?: boolean;
+  options?: string[];
+}
+
+export type PageItem = PageTextItem | PageElementItem;
+
+export interface PageReadResult {
+  url: string;
+  title: string;
+  items: PageItem[];
+  totalElements: number;
+  listedElements: number;
+  hiddenElements: number;
+  elementsTruncated: boolean;
+  scrollY: number;
+  scrollHeight: number;
+  scrollMax: number;
+  collapsed: { label: string; kind: "details" | "expandable" | "tab"; chars?: number }[];
+  unreachableFrames: {
+    src: string;
+    name?: string;
+    width: number;
+    height: number;
+    hidden?: boolean;
+  }[];
+}
+
+export const MAX_READ_TEXT_CHARS = 400_000;
+const MAX_COLLAPSED_SECTIONS = 30;
+
+const WALKER_SOURCE = `
+function __bcmIsBlock(tag) { return ${jsValue(BLOCK_TAGS)}.indexOf(tag) !== -1; }
+function __bcmIsSkipped(tag) { return ${jsValue(SKIPPED_TAGS)}.indexOf(tag) !== -1; }
+function __bcmHeadingLevel(el, tag) {
+  var m = /^h([1-6])$/.exec(tag);
+  if (m) { return parseInt(m[1], 10); }
+  if (el.getAttribute('role') === 'heading') {
+    var level = parseInt(el.getAttribute('aria-level') || '2', 10);
+    return level > 0 && level < 7 ? level : 2;
+  }
+  return 0;
+}
+function __bcmRendered(el) {
+  var view = el.ownerDocument && el.ownerDocument.defaultView;
+  var style = view ? view.getComputedStyle(el) : null;
+  return !style || (style.display !== 'none' && style.visibility !== 'hidden');
+}
+function __bcmSwallows(tag) {
+  return tag === 'a' || tag === 'button' || tag === 'input' || tag === 'select' ||
+    tag === 'textarea' || tag === 'summary';
+}
+`;
+
 export function buildSnapshotCode(options: {
   maxElements: number;
-  interactiveOnly: boolean;
   includeHidden: boolean;
   target?: ElementTarget;
 }): string {
@@ -258,6 +342,8 @@ export function buildSnapshotCode(options: {
 
   return `(function () {
 ${SNAPSHOT_HELPERS_SOURCE}
+${PAGE_READ_SOURCE}
+${WALKER_SOURCE}
   var scopeRoot = ${scopeExpression};
   var roots = __bcmRoots(scopeRoot);
 
@@ -287,60 +373,214 @@ ${SNAPSHOT_HELPERS_SOURCE}
     }
   }
 
-  var selector = ${jsValue(INTERACTIVE_SELECTOR)};
-  if (!${jsValue(options.interactiveOnly)}) {
-    selector = selector + ',' + ${jsValue(CONTEXT_SELECTOR)};
-  }
-
+  var interactive = ${jsValue(INTERACTIVE_SELECTOR)};
   var includeHidden = ${jsValue(options.includeHidden)};
-  var shown = [];
-  var concealed = [];
-
-  if (scopeRoot && scopeRoot.matches && scopeRoot.matches(selector)) {
-    if (__bcmVisible(scopeRoot)) {
-      shown.push({ el: scopeRoot, frame: __bcmFrameLabel(scopeRoot), hidden: false });
-    } else if (includeHidden) {
-      concealed.push({ el: scopeRoot, frame: __bcmFrameLabel(scopeRoot), hidden: true });
-    }
-  }
-
-  for (var r2 = 0; r2 < roots.length; r2++) {
-    var frame = __bcmFrameLabel(roots[r2]);
-    var candidates = roots[r2].querySelectorAll(selector);
-    for (var i = 0; i < candidates.length; i++) {
-      var candidate = candidates[i];
-      if (__bcmVisible(candidate)) {
-        shown.push({ el: candidate, frame: frame, hidden: false });
-      } else if (includeHidden) {
-        concealed.push({ el: candidate, frame: frame, hidden: true });
-      }
-    }
-  }
-
-  // Hidden ones go last so that maxElements truncates them before anything the user can see.
-  var found = shown.concat(concealed);
   var maxElements = ${jsValue(options.maxElements)};
-  var elements = [];
+  var maxChars = ${jsValue(MAX_READ_TEXT_CHARS)};
 
-  for (var k = 0; k < found.length && elements.length < maxElements; k++) {
-    var ref = 'e' + (base + k + 1);
-    found[k].el.setAttribute('${REF_ATTRIBUTE}', ref);
-    __bcmRemember(ref, found[k].el);
-    elements.push(__bcmDescribe(found[k].el, ref, found[k].hidden, found[k].frame));
+  var items = [];
+  var chars = 0;
+  var totalElements = 0;
+  var listedElements = 0;
+  var hiddenElements = 0;
+  var elementsTruncated = false;
+  var buffer = '';
+  var bufferFrame = '';
+
+  function pushItem(item) {
+    if (chars >= maxChars) { return; }
+    if (bufferFrame && !item.frame) { item.frame = bufferFrame; }
+    items.push(item);
+    chars += item.text.length;
   }
+
+  function flush() {
+    var text = buffer.replace(/\\s+/g, ' ').trim();
+    buffer = '';
+    if (text) { pushItem({ kind: 'text', text: text }); }
+  }
+
+  function emitElement(el, frame) {
+    var visible = __bcmVisible(el);
+    totalElements++;
+    if (!visible) {
+      hiddenElements++;
+      if (!includeHidden) { return; }
+    }
+    if (listedElements >= maxElements) { elementsTruncated = true; return; }
+    flush();
+    var ref = 'e' + (base + listedElements + 1);
+    el.setAttribute('${REF_ATTRIBUTE}', ref);
+    __bcmRemember(ref, el);
+    listedElements++;
+    var entry = __bcmDescribe(el, ref, !visible, frame);
+    entry.kind = 'element';
+    items.push(entry);
+    chars += entry.name.length + 24;
+  }
+
+  function walk(node, frame, suppressText) {
+    var children = node.childNodes;
+    for (var i = 0; i < children.length; i++) {
+      var child = children[i];
+      if (child.nodeType === 3) {
+        if (!suppressText) { buffer += child.nodeValue; }
+        continue;
+      }
+      if (child.nodeType !== 1) { continue; }
+      var tag = child.tagName.toLowerCase();
+      if (__bcmIsSkipped(tag)) { continue; }
+
+      if (tag === 'iframe' || tag === 'frame') {
+        var inner = null;
+        try { inner = child.contentDocument; } catch (err) { inner = null; }
+        if (inner && inner.body) {
+          flush();
+          var label = __bcmFrameLabel(inner) || 'frame';
+          var outerFrame = bufferFrame;
+          bufferFrame = label;
+          pushItem({ kind: 'text', text: '[' + label + ']', frame: label });
+          walk(inner.body, label, suppressText);
+          flush();
+          bufferFrame = outerFrame;
+        }
+        continue;
+      }
+
+      if (child.matches(interactive)) {
+        emitElement(child, frame);
+        // A container made focusable by tabindex or a role still holds real controls.
+        if (__bcmSwallows(tag) || !child.querySelector(interactive)) { continue; }
+        walk(child, frame, true);
+        if (child.shadowRoot) { walk(child.shadowRoot, 'shadow:' + tag, true); }
+        continue;
+      }
+
+      if (!__bcmRendered(child)) { continue; }
+
+      if (tag === 'pre') {
+        flush();
+        var pre = (child.innerText || child.textContent || '').replace(/\\s+$/, '');
+        if (pre) { pushItem({ kind: 'text', text: pre }); }
+        continue;
+      }
+
+      var level = __bcmHeadingLevel(child, tag);
+      if (level) {
+        flush();
+        var heading = __bcmText(child);
+        if (heading) { pushItem({ kind: 'text', text: heading, level: level }); }
+        walk(child, frame, true);
+        continue;
+      }
+
+      var block = __bcmIsBlock(tag);
+      if (block) { flush(); }
+      if ((tag === 'td' || tag === 'th') && buffer.trim()) { buffer += ' | '; }
+      if (tag === 'img' && child.alt) { buffer += ' ' + child.alt + ' '; }
+      walk(child, frame, suppressText);
+      if (child.shadowRoot) { walk(child.shadowRoot, 'shadow:' + tag, suppressText); }
+      if (block) { flush(); }
+    }
+  }
+
+  var start = scopeRoot || document.body;
+  if (start) {
+    var startFrame = __bcmFrameLabel(start);
+    if (scopeRoot && scopeRoot.matches && scopeRoot.matches(interactive)) {
+      emitElement(scopeRoot, startFrame);
+      if (!__bcmSwallows(scopeRoot.tagName.toLowerCase())) { walk(start, startFrame, true); }
+    } else {
+      walk(start, startFrame, false);
+    }
+    if (start.shadowRoot) { walk(start.shadowRoot, 'shadow:' + start.tagName.toLowerCase(), false); }
+  }
+  flush();
+
+  // An avatar link points where a name link does: the name is enough.
+  var named = new Set();
+  for (var n = 0; n < items.length; n++) {
+    if (items[n].kind === 'element' && items[n].tag === 'a' && items[n].name && items[n].href) { named.add(items[n].href); }
+  }
+  var kept = [];
+  for (var k = 0; k < items.length; k++) {
+    var item = items[k];
+    if (item.kind === 'element' && item.tag === 'a' && !item.name && item.href && named.has(item.href)) {
+      var el = __bcmMemory().get(item.ref);
+      if (el) { el.removeAttribute('${REF_ATTRIBUTE}'); }
+      __bcmForget(item.ref);
+      listedElements--;
+      totalElements--;
+      continue;
+    }
+    kept.push(item);
+  }
+  items = kept;
 
   var doc = document.scrollingElement || document.documentElement;
   return {
     url: location.href,
     title: document.title,
-    elements: elements,
-    totalElements: found.length,
-    hiddenElements: concealed.length,
-    isTruncated: found.length > elements.length,
+    items: items,
+    totalElements: totalElements,
+    listedElements: listedElements,
+    hiddenElements: hiddenElements,
+    elementsTruncated: elementsTruncated,
     scrollY: Math.round(doc.scrollTop),
     scrollHeight: Math.round(doc.scrollHeight),
     scrollMax: Math.max(0, Math.round(doc.scrollHeight) - Math.round(doc.clientHeight || 0)),
+    collapsed: __bcmCollapsed(start || document.body, ${jsValue(MAX_COLLAPSED_SECTIONS)}),
     unreachableFrames: __bcmUnreachableFrames(scopeRoot)
   };
 })();`;
+}
+
+export function formatPageItems(
+  items: PageItem[],
+  options: { includeSelectors: boolean; includeHrefs: boolean }
+): string {
+  return items
+    .map((item) => {
+      if (item.kind === "text") {
+        return item.level ? `${"#".repeat(item.level)} ${item.text}` : item.text;
+      }
+      const attributes: string[] = options.includeSelectors
+        ? [`selector: ${item.selector}`]
+        : [];
+      if (item.value) {
+        attributes.push(`value: ${item.value}`);
+      }
+      if (item.placeholder) {
+        attributes.push(`placeholder: ${item.placeholder}`);
+      }
+      if (item.href && options.includeHrefs) {
+        attributes.push(`href: ${item.href}`);
+      }
+      if (item.disabled) {
+        attributes.push("disabled");
+      }
+      if (item.checked !== undefined) {
+        attributes.push(`checked: ${item.checked}`);
+      }
+      if (item.expanded !== undefined) {
+        attributes.push(`expanded: ${item.expanded}`);
+      }
+      if (item.options?.length) {
+        attributes.push(`options: ${item.options.join(" / ")}`);
+      }
+      if (item.frame) {
+        attributes.push(item.frame);
+      }
+      if (item.hidden) {
+        attributes.push("hidden");
+      }
+      const suffix = attributes.length ? ` - ${attributes.join(", ")}` : "";
+      const tag =
+        (item.role === "link" && item.tag === "a") ||
+        (item.role === "button" && item.tag === "button")
+          ? ""
+          : ` <${item.tag}>`;
+      return `[${item.ref}] ${item.role}${tag} "${item.name}"${suffix}`;
+    })
+    .join("\n");
 }

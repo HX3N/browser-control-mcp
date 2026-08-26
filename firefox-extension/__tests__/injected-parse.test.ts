@@ -12,6 +12,7 @@ import {
   buildClickCode,
   buildElementBoxCode,
   buildExecuteJsCode,
+  buildFindCode,
   buildHoverCode,
   buildDragCode,
   buildMediaFetchCode,
@@ -33,10 +34,12 @@ const target = { ref: "e7", selector: undefined, index: 0 };
 const bySelector = { ref: undefined, selector: "#list", index: 2 };
 
 const cases: [string, string][] = [
-  ["snapshot, whole page", buildSnapshotCode({ maxElements: 200, interactiveOnly: true, includeHidden: false })],
-  ["snapshot, hidden included", buildSnapshotCode({ maxElements: 5, interactiveOnly: false, includeHidden: true })],
-  ["snapshot, scoped by ref", buildSnapshotCode({ maxElements: 200, interactiveOnly: true, includeHidden: false, target })],
-  ["snapshot, scoped by selector", buildSnapshotCode({ maxElements: 200, interactiveOnly: false, includeHidden: true, target: bySelector })],
+  ["page read, whole page", buildSnapshotCode({ maxElements: 200, includeHidden: false })],
+  ["page read, hidden included", buildSnapshotCode({ maxElements: 5, includeHidden: true })],
+  ["page read, scoped by ref", buildSnapshotCode({ maxElements: 200, includeHidden: false, target })],
+  ["page read, scoped by selector", buildSnapshotCode({ maxElements: 200, includeHidden: true, target: bySelector })],
+  ["find, plain phrase", buildFindCode("hello world", 10)],
+  ["find, phrase with quotes and a backslash", buildFindCode("it's \"quoted\" \\ done", 3)],
   [
     "overlay attach, no target",
     buildAttachOverlayCode({
@@ -117,7 +120,7 @@ const cases: [string, string][] = [
   [
     "text watch, whole page, no baseline yet",
     buildTextWatchCode(
-      { cmd: "wait-for-text-change", tabId: 1 },
+      undefined,
       "abc-1",
       null,
       800,
@@ -128,7 +131,7 @@ const cases: [string, string][] = [
   [
     "text watch, carrying a baseline",
     buildTextWatchCode(
-      { cmd: "wait-for-text-change", tabId: 1 },
+      undefined,
       "abc-2",
       "what the page said last time\n'quoted'",
       0,
@@ -139,7 +142,7 @@ const cases: [string, string][] = [
   [
     "text watch, scoped by selector",
     buildTextWatchCode(
-      { cmd: "wait-for-text-change", tabId: 1, ...bySelector },
+      bySelector,
       "abc-3",
       null,
       5000,
@@ -150,7 +153,7 @@ const cases: [string, string][] = [
   [
     "text watch, ignoring changes under a threshold",
     buildTextWatchCode(
-      { cmd: "wait-for-text-change", tabId: 1, ...bySelector, minChars: 12 },
+      bySelector,
       "abc-4",
       "what the page said last time\n'quoted'",
       800,
@@ -295,21 +298,15 @@ const cases: [string, string][] = [
   [
     "wait probe",
     buildWaitProbeCode({
-      cmd: "wait-for-element",
-      tabId: 1,
       selector: "#done",
       state: "visible",
-      timeoutMs: 5000,
     }),
   ],
   [
     "wait probe, scoped by ref",
     buildWaitProbeCode({
-      cmd: "wait-for-element",
-      tabId: 1,
       selector: "#done",
       state: "detached",
-      timeoutMs: 5000,
       within: target,
     }),
   ],

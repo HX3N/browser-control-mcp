@@ -6,13 +6,6 @@ interface CollapsedSection {
   chars?: number;
 }
 
-interface FormField {
-  label: string;
-  kind: string;
-  value: string;
-  options?: number;
-}
-
 function run<T>(call: string): T {
   return new Function(
     `${ROOT_WALKER_SOURCE}\n${PAGE_READ_SOURCE}\nreturn ${call};`
@@ -21,8 +14,6 @@ function run<T>(call: string): T {
 
 const collapsed = (limit = 30) =>
   run<CollapsedSection[]>(`__bcmCollapsed(document.body, ${limit})`);
-const fields = (limit = 40) =>
-  run<FormField[]>(`__bcmFields(document.body, ${limit})`);
 interface UnreachableFrame {
   src: string;
   name?: string;
@@ -216,36 +207,5 @@ describe("frames", () => {
     frameOn(document.getElementById("near") as HTMLIFrameElement, inner);
 
     expect(collapsed().map((section) => section.label)).toEqual(["In a frame"]);
-  });
-});
-
-describe("form fields", () => {
-  stubRects();
-
-  it("reports values the page text cannot carry", () => {
-    document.body.innerHTML = `
-      <label for="city">City</label><input id="city" value="Seoul">
-      <textarea aria-label="Notes">Ship it</textarea>
-      <select aria-label="Size"><option>Small</option><option selected>Large</option></select>
-      <input type="checkbox" aria-label="Agree" checked>
-    `;
-
-    expect(fields()).toEqual([
-      { label: "City", kind: "input", value: "Seoul" },
-      { label: "Notes", kind: "textarea", value: "Ship it" },
-      { label: "Size", kind: "select", value: "Large", options: 2 },
-      { label: "Agree", kind: "input", value: "checked" },
-    ]);
-  });
-
-  it("leaves out passwords, hidden inputs, empty values and fields off screen", () => {
-    document.body.innerHTML = `
-      <input type="password" aria-label="Password" value="hunter2">
-      <input type="hidden" name="csrf" value="token">
-      <input aria-label="Empty" value="">
-      <input aria-label="Offscreen" value="x" style="display: none">
-    `;
-
-    expect(fields()).toEqual([]);
   });
 });

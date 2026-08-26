@@ -5,15 +5,23 @@ export interface ExtensionMessageBase {
   consoleMessages?: string[];
 }
 
-export interface TabContentExtensionMessage extends ExtensionMessageBase {
-  resource: "tab-content";
+export interface PageExtensionMessage extends ExtensionMessageBase {
+  resource: "page";
   tabId: number;
-  fullText: string;
+  url: string;
+  title: string;
+  text: string;
   isTruncated: boolean;
   totalLength: number;
-  links: { url: string; text: string }[];
+  totalElements: number;
+  listedElements: number;
+  hiddenElements: number;
+  hiddenListed: boolean;
+  elementsTruncated: boolean;
+  scrollY: number;
+  scrollHeight: number;
+  scrollMax: number;
   collapsed?: CollapsedSection[];
-  fields?: FormField[];
   unreachableFrames?: UnreachableFrame[];
 }
 
@@ -29,13 +37,6 @@ export interface CollapsedSection {
   label: string;
   kind: "details" | "expandable" | "tab";
   chars?: number;
-}
-
-export interface FormField {
-  label: string;
-  kind: "input" | "textarea" | "select";
-  value: string;
-  options?: number;
 }
 
 export interface BrowserTab {
@@ -107,9 +108,17 @@ export interface ReorderedTabsExtensionMessage extends ExtensionMessageBase {
   tabOrder: number[];
 }
 
+export interface FindMatch {
+  ref: string;
+  tag: string;
+  context: string;
+  frame?: string;
+}
+
 export interface FindHighlightExtensionMessage extends ExtensionMessageBase {
   resource: "find-highlight-result";
   noOfResults: number;
+  matches: FindMatch[];
 }
 
 export interface TabsClosedExtensionMessage extends ExtensionMessageBase {
@@ -178,38 +187,6 @@ export interface MediaContentExtensionMessage extends ExtensionMessageBase {
   imageHeight?: number;
 }
 
-export interface SnapshotElement {
-  ref: string;
-  role: string;
-  name: string;
-  tag: string;
-  selector: string;
-  value?: string;
-  placeholder?: string;
-  href?: string;
-  hidden?: boolean;
-  frame?: string;
-  disabled?: boolean;
-  checked?: boolean;
-  expanded?: boolean;
-  options?: string[];
-}
-
-export interface PageSnapshotExtensionMessage extends ExtensionMessageBase {
-  resource: "page-snapshot";
-  tabId: number;
-  url: string;
-  title: string;
-  elements: SnapshotElement[];
-  totalElements: number;
-  hiddenElements: number;
-  isTruncated: boolean;
-  scrollY: number;
-  scrollHeight: number;
-  scrollMax: number;
-  unreachableFrames?: UnreachableFrame[];
-}
-
 export interface InteractionResultExtensionMessage extends ExtensionMessageBase {
   resource: "interaction-result";
   tabId: number;
@@ -237,27 +214,22 @@ export interface ScriptResultExtensionMessage extends ExtensionMessageBase {
   isTruncated: boolean;
 }
 
-export interface ElementWaitExtensionMessage extends ExtensionMessageBase {
-  resource: "element-wait-result";
+export interface PageWaitExtensionMessage extends ExtensionMessageBase {
+  resource: "page-wait-result";
   tabId: number;
-  found: boolean;
+  mode: "element" | "text";
   elapsedMs: number;
-  matchCount: number;
-}
-
-export interface TextChangeWaitExtensionMessage extends ExtensionMessageBase {
-  resource: "text-change-wait-result";
-  tabId: number;
-  changed: boolean;
   navigated: boolean;
+  found?: boolean;
+  matchCount?: number;
+  changed?: boolean;
   // No wait was held for this scope before, so this call had nothing to compare against
-  fresh: boolean;
-  addedText: string;
+  fresh?: boolean;
+  addedText?: string;
   // Text that was there before is gone rather than merely added to, so addedText is the part that
   // differs instead of only what arrived during the wait
-  rewritten: boolean;
-  removedChars: number;
-  elapsedMs: number;
+  rewritten?: boolean;
+  removedChars?: number;
 }
 
 export interface TabsReleasedExtensionMessage extends ExtensionMessageBase {
@@ -266,7 +238,7 @@ export interface TabsReleasedExtensionMessage extends ExtensionMessageBase {
 }
 
 export type ExtensionMessage =
-  | TabContentExtensionMessage
+  | PageExtensionMessage
   | TabsExtensionMessage
   | OpenedTabIdExtensionMessage
   | TabNavigatedExtensionMessage
@@ -278,11 +250,9 @@ export type ExtensionMessage =
   | ScreenshotExtensionMessage
   | PageMediaExtensionMessage
   | MediaContentExtensionMessage
-  | PageSnapshotExtensionMessage
   | InteractionResultExtensionMessage
   | ScriptResultExtensionMessage
-  | ElementWaitExtensionMessage
-  | TextChangeWaitExtensionMessage
+  | PageWaitExtensionMessage
   | WindowResizedExtensionMessage
   | NetworkRequestsExtensionMessage
   | TabsReleasedExtensionMessage;

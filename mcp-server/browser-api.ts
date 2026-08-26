@@ -4,19 +4,19 @@ import type {
   BrowserTab,
   BrowserHistoryItem,
   ElementTarget,
-  ElementWaitExtensionMessage,
+  ElementWaitState,
   InteractionResultExtensionMessage,
   KeyModifier,
   NetworkRequestsExtensionMessage,
   UploadFile,
   ViewportRegion,
   WindowResizedExtensionMessage,
-  PageSnapshotExtensionMessage,
+  PageExtensionMessage,
+  PageWaitExtensionMessage,
   ScriptResultExtensionMessage,
   TabsReleasedExtensionMessage,
   ServerMessage,
-  TabContentExtensionMessage,
-  TextChangeWaitExtensionMessage,
+  FindHighlightExtensionMessage,
   ServerMessageRequest,
   ExtensionError,
   MediaContentExtensionMessage,
@@ -272,20 +272,26 @@ export class BrowserAPI {
     return message.historyItems;
   }
 
-  async getTabContent(
+  async readPage(
     tabId: number,
-    offset: number,
+    options: {
+      offset: number;
+      maxElements: number;
+      includeHidden: boolean;
+      includeSelectors: boolean;
+      includeHrefs: boolean;
+    },
     target?: ElementTarget
-  ): Promise<TabContentExtensionMessage> {
+  ): Promise<PageExtensionMessage> {
     const correlationId = this.sendMessageToExtension({
-      cmd: "get-tab-content",
+      cmd: "read-page",
       tabId,
-      offset,
+      ...options,
       ...target,
     });
     return await this.waitForResponse(
       correlationId,
-      "tab-content",
+      "page",
       INTERACTION_RESPONSE_TIMEOUT_MS
     );
   }
@@ -299,17 +305,22 @@ export class BrowserAPI {
     return message.tabOrder;
   }
 
-  async findHighlight(tabId: number, queryPhrase: string): Promise<number> {
+  async findHighlight(
+    tabId: number,
+    queryPhrase: string,
+    maxMatches: number
+  ): Promise<FindHighlightExtensionMessage> {
     const correlationId = this.sendMessageToExtension({
       cmd: "find-highlight",
       tabId,
       queryPhrase,
+      maxMatches,
     });
-    const message = await this.waitForResponse(
+    return await this.waitForResponse(
       correlationId,
-      "find-highlight-result"
+      "find-highlight-result",
+      INTERACTION_RESPONSE_TIMEOUT_MS
     );
-    return message.noOfResults;
   }
 
   async groupTabs(
@@ -384,26 +395,6 @@ export class BrowserAPI {
       correlationId,
       "media-content",
       MEDIA_RESPONSE_TIMEOUT_MS
-    );
-  }
-
-  async pageSnapshot(
-    tabId: number,
-    maxElements: number,
-    interactiveOnly: boolean,
-    target?: ElementTarget
-  ): Promise<PageSnapshotExtensionMessage> {
-    const correlationId = this.sendMessageToExtension({
-      cmd: "page-snapshot",
-      tabId,
-      maxElements,
-      interactiveOnly,
-      ...target,
-    });
-    return await this.waitForResponse(
-      correlationId,
-      "page-snapshot",
-      INTERACTION_RESPONSE_TIMEOUT_MS
     );
   }
 
@@ -615,47 +606,26 @@ export class BrowserAPI {
     );
   }
 
-  async waitForElement(
+  async waitForPage(
     tabId: number,
-    selector: string,
-    state: "visible" | "hidden" | "attached" | "detached",
-    timeoutMs: number,
-    within?: ElementTarget
-  ): Promise<ElementWaitExtensionMessage> {
+    options: {
+      selector?: string;
+      state?: ElementWaitState;
+      timeoutMs: number;
+      settleMs?: number;
+      minChars?: number;
+      within?: ElementTarget;
+    }
+  ): Promise<PageWaitExtensionMessage> {
     const correlationId = this.sendMessageToExtension({
-      cmd: "wait-for-element",
+      cmd: "wait-for-page",
       tabId,
-      selector,
-      state,
-      timeoutMs,
-      within,
+      ...options,
     });
     return await this.waitForResponse(
       correlationId,
-      "element-wait-result",
-      timeoutMs + WAIT_RESPONSE_GRACE_MS
-    );
-  }
-
-  async waitForTextChange(
-    tabId: number,
-    target: ElementTarget | undefined,
-    timeoutMs: number,
-    settleMs: number,
-    minChars: number
-  ): Promise<TextChangeWaitExtensionMessage> {
-    const correlationId = this.sendMessageToExtension({
-      cmd: "wait-for-text-change",
-      tabId,
-      timeoutMs,
-      settleMs,
-      minChars,
-      ...target,
-    });
-    return await this.waitForResponse(
-      correlationId,
-      "text-change-wait-result",
-      timeoutMs + WAIT_RESPONSE_GRACE_MS
+      "page-wait-result",
+      options.timeoutMs + WAIT_RESPONSE_GRACE_MS
     );
   }
 

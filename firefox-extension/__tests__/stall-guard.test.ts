@@ -156,17 +156,9 @@ describe("stalled pages", () => {
       } as ServerMessageRequest,
     ],
     [
-      "page-snapshot",
+      "read-page",
       {
-        cmd: "page-snapshot",
-        tabId: TAB_ID,
-        correlationId: "c6",
-      } as ServerMessageRequest,
-    ],
-    [
-      "get-tab-content",
-      {
-        cmd: "get-tab-content",
+        cmd: "read-page",
         tabId: TAB_ID,
         correlationId: "c7",
       } as ServerMessageRequest,
@@ -181,9 +173,9 @@ describe("stalled pages", () => {
       } as ServerMessageRequest,
     ],
     [
-      "wait-for-element",
+      "wait-for-page",
       {
-        cmd: "wait-for-element",
+        cmd: "wait-for-page",
         tabId: TAB_ID,
         correlationId: "c9",
         selector: "#done",
@@ -216,7 +208,7 @@ describe("stalled pages", () => {
     freezeCommandScripts();
 
     const pending = messageHandler.handleDecodedMessage({
-      cmd: "page-snapshot",
+      cmd: "read-page",
       tabId: TAB_ID,
       correlationId: "c10",
     } as ServerMessageRequest);

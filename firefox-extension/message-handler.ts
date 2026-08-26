@@ -1,6 +1,7 @@
 import type {
   CaptureScreenshotServerMessage,
   ClickElementServerMessage,
+  FindHighlightServerMessage,
   NavigateTabServerMessage,
   ElementTarget,
   ExtensionMessage,
@@ -8,10 +9,9 @@ import type {
   FetchMediaServerMessage,
   GetNetworkRequestsServerMessage,
   GetPageMediaServerMessage,
-  GetTabContentServerMessage,
   HoverElementServerMessage,
   DragElementServerMessage,
-  PageSnapshotServerMessage,
+  ReadPageServerMessage,
   PressKeyServerMessage,
   ReleaseTabsServerMessage,
   ResizeWindowServerMessage,
@@ -21,8 +21,7 @@ import type {
   TypeTextServerMessage,
   UploadFilesServerMessage,
   ViewportRegion,
-  WaitForElementServerMessage,
-  WaitForTextChangeServerMessage,
+  WaitForPageServerMessage,
   InteractionResultExtensionMessage,
 } from "@browser-control-mcp/common";
 import { WebsocketClient } from "./client";
@@ -50,13 +49,8 @@ import {
 } from "./extension-config";
 import { ensureTabAccess } from "./tab-access";
 import { diffText } from "./text-diff";
-import { buildSnapshotCode } from "./page-snapshot";
-import {
-  ELEMENT_RESOLVER_SOURCE,
-  isElementTargeted,
-  PAGE_READ_SOURCE,
-  targetLiteral,
-} from "./injected-common";
+import { buildSnapshotCode, formatPageItems, PageReadResult } from "./page-snapshot";
+import { ELEMENT_RESOLVER_SOURCE, isElementTargeted } from "./injected-common";
 import {
   buildAttachOverlayCode,
   buildConcealOverlayCode,
@@ -88,6 +82,9 @@ import {
   buildExecuteJsCode,
   buildHoverCode,
   buildDragCode,
+  buildFindCode,
+  FindMatchResult,
+  MAX_FIND_MATCHES,
   buildMediaFetchCode,
   buildMediaListCode,
   MAX_CAPTURE_HEIGHT_PX,
@@ -132,7 +129,8 @@ const idleStatus = () => t("overlayIdle");
 const NAVIGATION_SETTLE_MS = 15_000;
 const HISTORY_MOVE_GRACE_MS = 1_000;
 
-const DEFAULT_SNAPSHOT_LIMIT = 200;
+const DEFAULT_ELEMENT_LIMIT = 500;
+const MAX_PAGE_TEXT_LENGTH = 50_000;
 const MAX_SCRIPT_RESULT_LENGTH = 20_000;
 const DEFAULT_WAIT_TIMEOUT_MS = 5_000;
 const MAX_WAIT_TIMEOUT_MS = 60_000;
@@ -283,18 +281,14 @@ export class MessageHandler {
       case "get-browser-recent-history":
         await this.sendRecentHistory(req.correlationId, req.searchQuery);
         break;
-      case "get-tab-content":
-        await this.sendTabsContent(req);
+      case "read-page":
+        await this.sendPage(req);
         break;
       case "reorder-tabs":
         await this.reorderTabs(req.correlationId, req.tabOrder);
         break;
       case "find-highlight":
-        await this.findAndHighlightText(
-          req.correlationId,
-          req.tabId,
-          req.queryPhrase
-        );
+        await this.findAndHighlightText(req);
         break;
       case "group-tabs":
         await this.groupTabs(
@@ -313,9 +307,6 @@ export class MessageHandler {
         break;
       case "fetch-media":
         await this.fetchMedia(req);
-        break;
-      case "page-snapshot":
-        await this.sendPageSnapshot(req);
         break;
       case "click-element":
         await this.clickElement(req);
@@ -350,11 +341,8 @@ export class MessageHandler {
       case "execute-js":
         await this.executeJs(req);
         break;
-      case "wait-for-element":
-        await this.waitForElement(req);
-        break;
-      case "wait-for-text-change":
-        await this.waitForTextChange(req);
+      case "wait-for-page":
+        await this.waitForPage(req);
         break;
       case "release-tabs":
         await this.releaseTabs(req);
@@ -739,11 +727,12 @@ export class MessageHandler {
     }
   }
 
-  private async sendTabsContent(
-    req: GetTabContentServerMessage & { correlationId: string }
+  private async sendPage(
+    req: ReadPageServerMessage & { correlationId: string }
   ): Promise<void> {
-    const { correlationId, tabId, offset } = req;
+    const { correlationId, tabId } = req;
     const scoped = isElementTargeted(req);
+    const offset = Math.max(0, req.offset ?? 0);
 
     await this.prepareTabAccess(tabId);
 
@@ -754,79 +743,46 @@ export class MessageHandler {
       scoped ? req : undefined
     );
 
-    const MAX_CONTENT_LENGTH = 50_000;
-    const MAX_COLLAPSED_SECTIONS = 30;
-    const MAX_FORM_FIELDS = 40;
+    const includeHidden =
+      req.includeHidden === true && (await isHiddenElementsIncluded());
     const results = await this.runScript(
       tabId,
       {
-        code: `
-      (function () {
-        ${ELEMENT_RESOLVER_SOURCE}
-        ${PAGE_READ_SOURCE}
-        const scope = ${
-          scoped ? `__bcmResolve(${targetLiteral(req)})` : "document.body"
-        };
-
-        function getLinks() {
-          const linkElements = [];
-          __bcmReadRoots(scope).forEach(root => {
-            linkElements.push(...Array.from(root.querySelectorAll('a[href]')));
-          });
-          return linkElements.map(el => ({
-            url: el.href,
-            text: el.innerText.trim() || el.getAttribute('aria-label') || el.getAttribute('title') || ''
-          })).filter(link => link.text !== '' && !link.url.includes('#'));
-        }
-
-        const pageText = __bcmReadText(scope);
-
-        function getTextContent() {
-          let isTruncated = false;
-          let text = pageText.substring(${Number(offset) || 0});
-          if (text.length > ${MAX_CONTENT_LENGTH}) {
-            text = text.substring(0, ${MAX_CONTENT_LENGTH});
-            isTruncated = true;
-          }
-          return {
-            text, isTruncated
-          }
-        }
-
-        const textContent = getTextContent();
-
-        return {
-          links: getLinks(),
-          fullText: textContent.text,
-          isTruncated: textContent.isTruncated,
-          totalLength: pageText.length,
-          collapsed: __bcmCollapsed(scope, ${MAX_COLLAPSED_SECTIONS}),
-          fields: __bcmFields(scope, ${MAX_FORM_FIELDS}),
-          unreachableFrames: __bcmUnreachableFrames(scope)
-        };
-      })();
-    `,
+        code: buildSnapshotCode({
+          maxElements: Math.max(1, req.maxElements ?? DEFAULT_ELEMENT_LIMIT),
+          includeHidden,
+          target: scoped ? req : undefined,
+        }),
       },
       LONG_SCRIPT_STALL_MS
     );
-    const { isTruncated, fullText, totalLength, collapsed, fields, unreachableFrames } =
-      results[0];
-    const scope = await getUrlScope();
-    const links = (
-      results[0].links as { url: string; text: string }[]
-    ).filter((link) => isUrlInScope(link.url, scope));
+    const page = results[0] as PageReadResult;
+    const whole = formatPageItems(page.items, {
+      includeSelectors: req.includeSelectors === true,
+      includeHrefs: req.includeHrefs === true,
+    });
+    const text = whole.slice(offset, offset + MAX_PAGE_TEXT_LENGTH);
+
     await this.sendResource(
       {
-        resource: "tab-content",
-        tabId,
+        resource: "page",
         correlationId,
-        isTruncated,
-        fullText,
-        links,
-        totalLength,
-        collapsed,
-        fields,
-        unreachableFrames,
+        tabId,
+        url: page.url,
+        title: page.title,
+        text,
+        isTruncated: offset + text.length < whole.length,
+        totalLength: whole.length,
+        totalElements: page.totalElements,
+        listedElements: page.listedElements,
+        hiddenElements: page.hiddenElements,
+        hiddenListed: includeHidden,
+        elementsTruncated: page.elementsTruncated,
+        scrollY: page.scrollY,
+        scrollHeight: page.scrollHeight,
+        scrollMax: page.scrollMax,
+        collapsed: page.collapsed,
+        unreachableFrames: page.unreachableFrames,
       },
       tabId
     );
@@ -849,10 +805,9 @@ export class MessageHandler {
   }
 
   private async findAndHighlightText(
-    correlationId: string,
-    tabId: number,
-    queryPhrase: string
+    req: FindHighlightServerMessage & { correlationId: string }
   ): Promise<void> {
+    const { correlationId, tabId, queryPhrase } = req;
     const tab = await browser.tabs.get(tabId);
 
     await ensureTabAccess(tab);
@@ -865,6 +820,7 @@ export class MessageHandler {
       caseSensitive: true,
     });
 
+    let matches: FindMatchResult[] = [];
     // If there are results, highlight them
     if (findResults.count > 0) {
       // Firefox only auto-scrolls to a hit in the active tab, so foregrounding is what makes
@@ -875,13 +831,29 @@ export class MessageHandler {
       browser.find.highlightResults({
         tabId,
       });
+      await this.guardDialogs(tabId);
+      const located = await this.runScript(
+        tabId,
+        {
+          code: buildFindCode(
+            queryPhrase,
+            Math.max(1, Math.min(MAX_FIND_MATCHES, req.maxMatches ?? MAX_FIND_MATCHES))
+          ),
+        },
+        LONG_SCRIPT_STALL_MS
+      );
+      matches = (located[0] as { matches: FindMatchResult[] }).matches;
     }
 
-    await this.client.sendResourceToServer({
-      resource: "find-highlight-result",
-      correlationId,
-      noOfResults: findResults.count,
-    });
+    await this.sendResource(
+      {
+        resource: "find-highlight-result",
+        correlationId,
+        noOfResults: findResults.count,
+        matches,
+      },
+      tabId
+    );
   }
 
   private async captureScreenshot(
@@ -1433,54 +1405,6 @@ export class MessageHandler {
     );
   }
 
-  private async sendPageSnapshot(
-    req: PageSnapshotServerMessage & { correlationId: string }
-  ): Promise<void> {
-    const scoped = isElementTargeted(req);
-
-    await this.prepareTabAccess(req.tabId);
-
-    await this.attachOverlay(
-      req.tabId,
-      "read",
-      scoped ? t("overlaySnapshotElement") : t("overlaySnapshot"),
-      scoped ? req : undefined
-    );
-
-    const results = await this.runScript(
-      req.tabId,
-      {
-        code: buildSnapshotCode({
-          maxElements: Math.max(1, req.maxElements ?? DEFAULT_SNAPSHOT_LIMIT),
-          interactiveOnly: req.interactiveOnly !== false,
-          includeHidden: await isHiddenElementsIncluded(),
-          target: scoped ? req : undefined,
-        }),
-      },
-      LONG_SCRIPT_STALL_MS
-    );
-    const snapshot = results[0];
-
-    await this.sendResource(
-      {
-        resource: "page-snapshot",
-        correlationId: req.correlationId,
-        tabId: req.tabId,
-        url: snapshot.url,
-        title: snapshot.title,
-        elements: snapshot.elements,
-        totalElements: snapshot.totalElements,
-        hiddenElements: snapshot.hiddenElements,
-        isTruncated: snapshot.isTruncated,
-        scrollY: snapshot.scrollY,
-        scrollHeight: snapshot.scrollHeight,
-        scrollMax: snapshot.scrollMax,
-        unreachableFrames: snapshot.unreachableFrames,
-      },
-      req.tabId
-    );
-  }
-
   private async clickElement(
     req: ClickElementServerMessage & { correlationId: string }
   ): Promise<void> {
@@ -1700,19 +1624,31 @@ export class MessageHandler {
     );
   }
 
-  private async waitForElement(
-    req: WaitForElementServerMessage & { correlationId: string }
+  private async waitForPage(
+    req: WaitForPageServerMessage & { correlationId: string }
   ): Promise<void> {
     await this.prepareTabAccess(req.tabId);
 
-    const within = req.within ? elementTargetOf(req.within) : undefined;
+    const within = isElementTargeted(req.within) ? req.within : undefined;
+    if (req.selector) {
+      await this.waitForElement(req, req.selector, within);
+    } else {
+      await this.waitForTextChange(req, within);
+    }
+  }
+
+  private async waitForElement(
+    req: WaitForPageServerMessage & { correlationId: string },
+    selector: string,
+    within: ElementTarget | undefined
+  ): Promise<void> {
     await this.attachOverlay(req.tabId, "read", t("overlayWait"), within);
 
     const timeoutMs = Math.min(
       MAX_WAIT_TIMEOUT_MS,
       Math.max(0, req.timeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS)
     );
-    const code = buildWaitProbeCode(req);
+    const code = buildWaitProbeCode({ selector, state: req.state, within });
     const startedAt = Date.now();
 
     let probe: WaitProbeResult = { matchCount: 0, satisfied: false };
@@ -1727,9 +1663,11 @@ export class MessageHandler {
 
     await this.sendResource(
       {
-        resource: "element-wait-result",
+        resource: "page-wait-result",
         correlationId: req.correlationId,
         tabId: req.tabId,
+        mode: "element",
+        navigated: false,
         found: probe.satisfied,
         elapsedMs: Date.now() - startedAt,
         matchCount: probe.matchCount,
@@ -1739,17 +1677,10 @@ export class MessageHandler {
   }
 
   private async waitForTextChange(
-    req: WaitForTextChangeServerMessage & { correlationId: string }
+    req: WaitForPageServerMessage & { correlationId: string },
+    within: ElementTarget | undefined
   ): Promise<void> {
-    await this.prepareTabAccess(req.tabId);
-
-    const scoped = isElementTargeted(req);
-    await this.attachOverlay(
-      req.tabId,
-      "read",
-      t("overlayWaitText"),
-      scoped ? req : undefined
-    );
+    await this.attachOverlay(req.tabId, "read", t("overlayWaitText"), within);
 
     const timeoutMs = Math.min(
       MAX_TEXT_WAIT_TIMEOUT_MS,
@@ -1764,8 +1695,8 @@ export class MessageHandler {
 
     // Anything the page said since the last wait has to be diffed against where that wait
     // stopped, not against the page as it looks now, or it is swallowed while the caller thinks.
-    const scopeKey = scoped
-      ? JSON.stringify([req.ref, req.selector, req.index])
+    const scopeKey = within
+      ? JSON.stringify([within.ref, within.selector, within.index])
       : "";
     const held =
       this.textBaselines.get(req.tabId) ?? new Map<string, string>();
@@ -1775,7 +1706,7 @@ export class MessageHandler {
       req.tabId,
       {
         code: buildTextWatchCode(
-          req,
+          within,
           req.correlationId,
           carried,
           settleMs,
@@ -1803,7 +1734,7 @@ export class MessageHandler {
       if (outcome !== "navigated") {
         const readResults = await this.runScript(
           req.tabId,
-          { code: buildTextReadCode(scoped ? req : undefined) },
+          { code: buildTextReadCode(within) },
           LONG_SCRIPT_STALL_MS
         );
         current = readResults[0] as string;
@@ -1830,9 +1761,10 @@ export class MessageHandler {
 
     await this.sendResource(
       {
-        resource: "text-change-wait-result",
+        resource: "page-wait-result",
         correlationId: req.correlationId,
         tabId: req.tabId,
+        mode: "text",
         changed,
         navigated: outcome === "navigated",
         fresh: carried === null,

@@ -28,12 +28,16 @@ export interface GetBrowserRecentHistoryServerMessage extends ServerMessageBase 
   searchQuery?: string;
 }
 
-export interface GetTabContentServerMessage
+export interface ReadPageServerMessage
   extends ServerMessageBase,
     ElementTarget {
-  cmd: "get-tab-content";
+  cmd: "read-page";
   tabId: number;
   offset?: number;
+  maxElements?: number;
+  includeHidden?: boolean;
+  includeSelectors?: boolean;
+  includeHrefs?: boolean;
 }
 
 export interface ReorderTabsServerMessage extends ServerMessageBase {
@@ -45,6 +49,7 @@ export interface FindHighlightServerMessage extends ServerMessageBase {
   cmd: "find-highlight";
   tabId: number;
   queryPhrase: string;
+  maxMatches?: number;
 }
 
 export interface GroupTabsServerMessage extends ServerMessageBase {
@@ -91,15 +96,6 @@ export interface ElementTarget {
   ref?: string;
   selector?: string;
   index?: number;
-}
-
-export interface PageSnapshotServerMessage
-  extends ServerMessageBase,
-    ElementTarget {
-  cmd: "page-snapshot";
-  tabId: number;
-  maxElements?: number;
-  interactiveOnly?: boolean;
 }
 
 export type KeyModifier = "Control" | "Shift" | "Alt" | "Meta";
@@ -202,23 +198,17 @@ export interface SelectOptionServerMessage
   values: string[];
 }
 
-export interface WaitForElementServerMessage extends ServerMessageBase {
-  cmd: "wait-for-element";
-  tabId: number;
-  selector: string;
-  state?: "visible" | "hidden" | "attached" | "detached";
-  timeoutMs?: number;
-  within?: ElementTarget;
-}
+export type ElementWaitState = "visible" | "hidden" | "attached" | "detached";
 
-export interface WaitForTextChangeServerMessage
-  extends ServerMessageBase,
-    ElementTarget {
-  cmd: "wait-for-text-change";
+export interface WaitForPageServerMessage extends ServerMessageBase {
+  cmd: "wait-for-page";
   tabId: number;
+  selector?: string;
+  state?: ElementWaitState;
   timeoutMs?: number;
   settleMs?: number;
   minChars?: number;
+  within?: ElementTarget;
 }
 
 export interface ReleaseTabsServerMessage extends ServerMessageBase {
@@ -232,14 +222,13 @@ export type ServerMessage =
   | CloseTabsServerMessage
   | GetTabListServerMessage
   | GetBrowserRecentHistoryServerMessage
-  | GetTabContentServerMessage
+  | ReadPageServerMessage
   | ReorderTabsServerMessage
   | FindHighlightServerMessage
   | GroupTabsServerMessage
   | CaptureScreenshotServerMessage
   | GetPageMediaServerMessage
   | FetchMediaServerMessage
-  | PageSnapshotServerMessage
   | ClickElementServerMessage
   | HoverElementServerMessage
   | DragElementServerMessage
@@ -251,8 +240,7 @@ export type ServerMessage =
   | ScrollPageServerMessage
   | PressKeyServerMessage
   | SelectOptionServerMessage
-  | WaitForElementServerMessage
-  | WaitForTextChangeServerMessage
+  | WaitForPageServerMessage
   | ReleaseTabsServerMessage;
 
 export type ServerMessageRequest = ServerMessage & { correlationId: string };
