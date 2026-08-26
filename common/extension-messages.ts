@@ -24,6 +24,18 @@ export interface PageExtensionMessage extends ExtensionMessageBase {
   collapsed?: CollapsedSection[];
   unreachableFrames?: UnreachableFrame[];
   scope?: ScopeElement;
+  outline?: PageRegion[];
+}
+
+export interface PageRegion {
+  ref: string;
+  tag: string;
+  role?: string;
+  id?: string;
+  name: string;
+  depth: number;
+  chars: number;
+  controls: number;
 }
 
 export interface ScopeElement {

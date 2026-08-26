@@ -73,7 +73,7 @@
         },
         {
             "name": "read-page",
-            "description": "Read a page or one element of it: text and interactive elements in document order, each element stamped with a ref the interaction tools accept"
+            "description": "Read a page or one element of it: text and interactive elements in document order, each element stamped with a ref the interaction tools accept; a large page read as a whole returns an outline of its regions instead"
         },
         {
             "name": "reorder-browser-tabs",

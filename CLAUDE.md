@@ -159,6 +159,30 @@ separately against the selector. Both scoped paths pass the target to `attachOve
 draws the same element outline that a click or a keystroke does, and the badge says which of the
 two kinds of read is running through `overlaySnapshotElement` / `overlayReadingElement`.
 
+### Outline of a large page
+
+A scoped read only saves tokens when the model chooses it, and on a page it has never seen it
+cannot: the first read has to be a whole one, and on a portal page that is 28KB of navigation,
+folded menus and footer around one article. The snapshot therefore decides for it. An unscoped
+read of a page past `OUTLINE_CHAR_THRESHOLD` (12,000 formatted characters) or
+`OUTLINE_ELEMENT_THRESHOLD` (200 interactive elements) returns `outline` instead of `items`:
+one entry per region, with a fresh ref stamped on the container, its tag, role and id, a label
+(aria-label, first heading, or the first of its text), and how many characters and controls it
+holds. The server prints those as an indented list and tells the model to read the region it
+needs by its ref; `full: true` is the way back to the whole text, and `offset > 0` implies it,
+since a continuation is by definition of a full read.
+
+`__bcmOutline` measures every element once, bottom-up - text-node length and interactive count,
+skipping unrendered subtrees and frames - and picks regions top-down. A landmark tag or role
+always qualifies; anything else needs `OUTLINE_MIN_SHARE` (5%) of the page's text or
+`OUTLINE_MIN_CONTROLS` (10) controls. A chain of wrappers whose single qualifying child holds
+`OUTLINE_DOMINANCE` (80%) of both counts is folded to that child, which is what turns
+`body > #wrap > #container > article` into one line; under a landmark the landmark keeps the
+line and the dominant wrapper inside it is skipped, so `article > div` is one line too and its
+sub-regions hang off the article. Nesting stops at `OUTLINE_MAX_DEPTH` (2) and
+the list at `MAX_OUTLINE_REGIONS` (40). The refs are numbered above `__bcmHighestRef()`, the same
+base a scoped read uses, so an element ref from the same snapshot and a region ref never collide.
+
 `capture-tab-screenshot` takes the same target, captured through `captureTab` with a rect in
 page coordinates: the tab is never brought to the front, and the part of the element outside the
 viewport is still in the shot. The rect always starts at the element's top; only an element

@@ -764,6 +764,7 @@ export class MessageHandler {
         code: buildSnapshotCode({
           maxElements: Math.max(1, req.maxElements ?? DEFAULT_ELEMENT_LIMIT),
           includeHidden,
+          full: req.full === true || offset > 0,
           target: scoped ? req : undefined,
         }),
       },
@@ -774,7 +775,7 @@ export class MessageHandler {
       includeSelectors: req.includeSelectors === true,
       includeHrefs: req.includeHrefs === true,
     });
-    const text = whole.slice(offset, offset + MAX_PAGE_TEXT_LENGTH);
+    const text = page.outline ? "" : whole.slice(offset, offset + MAX_PAGE_TEXT_LENGTH);
 
     await this.sendResource(
       {
@@ -797,6 +798,7 @@ export class MessageHandler {
         collapsed: page.collapsed,
         unreachableFrames: page.unreachableFrames,
         scope: page.scope,
+        outline: page.outline,
       },
       tabId
     );

@@ -36,6 +36,7 @@ const bySelector = { ref: undefined, selector: "#list", index: 2 };
 const cases: [string, string][] = [
   ["page read, whole page", buildSnapshotCode({ maxElements: 200, includeHidden: false })],
   ["page read, hidden included", buildSnapshotCode({ maxElements: 5, includeHidden: true })],
+  ["page read, full text forced", buildSnapshotCode({ maxElements: 200, includeHidden: false, full: true })],
   ["page read, scoped by ref", buildSnapshotCode({ maxElements: 200, includeHidden: false, target })],
   ["page read, scoped by selector", buildSnapshotCode({ maxElements: 200, includeHidden: true, target: bySelector })],
   ["find, plain phrase", buildFindCode("hello world", 10)],
@@ -324,6 +325,14 @@ describe("injected script builders emit parsable JavaScript", () => {
 });
 
 describe("injected source contracts", () => {
+  it("outlines a large page only when the read is neither scoped nor forced full", () => {
+    const whole = buildSnapshotCode({ maxElements: 200, includeHidden: false });
+    expect(whole).toContain("outline = __bcmOutline(");
+    expect(whole).toContain("var full = false");
+    expect(buildSnapshotCode({ maxElements: 200, includeHidden: false, full: true })).toContain("var full = true");
+    expect(buildSnapshotCode({ maxElements: 200, includeHidden: false, target })).toContain("if (!scopeRoot && !full");
+  });
+
   it("hands the overlay the element itself, not a frozen rectangle", () => {
     const code = buildAttachOverlayCode({
       state: "read",

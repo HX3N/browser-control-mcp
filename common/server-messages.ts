@@ -37,6 +37,7 @@ export interface ReadPageServerMessage
   maxElements?: number;
   includeSelectors?: boolean;
   includeHrefs?: boolean;
+  full?: boolean;
 }
 
 export interface ReorderTabsServerMessage extends ServerMessageBase {

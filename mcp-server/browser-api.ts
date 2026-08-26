@@ -285,6 +285,7 @@ export class BrowserAPI {
       maxElements: number;
       includeSelectors: boolean;
       includeHrefs: boolean;
+      full: boolean;
     },
     target?: ElementTarget
   ): Promise<PageExtensionMessage> {

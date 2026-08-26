@@ -1,4 +1,5 @@
 import type { ElementTarget } from "@browser-control-mcp/common/server-messages";
+import type { PageRegion } from "@browser-control-mcp/common/extension-messages";
 import {
   isElementTargeted,
   jsValue,
@@ -281,10 +282,156 @@ export interface PageReadResult {
     height: number;
     hidden?: boolean;
   }[];
+  outline?: PageRegion[];
 }
 
 export const MAX_READ_TEXT_CHARS = 400_000;
 const MAX_COLLAPSED_SECTIONS = 30;
+export const OUTLINE_CHAR_THRESHOLD = 12_000;
+export const OUTLINE_ELEMENT_THRESHOLD = 200;
+const MAX_OUTLINE_REGIONS = 40;
+const OUTLINE_MIN_SHARE = 0.05;
+const OUTLINE_MIN_CONTROLS = 10;
+const OUTLINE_DOMINANCE = 0.8;
+const OUTLINE_MAX_DEPTH = 2;
+
+const LANDMARK_TAGS = ["main", "article", "section", "nav", "aside", "header", "footer", "form"];
+const LANDMARK_ROLES = [
+  "main", "article", "region", "navigation", "complementary", "banner", "contentinfo",
+  "form", "search", "feed", "dialog",
+];
+
+const OUTLINE_SOURCE = `
+function __bcmHighestRef() {
+  var highest = 0;
+  var stamped = __bcmQueryAll('[${REF_ATTRIBUTE}]');
+  for (var s = 0; s < stamped.length; s++) {
+    var seen = /^e(\\d+)$/.exec(stamped[s].getAttribute('${REF_ATTRIBUTE}') || '');
+    if (seen) {
+      var value = parseInt(seen[1], 10);
+      if (value > highest) { highest = value; }
+    }
+  }
+  return highest;
+}
+
+function __bcmOutline(body, interactive) {
+  var measures = new Map();
+  function measureChildren(node, m) {
+    var kids = node.childNodes;
+    for (var i = 0; i < kids.length; i++) {
+      var k = kids[i];
+      if (k.nodeType === 3) {
+        m.chars += k.nodeValue.replace(/\\s+/g, ' ').trim().length;
+      } else if (k.nodeType === 1) {
+        var km = measure(k);
+        m.chars += km.chars;
+        m.controls += km.controls;
+      }
+    }
+  }
+  function measure(el) {
+    var cached = measures.get(el);
+    if (cached) { return cached; }
+    var m = { chars: 0, controls: 0 };
+    measures.set(el, m);
+    var tag = el.tagName.toLowerCase();
+    if (__bcmIsSkipped(tag) || tag === 'iframe' || tag === 'frame' || !__bcmRendered(el)) { return m; }
+    if (el.matches(interactive)) { m.controls++; }
+    measureChildren(el, m);
+    if (el.shadowRoot) { measureChildren(el.shadowRoot, m); }
+    return m;
+  }
+  function isLandmark(el) {
+    if (${jsValue(LANDMARK_TAGS)}.indexOf(el.tagName.toLowerCase()) !== -1) { return true; }
+    var role = el.getAttribute('role');
+    return !!role && ${jsValue(LANDMARK_ROLES)}.indexOf(role) !== -1;
+  }
+  var total = measure(body);
+  var minChars = Math.max(200, Math.floor(total.chars * ${jsValue(OUTLINE_MIN_SHARE)}));
+  function qualifies(el) {
+    var m = measure(el);
+    if (m.chars === 0 && m.controls === 0) { return false; }
+    if (isLandmark(el)) { return true; }
+    if (el.children.length < 2) { return false; }
+    return m.chars >= minChars || m.controls >= ${jsValue(OUTLINE_MIN_CONTROLS)};
+  }
+  function regionChildren(el) {
+    var out = [];
+    function scan(node) {
+      var kids = node.children;
+      for (var i = 0; i < kids.length; i++) {
+        var k = kids[i];
+        var tag = k.tagName.toLowerCase();
+        if (__bcmIsSkipped(tag) || tag === 'iframe' || tag === 'frame' || !__bcmRendered(k)) { continue; }
+        if (k.matches(interactive)) { continue; }
+        if (qualifies(k)) { out.push(k); }
+      }
+    }
+    scan(el);
+    if (el.shadowRoot) { scan(el.shadowRoot); }
+    return out;
+  }
+  function dominates(child, parent) {
+    var m = measure(parent);
+    var km = measure(child);
+    return km.chars >= m.chars * ${jsValue(OUTLINE_DOMINANCE)} && km.controls >= m.controls * ${jsValue(OUTLINE_DOMINANCE)};
+  }
+  function unwrap(el) {
+    while (true) {
+      var kids = regionChildren(el);
+      if (kids.length !== 1 || !dominates(kids[0], el)) { break; }
+      if (isLandmark(el) && !isLandmark(kids[0])) { break; }
+      el = kids[0];
+    }
+    return el;
+  }
+  function innerRegions(el) {
+    var kids = regionChildren(el);
+    while (kids.length === 1 && dominates(kids[0], el)) {
+      el = kids[0];
+      kids = regionChildren(el);
+    }
+    return kids;
+  }
+  function label(el) {
+    var aria = el.getAttribute('aria-label');
+    if (aria && aria.trim()) { return aria.trim(); }
+    var heading = el.querySelector('h1,h2,h3,h4,h5,h6,[role=heading]');
+    if (heading) {
+      var text = __bcmText(heading);
+      if (text) { return text; }
+    }
+    return __bcmText(el);
+  }
+  var regions = [];
+  var nextRef = __bcmHighestRef();
+  function emit(el, depth) {
+    if (regions.length >= ${jsValue(MAX_OUTLINE_REGIONS)}) { return; }
+    el = unwrap(el);
+    var m = measure(el);
+    var ref = 'e' + (++nextRef);
+    el.setAttribute('${REF_ATTRIBUTE}', ref);
+    __bcmRemember(ref, el);
+    var entry = { ref: ref, tag: el.tagName.toLowerCase(), name: __bcmTrim(label(el), 80), depth: depth, chars: m.chars, controls: m.controls };
+    var role = el.getAttribute('role');
+    if (role) { entry.role = role; }
+    if (el.id) { entry.id = el.id; }
+    regions.push(entry);
+    if (depth >= ${jsValue(OUTLINE_MAX_DEPTH)}) { return; }
+    var kids = innerRegions(el);
+    for (var i = 0; i < kids.length; i++) { emit(kids[i], depth + 1); }
+  }
+  var start = unwrap(body);
+  var top = regionChildren(start);
+  if (top.length) {
+    for (var t = 0; t < top.length; t++) { emit(top[t], 0); }
+  } else {
+    emit(start, 0);
+  }
+  return regions;
+}
+`;
 
 const WALKER_SOURCE = `
 function __bcmIsBlock(tag) { return ${jsValue(BLOCK_TAGS)}.indexOf(tag) !== -1; }
@@ -312,6 +459,7 @@ function __bcmSwallows(tag) {
 export function buildSnapshotCode(options: {
   maxElements: number;
   includeHidden: boolean;
+  full?: boolean;
   target?: ElementTarget;
 }): string {
   const scopeExpression = isElementTargeted(options.target)
@@ -322,6 +470,7 @@ export function buildSnapshotCode(options: {
 ${SNAPSHOT_HELPERS_SOURCE}
 ${PAGE_READ_SOURCE}
 ${WALKER_SOURCE}
+${OUTLINE_SOURCE}
   var scopeRoot = ${scopeExpression};
   var roots = __bcmRoots(scopeRoot);
 
@@ -341,20 +490,14 @@ ${WALKER_SOURCE}
       __bcmForget(scopeRoot.getAttribute('${REF_ATTRIBUTE}'));
       scopeRoot.removeAttribute('${REF_ATTRIBUTE}');
     }
-    var stamped = __bcmQueryAll('[${REF_ATTRIBUTE}]');
-    for (var s = 0; s < stamped.length; s++) {
-      var seen = /^e(\\d+)$/.exec(stamped[s].getAttribute('${REF_ATTRIBUTE}') || '');
-      if (seen) {
-        var value = parseInt(seen[1], 10);
-        if (value > base) { base = value; }
-      }
-    }
+    base = __bcmHighestRef();
   }
 
   var interactive = ${jsValue(INTERACTIVE_SELECTOR)};
   var includeHidden = ${jsValue(options.includeHidden)};
   var maxElements = ${jsValue(options.maxElements)};
   var maxChars = ${jsValue(MAX_READ_TEXT_CHARS)};
+  var full = ${jsValue(options.full === true)};
 
   var items = [];
   var chars = 0;
@@ -501,6 +644,12 @@ ${WALKER_SOURCE}
   }
   items = kept;
 
+  var outline;
+  if (!scopeRoot && !full && document.body &&
+      (chars > ${jsValue(OUTLINE_CHAR_THRESHOLD)} || totalElements > ${jsValue(OUTLINE_ELEMENT_THRESHOLD)})) {
+    outline = __bcmOutline(document.body, interactive);
+  }
+
   var doc = document.scrollingElement || document.documentElement;
   return {
     scope: scopeRoot ? { role: __bcmRole(scopeRoot), tag: scopeRoot.tagName.toLowerCase(), name: __bcmTrim(__bcmName(scopeRoot), 60) } : undefined,
@@ -515,7 +664,8 @@ ${WALKER_SOURCE}
     scrollHeight: Math.round(doc.scrollHeight),
     scrollMax: Math.max(0, Math.round(doc.scrollHeight) - Math.round(doc.clientHeight || 0)),
     collapsed: __bcmCollapsed(start || document.body, ${jsValue(MAX_COLLAPSED_SECTIONS)}),
-    unreachableFrames: __bcmUnreachableFrames(scopeRoot)
+    unreachableFrames: __bcmUnreachableFrames(scopeRoot),
+    outline: outline
   };
 })();`;
 }

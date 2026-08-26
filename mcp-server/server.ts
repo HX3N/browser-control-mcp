@@ -428,6 +428,9 @@ defineTool(
     because a whole page carries navigation, sidebars and footers you did not ask for. Refs
     stamped outside the scope survive, and the new refs are numbered above them.
     Refs are replaced on every read. Same-origin frames and shadow roots are included.
+    A large page read without a ref or selector comes back as an outline instead of its text:
+    one line per region with a ref, how much text and how many controls it holds. Pick the
+    region you need and read it by its ref. Pass full: true only when no region fits.
     Elements the page keeps out of sight are counted, and listed only with the popup switch on.
     Links are listed by their text alone; pass includeHrefs to see where each one points, which
     is needed to navigate to one by URL rather than by clicking it.
@@ -435,6 +438,10 @@ defineTool(
   `,
   {
     tabId: z.number(),
+    full: z
+      .boolean()
+      .default(false)
+      .describe("Read the whole text of a large page instead of its outline; only when none of the outlined regions fits"),
     offset: z
       .number()
       .int()
@@ -458,13 +465,32 @@ defineTool(
       .describe("Also list where each link points, which costs many tokens on a page with many links"),
     ...elementTargetShape,
   },
-  async ({ tabId, offset, maxElements, includeSelectors, includeHrefs, ref, selector, index }) => {
+  async ({ tabId, full, offset, maxElements, includeSelectors, includeHrefs, ref, selector, index }) => {
     const scoped = !!(ref || selector);
     const page = await browserApi.readPage(
       tabId,
-      { offset, maxElements, includeSelectors, includeHrefs },
+      { offset, maxElements, includeSelectors, includeHrefs, full },
       scoped ? elementTarget({ ref, selector, index }) : undefined
     );
+
+    if (page.outline) {
+      const regions = page.outline.map((region) => {
+        const tag = `<${region.tag}${region.role ? ` role=${region.role}` : ""}${region.id ? ` #${region.id}` : ""}>`;
+        return `${"  ".repeat(region.depth)}[${region.ref}] ${tag} "${region.name}" - ${region.chars} chars, ${region.controls} controls`;
+      });
+      const header = [
+        `${page.title} - ${page.url}`,
+        `This page is large (${page.totalLength} characters, ${page.totalElements} elements), so this is an outline of its regions rather than its text. Call read-page again with the ref of the region you need; a nested line is inside the line above it. Pass full: true only when no region fits.`,
+        scrollLine(page),
+      ].join("\n");
+      return {
+        content: [
+          { type: "text", text: `${header}\n\n${regions.join("\n")}` },
+          ...frameNotice(page.unreachableFrames),
+          ...dialogNotice(page),
+        ],
+      };
+    }
 
     const range = `${offset}-${offset + page.text.length}`;
     const hiddenLine =

@@ -40,7 +40,9 @@ The tools the MCP server exposes.
 - Reorder tabs
 - Read and search browsing history
 - `read-page` — read the text and the interactive elements of a page together, in the order
-  they sit on it, each element stamped with a `ref`; either the whole page or one element of it
+  they sit on it, each element stamped with a `ref`; either the whole page or one element of it.
+  A large page read as a whole comes back as an outline of its regions, each with a `ref` to
+  read it by, so the navigation and the sidebars never cost tokens unless asked for
 - `find-text-in-page` — find and highlight text inside a page, and get back a `ref` to the
   block that holds each match
 - Capture a screenshot of a tab, either the visible screen or one element of it; a tall
