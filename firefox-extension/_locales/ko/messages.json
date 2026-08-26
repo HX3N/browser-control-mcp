@@ -104,11 +104,20 @@
     "overlayOpen": {
         "message": "페이지 열림"
     },
-    "overlaySnapshot": {
-        "message": "페이지 살펴보는 중"
+    "overlayMediaList": {
+        "message": "미디어 목록 보는 중"
     },
-    "overlaySnapshotElement": {
-        "message": "이 부분 살펴보는 중"
+    "overlayMediaListElement": {
+        "message": "이 부분 미디어 보는 중"
+    },
+    "overlayFetchMedia": {
+        "message": "미디어 파일 받는 중"
+    },
+    "overlayNetwork": {
+        "message": "네트워크 요청 읽는 중"
+    },
+    "overlayCaptureElement": {
+        "message": "이 부분 스크린샷 찍음"
     },
     "overlayReadingElement": {
         "message": "이 부분 읽는 중"
@@ -141,7 +150,7 @@
         "message": "JavaScript 실행 중"
     },
     "overlayWait": {
-        "message": "페이지 바뀌길 기다리는 중"
+        "message": "특정 요소가 바뀌길 기다리는 중"
     },
     "overlayCapture": {
         "message": "스크린샷 찍음"
@@ -150,7 +159,13 @@
         "message": "텍스트 찾는 중"
     },
     "overlayWaitText": {
-        "message": "새 텍스트 오길 기다리는 중"
+        "message": "텍스트 변화가 생기길 기다리는 중"
+    },
+    "overlayWaitElement": {
+        "message": "이 부분이 바뀌길 기다리는 중"
+    },
+    "overlayWaitTextElement": {
+        "message": "이 부분의 텍스트 변화가 생기길 기다리는 중"
     },
     "popupStatusChecking": {
         "message": "확인 중…"
@@ -217,6 +232,12 @@
     },
     "popupUploadLimitHint": {
         "message": "한 번에 첨부하는 파일의 합계 (1~256MB)"
+    },
+    "popupOutlineDepthLabel": {
+        "message": "대상 구역 표시"
+    },
+    "popupOutlineDepthHint": {
+        "message": "강조 대상이 되는 구역의 하위 계층 하한 (0~3)"
     },
     "popupToggleHiddenName": {
         "message": "숨은 내용 읽기"

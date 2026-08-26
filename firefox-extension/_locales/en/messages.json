@@ -104,11 +104,20 @@
     "overlayOpen": {
         "message": "Opened this page"
     },
-    "overlaySnapshot": {
-        "message": "Scanning the page"
+    "overlayMediaList": {
+        "message": "Listing media"
     },
-    "overlaySnapshotElement": {
-        "message": "Scanning one element"
+    "overlayMediaListElement": {
+        "message": "Listing media in one element"
+    },
+    "overlayFetchMedia": {
+        "message": "Fetching a media file"
+    },
+    "overlayNetwork": {
+        "message": "Reading network requests"
+    },
+    "overlayCaptureElement": {
+        "message": "Captured one element"
     },
     "overlayReadingElement": {
         "message": "Reading one element"
@@ -150,7 +159,13 @@
         "message": "Finding text"
     },
     "overlayWaitText": {
-        "message": "Waiting for new text"
+        "message": "Waiting for text to change"
+    },
+    "overlayWaitElement": {
+        "message": "Waiting for an element in one region"
+    },
+    "overlayWaitTextElement": {
+        "message": "Waiting for text to change in one element"
     },
     "popupStatusChecking": {
         "message": "Checking…"
@@ -217,6 +232,12 @@
     },
     "popupUploadLimitHint": {
         "message": "Files attached in one call, added together (1~256MB)"
+    },
+    "popupOutlineDepthLabel": {
+        "message": "Target regions"
+    },
+    "popupOutlineDepthHint": {
+        "message": "Fewest levels a region must hold to be highlighted (0~3)"
     },
     "popupToggleHiddenName": {
         "message": "Read hidden elements"

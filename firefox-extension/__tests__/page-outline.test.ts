@@ -119,6 +119,33 @@ describe("outline of a large page", () => {
     expect(scoped.outline).toBeUndefined();
   });
 
+  it("reaches the landmarks behind a wrapper that holds a single child", () => {
+    document.body.innerHTML = `
+      <div id="top">
+        <header id="head"><script>var logo_img = "https://x/logo.png";</script><span style="display:none">Hidden menu</span>${links(14, "head")}</header>
+        <div id="visit"><ul id="visited">${"<li><a href=\"/g\">gallery</a></li>".repeat(50)}</ul></div>
+        <div id="wrap_inner">
+          <main id="container">
+            <section id="left"><article id="issue"><p>${ARTICLE_TEXT}</p></article><article id="list">${links(120, "post")}</article></section>
+            <section id="right">${links(30, "side")}</section>
+          </main>
+        </div>
+        <footer id="foot">${links(70, "foot")}</footer>
+      </div>
+    `;
+    const result = runSnapshot({});
+    const ids = result.outline!.map((region) => region.id);
+
+    expect(ids).toEqual(expect.arrayContaining(["head", "container", "left", "issue", "list", "right", "foot"]));
+    expect(ids).toContain("visited");
+    expect(ids).not.toContain("wrap_inner");
+    expect(ids).not.toContain("visit");
+    const head = result.outline!.find((region) => region.id === "head")!;
+    expect(head.name).not.toContain("logo_img");
+    expect(head.name).not.toContain("Hidden menu");
+    expect(head.name).toContain("head 0");
+  });
+
   it("leaves a small page alone", () => {
     document.body.innerHTML = `<main><h1>Short</h1><p>A few words.</p><a href="/x">x</a></main>`;
     const result = runSnapshot({});

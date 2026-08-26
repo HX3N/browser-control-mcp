@@ -53,11 +53,13 @@ const mcpServer = new McpServer(
       - A native file picker cannot be driven. upload-files-to-page-element attaches a file by its
         path on the user's computer, and only when the user has switched that on.
       - Every tool can be switched off in the extension, and page access can be limited to the
-        tabs the user authorized. A refusal is a setting, not a failure: name the switch that has
-        to be turned on and let the user decide. In allowlist mode a tab whose site is not on the
-        user's list has to be authorized from the extension popup; that grant covers one tab and
-        ends when it navigates or closes. A tool that is off by default returns a permission error
-        naming its popup switch.
+        tabs the user authorized. A switched-off tool is a decision the user has already made,
+        not an obstacle: say in one line what was refused and which switch it is, carry on with
+        what the other tools can do, and never ask for it to be turned on. The one refusal to
+        stop on is a tab that allowlist mode has not authorized: that grant is made per tab from
+        the extension popup and ends when the tab navigates or closes, so when the task needs
+        that tab, say so and wait. A tool that is off by default returns a permission error
+        naming its switch.
       - Tabs not held by this session belong to the user: read, act on, close, move or group one
         only when the user pointed you at it.
     `,

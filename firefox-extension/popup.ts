@@ -3,7 +3,7 @@ import type {
   PermissionMode,
   UrlScope,
 } from "./extension-config";
-import { UPLOAD_LIMIT_MB_RANGE } from "./extension-config";
+import { OUTLINE_BOX_DEPTH_RANGE, UPLOAD_LIMIT_MB_RANGE } from "./extension-config";
 import { localizeDocument, t } from "./i18n";
 import type {
   ConnectionStatus,
@@ -85,6 +85,9 @@ const saveBasePortButton = document.getElementById(
 ) as HTMLButtonElement;
 const uploadLimitInput = document.getElementById(
   "upload-limit"
+) as HTMLInputElement;
+const outlineDepthInput = document.getElementById(
+  "outline-depth"
 ) as HTMLInputElement;
 const backgroundModeToggle = document.getElementById(
   "toggle-background-mode"
@@ -467,6 +470,9 @@ function render(status: PopupStatus): void {
   if (document.activeElement !== uploadLimitInput) {
     uploadLimitInput.value = String(status.uploadLimitMb);
   }
+  if (document.activeElement !== outlineDepthInput) {
+    outlineDepthInput.value = String(status.outlineBoxDepth);
+  }
 
   // Without the blanket host permission nothing can run, so the mode picker would only be
   // offering choices between things that all fail.
@@ -618,6 +624,30 @@ uploadLimitInput.addEventListener("change", async () => {
 
 uploadLimitInput.addEventListener("blur", async () => {
   if (!uploadLimitInput.value.trim()) {
+    await refresh({ kind: "get-status" });
+  }
+});
+
+outlineDepthInput.addEventListener("change", async () => {
+  if (!outlineDepthInput.value.trim()) {
+    return;
+  }
+  const depth = Math.min(
+    OUTLINE_BOX_DEPTH_RANGE.max,
+    Math.max(OUTLINE_BOX_DEPTH_RANGE.min, Math.round(Number(outlineDepthInput.value)))
+  );
+  if (!Number.isFinite(depth)) {
+    return;
+  }
+  if (String(depth) !== outlineDepthInput.value) {
+    outlineDepthInput.value = String(depth);
+  }
+  await refresh({ kind: "set-outline-depth", depth });
+  showFeedback(t("popupFeedbackSaved"));
+});
+
+outlineDepthInput.addEventListener("blur", async () => {
+  if (!outlineDepthInput.value.trim()) {
     await refresh({ kind: "get-status" });
   }
 });

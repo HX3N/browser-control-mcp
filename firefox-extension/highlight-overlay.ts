@@ -40,6 +40,8 @@ const OVERLAY_RUNTIME_SOURCE = `
   var trackFrame = 0;
   var glideTimer = null;
   var badge = null;
+  var regionLayer = null;
+  var regions = [];
 
   var removedIcons = null;
   var injectedIcon = null;
@@ -157,6 +159,25 @@ const OVERLAY_RUNTIME_SOURCE = `
       '  0%, 100% { opacity: 1; }',
       '  50% { opacity: 0.35; }',
       '}',
+      '.bcm-region {',
+      '  position: absolute; box-sizing: border-box; border-radius: 9px;',
+      '  border: 1px solid var(--bcm-region-color);',
+      '}',
+      '.bcm-region.is-top {',
+      '  border-width: 2px;',
+      '  box-shadow: 0 0 0 5px color-mix(in srgb, var(--bcm-region-color) 22%, transparent),',
+      '    0 0 26px 8px color-mix(in srgb, var(--bcm-region-color) 55%, transparent),',
+      '    0 0 60px 18px color-mix(in srgb, var(--bcm-region-color) 26%, transparent);',
+      '}',
+      '.bcm-region.is-bottom { border-style: dashed; }',
+      '.bcm-region-tag {',
+      '  position: absolute; top: -1px; left: -1px;',
+      '  font: 600 11px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", sans-serif;',
+      '  color: #fff; background: var(--bcm-region-color);',
+      '  padding: 3px 7px; border-radius: 6px 0 6px 0; white-space: nowrap;',
+      '  max-width: 260px; overflow: hidden; text-overflow: ellipsis;',
+      '}',
+
       '@media (prefers-reduced-motion: reduce) {',
       '  .bcm-flow, .bcm-focus.is-active, .bcm-pip { animation: none; }',
       '}'
@@ -188,6 +209,9 @@ const OVERLAY_RUNTIME_SOURCE = `
     flow.className = 'bcm-flow';
     aurora.appendChild(flow);
 
+    regionLayer = document.createElement('div');
+    regionLayer.className = 'bcm-regions';
+
     focusBox = document.createElement('div');
     focusBox.className = 'bcm-focus';
 
@@ -202,6 +226,7 @@ const OVERLAY_RUNTIME_SOURCE = `
 
     root.appendChild(style);
     root.appendChild(aurora);
+    root.appendChild(regionLayer);
     root.appendChild(focusBox);
     root.appendChild(badge);
     document.documentElement.appendChild(host);
@@ -279,6 +304,7 @@ const OVERLAY_RUNTIME_SOURCE = `
 
   function attach(options) {
     if (!host || !host.isConnected) { build(); }
+    clearRegions();
     applyPalette(options.accents, options.aurora);
     if (options.showAurora) {
       aurora.classList.add('is-active');
@@ -316,10 +342,61 @@ const OVERLAY_RUNTIME_SOURCE = `
   // re-measured every frame; the geometry transition is dropped once tracking starts or it lags.
   function track() {
     trackFrame = 0;
-    if (!host || !host.isConnected || !tracked) { return; }
-    if (!tracked.isConnected) { clearFocus(); return; }
-    place(__bcmRect(tracked));
-    trackFrame = requestAnimationFrame(track);
+    if (!host || !host.isConnected) { return; }
+    if (tracked && !tracked.isConnected) { clearFocus(); }
+    if (tracked) { place(__bcmRect(tracked)); }
+    for (var i = regions.length - 1; i >= 0; i--) {
+      if (!regions[i].el.isConnected) {
+        regions[i].box.remove();
+        regions.splice(i, 1);
+        continue;
+      }
+      placeRegion(regions[i]);
+    }
+    if (tracked || regions.length) { trackFrame = requestAnimationFrame(track); }
+  }
+
+  function placeRegion(region) {
+    var rect = __bcmRect(region.el);
+    region.box.style.top = rect.top + 'px';
+    region.box.style.left = rect.left + 'px';
+    region.box.style.width = rect.width + 'px';
+    region.box.style.height = rect.height + 'px';
+  }
+
+  function showRegions(list) {
+    clearRegions();
+    if (!host || !host.isConnected) { return; }
+    host.style.setProperty('--bcm-region-color', ACCENTS.read);
+    var top = -Infinity;
+    var bottom = Infinity;
+    for (var k = 0; k < list.length; k++) {
+      var lv = list[k].level || 0;
+      if (lv > top) { top = lv; }
+      if (lv < bottom) { bottom = lv; }
+    }
+    for (var i = 0; i < list.length; i++) {
+      var el = list[i].el;
+      var rect = el && el.getBoundingClientRect ? __bcmRect(el) : null;
+      if (!rect || rect.width <= 0 || rect.height <= 0) { continue; }
+      var t = top === bottom ? 0 : (top - (list[i].level || 0)) / (top - bottom);
+      var box = document.createElement('div');
+      box.className = 'bcm-region' + (t === 0 ? ' is-top' : t === 1 ? ' is-bottom' : '');
+      if (t > 0 && t < 1) { box.style.borderWidth = (2 - t) + 'px'; }
+      var tag = document.createElement('span');
+      tag.className = 'bcm-region-tag';
+      tag.textContent = list[i].label;
+      box.appendChild(tag);
+      regionLayer.appendChild(box);
+      regions.push({ el: el, box: box });
+      placeRegion(regions[regions.length - 1]);
+    }
+    if (regions.length && !trackFrame) { trackFrame = requestAnimationFrame(track); }
+  }
+
+  function clearRegions() {
+    for (var i = 0; i < regions.length; i++) { regions[i].box.remove(); }
+    regions = [];
   }
 
   function focus(el, state) {
@@ -365,6 +442,7 @@ const OVERLAY_RUNTIME_SOURCE = `
   function detach() {
     if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
     tracked = null;
+    clearRegions();
     if (trackFrame) { cancelAnimationFrame(trackFrame); trackFrame = 0; }
     restoreTabMark();
     if (!host || !host.isConnected) { return; }
@@ -383,6 +461,7 @@ const OVERLAY_RUNTIME_SOURCE = `
     setStatus: setStatus,
     focus: focus,
     clearFocus: clearFocus,
+    showRegions: showRegions,
     reclaimTabMark: reclaimTabMark,
     conceal: conceal,
     reveal: reveal,
@@ -454,6 +533,28 @@ export function buildRevealOverlayCode(): string {
   return `(function () {
   if (window.__bcmOverlay) { window.__bcmOverlay.reveal(); }
   return true;
+})();`;
+}
+
+export interface OutlineRegionMark {
+  ref: string;
+  label: string;
+  level: number;
+}
+
+export function buildOutlineOverlayCode(regions: OutlineRegionMark[]): string {
+  return `(function () {
+${ELEMENT_RESOLVER_SOURCE}
+  if (!window.__bcmOverlay || !window.__bcmOverlay.showRegions) { return 0; }
+  var marks = ${jsValue(regions)};
+  var list = [];
+  for (var i = 0; i < marks.length; i++) {
+    try {
+      list.push({ el: __bcmResolve({ ref: marks[i].ref }), label: marks[i].label, level: marks[i].level });
+    } catch (err) {}
+  }
+  window.__bcmOverlay.showRegions(list);
+  return list.length;
 })();`;
 }
 

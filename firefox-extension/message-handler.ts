@@ -23,6 +23,7 @@ import type {
   ViewportRegion,
   WaitForPageServerMessage,
   InteractionResultExtensionMessage,
+  PageRegion,
 } from "@browser-control-mcp/common";
 import { WebsocketClient } from "./client";
 import { t } from "./i18n";
@@ -37,6 +38,7 @@ import {
   isAuroraEnabled,
   isBadgeEnabled,
   isFocusEnabled,
+  getOutlineBoxDepth,
   isMarkEnabled,
   isContainerInherited,
   isHiddenElementsIncluded,
@@ -64,8 +66,10 @@ import {
   buildAttachOverlayCode,
   buildConcealOverlayCode,
   buildDetachOverlayCode,
+  buildOutlineOverlayCode,
   buildReclaimTabMarkCode,
   buildRevealOverlayCode,
+  OutlineRegionMark,
   OverlayResult,
   OverlayState,
 } from "./highlight-overlay";
@@ -200,6 +204,7 @@ export class MessageHandler {
   private textBaselines: Map<number, Map<string, string>> = new Map();
   private knownMediaUrls: Map<number, Set<string>> = new Map();
   private lastMarkReclaim: Map<number, number> = new Map();
+  private shownOutlines: Map<number, PageRegion[]> = new Map();
 
   private readonly onTabRemoved = (tabId: number) => {
     this.forgetTab(tabId);
@@ -315,7 +320,7 @@ export class MessageHandler {
         ? "the extension popup"
         : "the extension options page";
       throw new Error(
-        `Command '${req.cmd}' is disabled in extension settings. Ask the user to turn on '${getToolNameById(toolId)}' in ${where}.`
+        `Command '${req.cmd}' is disabled in extension settings: the user has '${getToolNameById(toolId)}' switched off in ${where}. Report it and continue without it.`
       );
     }
 
@@ -902,6 +907,10 @@ export class MessageHandler {
       LONG_SCRIPT_STALL_MS
     );
     const page = results[0] as PageReadResult;
+    if (page.outline && (await isFocusEnabled())) {
+      await this.showOutlineRegions(tabId, page.outline);
+      this.shownOutlines.set(tabId, page.outline);
+    }
     const whole = formatPageItems(page.items, {
       includeSelectors: req.includeSelectors === true,
       includeHrefs: req.includeHrefs === true,
@@ -933,6 +942,38 @@ export class MessageHandler {
       },
       tabId
     );
+  }
+
+  private async showOutlineRegions(
+    tabId: number,
+    outline: PageRegion[]
+  ): Promise<void> {
+    // __bcmOutline emits its regions depth-first, so a region's descendants are the run that
+    // follows it until the depth drops back; that is what makes a level readable from the list.
+    // The setting is a floor, not a ceiling: it says how large a group has to be to earn a box.
+    const reach = await getOutlineBoxDepth();
+    const marks: OutlineRegionMark[] = [];
+    for (let i = 0; i < outline.length; i++) {
+      const region = outline[i];
+      let deepest = region.depth;
+      for (let j = i + 1; j < outline.length && outline[j].depth > region.depth; j++) {
+        deepest = Math.max(deepest, outline[j].depth);
+      }
+      const level = deepest - region.depth;
+      if (level < reach) {
+        continue;
+      }
+      marks.push({
+        ref: region.ref,
+        label: region.name ? `${region.ref} ${region.name}` : region.ref,
+        level,
+      });
+    }
+    try {
+      await this.runScript(tabId, { code: buildOutlineOverlayCode(marks) });
+    } catch (error) {
+      console.error("Could not outline the page regions on tab", tabId, error);
+    }
   }
 
   private async reorderTabs(
@@ -1136,7 +1177,7 @@ export class MessageHandler {
       await this.attachOverlay(
         tabId,
         "read",
-        t("overlayCapture"),
+        isElementTargeted(req) ? t("overlayCaptureElement") : t("overlayCapture"),
         isElementTargeted(req) ? req : undefined
       );
     }
@@ -1153,7 +1194,7 @@ export class MessageHandler {
     await this.attachOverlay(
       tabId,
       "read",
-      scoped ? t("overlayReadingElement") : t("overlayReadingContent"),
+      scoped ? t("overlayMediaListElement") : t("overlayMediaList"),
       scoped ? req : undefined
     );
 
@@ -1209,7 +1250,7 @@ export class MessageHandler {
       );
     }
 
-    await this.attachOverlay(tabId, "read", t("overlayReadingContent"));
+    await this.attachOverlay(tabId, "read", t("overlayFetchMedia"));
 
     const results = await this.runScript(
       tabId,
@@ -1375,6 +1416,7 @@ export class MessageHandler {
     status: string,
     target?: ElementTarget
   ): Promise<OverlayResult | null> {
+    this.shownOutlines.delete(tabId);
 
     const showAurora = await isAuroraEnabled();
     const showFocus = await isFocusEnabled();
@@ -1422,6 +1464,15 @@ export class MessageHandler {
     );
   }
 
+  public async redrawOutlines(): Promise<void> {
+    if (!(await isFocusEnabled())) {
+      return;
+    }
+    for (const [tabId, outline] of [...this.shownOutlines]) {
+      await this.showOutlineRegions(tabId, outline);
+    }
+  }
+
   public async refreshOverlays(): Promise<void> {
     const anyPart =
       (await isAuroraEnabled()) ||
@@ -1453,6 +1504,7 @@ export class MessageHandler {
     this.knownMediaUrls.delete(tabId);
     this.textBaselines.delete(tabId);
     this.lastMarkReclaim.delete(tabId);
+    this.shownOutlines.delete(tabId);
     forgetPageEvents(tabId);
     forgetNetworkLog(tabId);
     const timer = this.claimedTabs.get(tabId);
@@ -1642,7 +1694,7 @@ export class MessageHandler {
     req: GetNetworkRequestsServerMessage & { correlationId: string }
   ): Promise<void> {
     await this.prepareTabAccess(req.tabId);
-    await this.attachOverlay(req.tabId, "read", t("overlayReadingContent"));
+    await this.attachOverlay(req.tabId, "read", t("overlayNetwork"));
     const scope = await getUrlScope();
     const log = readNetworkLog(req.tabId, {
       urlPattern: req.urlPattern,
@@ -1706,7 +1758,7 @@ export class MessageHandler {
       req.key.toLowerCase() === "v";
     if (isPaste && !(await isClipboardReadAllowed())) {
       throw new Error(
-        "Pasting is disabled in extension settings. Ask the user to turn on 'Paste the clipboard' in the extension popup, or use type-into-page-element to enter the text instead."
+        "Pasting is disabled in extension settings: the user has 'Paste the clipboard' switched off in the extension popup. Use type-into-page-element to enter the text instead."
       );
     }
     const pasteText = isPaste ? this.readClipboardText() : null;
@@ -1797,7 +1849,12 @@ export class MessageHandler {
     selector: string,
     within: ElementTarget | undefined
   ): Promise<void> {
-    await this.attachOverlay(req.tabId, "read", t("overlayWait"), within);
+    await this.attachOverlay(
+      req.tabId,
+      "read",
+      within ? t("overlayWaitElement") : t("overlayWait"),
+      within
+    );
 
     const timeoutMs = Math.min(
       MAX_WAIT_TIMEOUT_MS,
@@ -1835,7 +1892,12 @@ export class MessageHandler {
     req: WaitForPageServerMessage & { correlationId: string },
     within: ElementTarget | undefined
   ): Promise<void> {
-    await this.attachOverlay(req.tabId, "read", t("overlayWaitText"), within);
+    await this.attachOverlay(
+      req.tabId,
+      "read",
+      within ? t("overlayWaitTextElement") : t("overlayWaitText"),
+      within
+    );
 
     const timeoutMs = Math.min(
       MAX_TEXT_WAIT_TIMEOUT_MS,

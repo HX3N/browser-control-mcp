@@ -40,6 +40,7 @@ export interface PopupStatus {
   inheritContainer: boolean;
   backgroundMode: boolean;
   includeHidden: boolean;
+  outlineBoxDepth: number;
   clipboardRead: boolean;
   consoleCapture: boolean;
   consoleLevel: ConsoleCaptureLevel;
@@ -63,6 +64,7 @@ export type PopupRequest =
   | { kind: "set-inherit-container"; enabled: boolean }
   | { kind: "set-background-mode"; enabled: boolean }
   | { kind: "set-include-hidden"; enabled: boolean }
+  | { kind: "set-outline-depth"; depth: number }
   | { kind: "set-clipboard-read"; enabled: boolean }
   | { kind: "set-console-capture"; enabled: boolean }
   | { kind: "set-console-level"; level: ConsoleCaptureLevel }

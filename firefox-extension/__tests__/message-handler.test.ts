@@ -89,7 +89,7 @@ describe("MessageHandler", () => {
       await expect(
         messageHandler.handleDecodedMessage(request)
       ).rejects.toThrow(
-        "Command 'open-tab' is disabled in extension settings. Ask the user to turn on 'toolOpenBrowserTabName' in the extension options page."
+        "Command 'open-tab' is disabled in extension settings: the user has 'toolOpenBrowserTabName' switched off in the extension options page. Report it and continue without it."
       );
     });
 
@@ -1606,7 +1606,7 @@ describe("MessageHandler", () => {
         await expect(
           messageHandler.handleDecodedMessage(request)
         ).rejects.toThrow(
-          "Command 'capture-screenshot' is disabled in extension settings. Ask the user to turn on 'toolCaptureTabScreenshotName' in the extension popup."
+          "Command 'capture-screenshot' is disabled in extension settings: the user has 'toolCaptureTabScreenshotName' switched off in the extension popup. Report it and continue without it."
         );
         expect(browser.tabs.captureVisibleTab).not.toHaveBeenCalled();
       });

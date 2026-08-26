@@ -3,6 +3,7 @@ import {
   buildAttachOverlayCode,
   buildConcealOverlayCode,
   buildDetachOverlayCode,
+  buildOutlineOverlayCode,
   buildReclaimTabMarkCode,
   buildRevealOverlayCode,
 } from "../highlight-overlay";
@@ -87,6 +88,7 @@ const cases: [string, string][] = [
   ["overlay conceal", buildConcealOverlayCode()],
   ["overlay reveal", buildRevealOverlayCode()],
   ["overlay reclaim tab mark", buildReclaimTabMarkCode()],
+  ["overlay outline regions", buildOutlineOverlayCode([{ ref: "e41", label: "e41 It's \"quoted\"", level: 1 }])],
   ["in-page navigation, start", buildInPageNavigateCode("https://example.com/a?b='c'")],
   ["in-page navigation, check", buildInPageNavigationCheckCode({ via: "history", before: "https://example.com/" }, true)],
   ["dialog guard, console off", buildDialogGuardCode()],

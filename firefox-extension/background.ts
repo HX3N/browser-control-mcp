@@ -28,6 +28,8 @@ import {
   setContainerInherited,
   setClipboardReadAllowed,
   setHiddenElementsIncluded,
+  getOutlineBoxDepth,
+  setOutlineBoxDepth,
   setUrlScope,
   setAllowedOrigins,
   setDomainDenyList,
@@ -107,7 +109,16 @@ browser.storage.onChanged.addListener((changes, area) => {
   if (area !== "local" || !changes.config) {
     return;
   }
-  const look = overlayLookOf(changes.config.newValue as ExtensionConfig);
+  const before = changes.config.oldValue as ExtensionConfig | undefined;
+  const after = changes.config.newValue as ExtensionConfig;
+  if (after.outlineBoxDepth !== before?.outlineBoxDepth) {
+    for (const slot of slots) {
+      slot.handler.redrawOutlines().catch((error) => {
+        console.error("Could not redraw the page regions:", error);
+      });
+    }
+  }
+  const look = overlayLookOf(after);
   if (look === overlayLook) {
     return;
   }
@@ -318,6 +329,7 @@ async function buildStatus(): Promise<PopupStatus> {
     inheritContainer: await isContainerInherited(),
     backgroundMode: await isBackgroundMode(),
     includeHidden: await isHiddenElementsIncluded(),
+    outlineBoxDepth: await getOutlineBoxDepth(),
     clipboardRead: await isClipboardReadAllowed(),
     consoleCapture: await isConsoleCaptureEnabled(),
     consoleLevel: await getConsoleCaptureLevel(),
@@ -390,6 +402,9 @@ async function handlePopupRequest(request: PopupRequest): Promise<PopupStatus> {
       break;
     case "set-include-hidden":
       await setHiddenElementsIncluded(request.enabled);
+      break;
+    case "set-outline-depth":
+      await setOutlineBoxDepth(request.depth);
       break;
     case "set-console-capture":
       await setConsoleCapture(request.enabled);

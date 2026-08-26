@@ -235,6 +235,7 @@ export interface ExtensionConfig {
   inheritContainer?: boolean;
   backgroundMode?: boolean;
   includeHiddenElements?: boolean;
+  outlineBoxDepth?: number;
   allowClipboardRead?: boolean;
   urlScope?: UrlScope;
   consoleCapture?: boolean;
@@ -635,6 +636,26 @@ export async function setHiddenElementsIncluded(
 ): Promise<void> {
   const config = await getConfig();
   config.includeHiddenElements = include;
+  await saveConfig(config);
+}
+
+export const OUTLINE_BOX_DEPTH_RANGE = { min: 0, max: 3 };
+
+export async function getOutlineBoxDepth(): Promise<number> {
+  const config = await getConfig();
+  const depth = config.outlineBoxDepth;
+  if (typeof depth !== "number" || !Number.isFinite(depth)) {
+    return 1;
+  }
+  return Math.min(
+    OUTLINE_BOX_DEPTH_RANGE.max,
+    Math.max(OUTLINE_BOX_DEPTH_RANGE.min, Math.round(depth))
+  );
+}
+
+export async function setOutlineBoxDepth(depth: number): Promise<void> {
+  const config = await getConfig();
+  config.outlineBoxDepth = depth;
   await saveConfig(config);
 }
 

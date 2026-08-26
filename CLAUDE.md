@@ -175,8 +175,8 @@ A scoped snapshot clears only the stamps inside its own scope and then numbers f
 highest `eN` still on the page, so refs from an earlier full snapshot keep working and the two can
 be mixed. `querySelectorAll` reaches descendants only, so the scope element itself is matched
 separately against the selector. Both scoped paths pass the target to `attachOverlay`, so a read
-draws the same element outline that a click or a keystroke does, and the badge says which of the
-two kinds of read is running through `overlaySnapshotElement` / `overlayReadingElement`.
+draws the same element outline that a click or a keystroke does, and the badge says so through
+`overlayReadingElement`.
 
 ### Outline of a large page
 
@@ -194,13 +194,32 @@ since a continuation is by definition of a full read.
 `__bcmOutline` measures every element once, bottom-up - text-node length and interactive count,
 skipping unrendered subtrees and frames - and picks regions top-down. A landmark tag or role
 always qualifies; anything else needs `OUTLINE_MIN_SHARE` (5%) of the page's text or
-`OUTLINE_MIN_CONTROLS` (10) controls. A chain of wrappers whose single qualifying child holds
+`OUTLINE_MIN_CONTROLS` (10) controls. An element with a single child is not a region on its own,
+but it still qualifies when a region sits somewhere inside it: the walk never opens a subtree
+whose root was rejected, so a portal that wraps its `main` in one bare `div` hid every landmark
+under it. The label reads the rendered text alone rather than `innerText`, so an inline `<script>`
+inside a `<header>` does not become that region's name. A chain of wrappers whose single qualifying child holds
 `OUTLINE_DOMINANCE` (80%) of both counts is folded to that child, which is what turns
 `body > #wrap > #container > article` into one line; under a landmark the landmark keeps the
 line and the dominant wrapper inside it is skipped, so `article > div` is one line too and its
-sub-regions hang off the article. Nesting stops at `OUTLINE_MAX_DEPTH` (2) and
+sub-regions hang off the article. Nesting stops at `OUTLINE_MAX_DEPTH` (3) and
 the list at `MAX_OUTLINE_REGIONS` (40). The refs are numbered above `__bcmHighestRef()`, the same
 base a scoped read uses, so an element ref from the same snapshot and a region ref never collide.
+The regions are also drawn on screen, and which of them get a box is a question of how large a
+group is worth outlining. A region's level is how far its deepest descendant sits below it - a
+region with nothing inside it is 0 - and `showOutlineRegions` draws every region whose level is at
+least the popup's `Target regions` setting (`outlineBoxDepth`, 0-3, default 1; the ceiling is
+`OUTLINE_MAX_DEPTH`). The setting is a floor rather than a ceiling: 0 boxes every region down to
+the smallest, 1 drops those and boxes each group that holds them, 3 leaves only the largest groups.
+The overlay's `showRegions` boxes each one with its ref and label at the top-left corner, and
+styles the border by the box's rank among the boxes drawn, not its absolute level: the largest
+group gets the same 2px line and glow as the action highlight, the smallest a 1px dashed line,
+and anything between a solid line whose width is interpolated. The boxes are re-measured in the
+same frame loop as the element outline, and every `attach` clears them, so they stand until the
+next command. It follows the `Action highlight` switch and never affects the answer.
+The last outline is kept per tab, so changing `Target regions` redraws the boxes on the tabs that
+still show them and the values can be compared without reading the page again. Anything that
+attaches the overlay clears the boxes and that stored outline together.
 
 `capture-tab-screenshot` takes the same target, captured through `captureTab` with a rect in
 page coordinates: the tab is never brought to the front, and the part of the element outside the
