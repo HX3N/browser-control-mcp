@@ -696,6 +696,11 @@ export class MessageHandler {
   private async checkForUrlPermission(url: string | undefined): Promise<void> {
     if (url) {
       const origin = new URL(url).origin;
+      // view-source:, data:, about: and file: all report "null", which is not a match pattern
+      // Firefox accepts, and there is no domain behind them for the user to grant either.
+      if (origin === "null") {
+        return;
+      }
       const granted = await browser.permissions.contains({
         origins: [`${origin}/*`],
       });

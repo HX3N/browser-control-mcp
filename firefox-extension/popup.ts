@@ -442,8 +442,6 @@ function render(status: PopupStatus): void {
       ? "popupUrlScopeLoopbackHint"
       : status.urlScope === "any"
       ? "popupUrlScopeAnyHint"
-      : status.urlScope === "files"
-      ? "popupUrlScopeFilesHint"
       : "popupUrlScopeHttpsHint"
   );
 

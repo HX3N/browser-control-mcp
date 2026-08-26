@@ -93,11 +93,21 @@ MCP 서버가 제공하는 도구입니다.
 
 ### 접근 허용 주소
 
-모델이 열거나 이동할 수 있는 주소도 팝업에서 정합니다. 기본값 `HTTPS`는 그 밖의 주소를 전부
-거절하고, `+ 로컬`은 루프백 호스트의 `http://`를 함께 허용해 `http://localhost:5173/` 같은 로컬
-dev 서버에 닿을 수 있게 하며, `+ HTTP`는 모든 http 주소를 허용합니다. 이 설정은
-`open-browser-tab`과 `navigate-browser-tab`에 적용됩니다. 사용자가 직접 연 페이지는 영향을
-받지 않으며, 위의 권한 범위를 그대로 따릅니다.
+모델이 열거나 이동할 수 있는 주소도 팝업에서 정합니다. 세 칸은 위험도 사다리입니다. 기본값
+`HTTPS`는 그 밖의 주소를 전부 거절하고, `DEV`는 루프백 호스트의 `http://`를 함께 허용해
+`http://localhost:5173/` 같은 로컬 dev 서버에 닿을 수 있게 하며, `HTTP`는 모든 http 주소를
+허용합니다. `view-source:` 주소는 그것이 보여주는 문서로 판정합니다. `view-source:https://…`는
+세 칸 모두에서 허용되고, `view-source:http://…`는 평범한 http와 같은 칸을 따릅니다.
+
+그 외의 칸은 없습니다. 있어도 열릴 것이 없기 때문입니다. Firefox는 확장이 움직이는 탭을 특권
+주소로 보내는 것 자체를 거절합니다. `chrome:`·`javascript:`·`data:`·`file:`과 특권 `about:`
+페이지(`about:config`·`about:addons`·`about:debugging`·`about:newtab`)는 이 확장이 무엇을
+허용하든 `tabs.update`와 `tabs.create` 안에서 `Illegal URL`로 실패합니다. `ftp://`는 Firefox
+90에서 사라졌습니다.
+
+이 설정은 `open-browser-tab`과 `navigate-browser-tab`에 적용되며, `list-page-media`와
+`read-network-requests`가 돌려주는 주소도 같은 기준으로 걸러냅니다. 사용자가 직접 연 페이지는
+영향을 받지 않으며, 위의 권한 범위를 그대로 따릅니다.
 
 화이트리스트가 기본값인 것은 의도한 선택입니다. 확장을 넣자마자 모든 페이지가 뚫리는 대신,
 사용자가 팝업에서 **명시적으로** 범위를 넓히게 했습니다.

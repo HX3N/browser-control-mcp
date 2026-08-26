@@ -103,11 +103,22 @@ Clicking the toolbar icon (or pressing `Alt+Shift+B`) opens the popup.
 
 ### Allowed addresses
 
-The popup also decides which addresses the model may open or navigate to. `HTTPS` is the default
-and refuses everything else; `+ Local` additionally allows `http://` on loopback hosts, which is
-what a local dev server such as `http://localhost:5173/` needs; `+ HTTP` allows plain HTTP
-anywhere. The setting gates `open-browser-tab` and `navigate-browser-tab`. Pages you opened by hand are
-unaffected — they go through the access scope above.
+The popup also decides which addresses the model may open or navigate to. The three rungs are a
+risk ladder: `HTTPS` is the default and refuses everything else; `DEV` additionally allows
+`http://` on loopback hosts, which is what a local dev server such as `http://localhost:5173/`
+needs; `HTTP` allows plain HTTP anywhere. A `view-source:` URL is judged by the document it shows,
+so `view-source:https://…` is allowed on every rung while `view-source:http://…` follows the same
+rung plain HTTP does.
+
+There is no rung for anything else, because there is nothing for one to unlock. Firefox refuses to
+send an extension-driven tab to a privileged URL at all: `chrome:`, `javascript:`, `data:`,
+`file:` and the privileged `about:` pages (`about:config`, `about:addons`, `about:debugging`,
+`about:newtab`) fail inside `tabs.update` and `tabs.create` with `Illegal URL`, whatever this
+extension allows. `ftp://` stopped existing in Firefox 90.
+
+The setting gates `open-browser-tab` and `navigate-browser-tab`, and it also filters the addresses
+returned by `list-page-media` and `read-network-requests`. Pages you opened by hand are unaffected
+— they go through the access scope above.
 
 Allowlist being the default is deliberate. Rather than opening every page the moment the
 extension loads, it makes you widen the scope **explicitly** in the popup.

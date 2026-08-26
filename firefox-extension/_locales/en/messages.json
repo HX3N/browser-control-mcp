@@ -291,22 +291,16 @@
         "message": "HTTPS pages only"
     },
     "popupUrlScopeLoopbackName": {
-        "message": "+ Local"
+        "message": "DEV"
     },
     "popupUrlScopeLoopbackHint": {
         "message": "HTTPS + localhost·127.0.0.1"
     },
     "popupUrlScopeAnyName": {
-        "message": "+ HTTP"
+        "message": "HTTP"
     },
     "popupUrlScopeAnyHint": {
         "message": "HTTPS + localhost·127.0.0.1 + HTTP"
-    },
-    "popupUrlScopeFilesName": {
-        "message": "+ Files"
-    },
-    "popupUrlScopeFilesHint": {
-        "message": "HTTPS + localhost·127.0.0.1 + HTTP + file·ftp"
     },
     "popupFeedbackUrlScopeChanged": {
         "message": "Address scope changed"

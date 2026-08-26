@@ -172,7 +172,7 @@ function normalizePermissionMode(stored: string | undefined): PermissionMode {
     : DEFAULT_PERMISSION_MODE;
 }
 
-export type UrlScope = "https" | "loopback" | "any" | "files";
+export type UrlScope = "https" | "loopback" | "any";
 
 export type ConsoleCaptureLevel = "error" | "warn" | "log";
 
@@ -188,11 +188,12 @@ function normalizeConsoleLevel(
 
 export const DEFAULT_URL_SCOPE: UrlScope = "loopback";
 
-function normalizeUrlScope(stored: string | undefined): UrlScope {
-  return stored === "https" ||
-    stored === "loopback" ||
-    stored === "any" ||
-    stored === "files"
+export function normalizeUrlScope(stored: string | undefined): UrlScope {
+  // "files" and "all" were both the widest rung of an earlier build.
+  if (stored === "files" || stored === "all") {
+    return "any";
+  }
+  return stored === "https" || stored === "loopback" || stored === "any"
     ? stored
     : DEFAULT_URL_SCOPE;
 }
@@ -690,16 +691,17 @@ export function isUrlInScope(url: string, scope: UrlScope): boolean {
   } catch (error) {
     return false;
   }
+  // Viewing source is as far-reaching as the document it shows, so it is judged by that address.
+  if (parsed.protocol === "view-source:") {
+    return isUrlInScope(parsed.pathname, scope);
+  }
   if (parsed.protocol === "https:") {
     return true;
-  }
-  if (parsed.protocol === "file:" || parsed.protocol === "ftp:") {
-    return scope === "files";
   }
   if (parsed.protocol !== "http:") {
     return false;
   }
-  if (scope === "any" || scope === "files") {
+  if (scope === "any") {
     return true;
   }
   return scope === "loopback" && isLoopbackHost(parsed.hostname);
@@ -707,8 +709,6 @@ export function isUrlInScope(url: string, scope: UrlScope): boolean {
 
 export function describeUrlScope(scope: UrlScope): string {
   switch (scope) {
-    case "files":
-      return "HTTP and HTTPS pages, plus file:// and ftp:// URLs";
     case "any":
       return "HTTP and HTTPS pages only";
     case "loopback":

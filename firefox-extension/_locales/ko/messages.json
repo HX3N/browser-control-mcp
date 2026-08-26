@@ -291,22 +291,16 @@
         "message": "HTTPS 주소만"
     },
     "popupUrlScopeLoopbackName": {
-        "message": "+ 로컬"
+        "message": "DEV"
     },
     "popupUrlScopeLoopbackHint": {
         "message": "HTTPS + localhost·127.0.0.1"
     },
     "popupUrlScopeAnyName": {
-        "message": "+ HTTP"
+        "message": "HTTP"
     },
     "popupUrlScopeAnyHint": {
         "message": "HTTPS + localhost·127.0.0.1 + HTTP"
-    },
-    "popupUrlScopeFilesName": {
-        "message": "+ 파일"
-    },
-    "popupUrlScopeFilesHint": {
-        "message": "HTTPS + localhost·127.0.0.1 + HTTP + file·ftp"
     },
     "popupFeedbackUrlScopeChanged": {
         "message": "주소 범위를 바꿨습니다"

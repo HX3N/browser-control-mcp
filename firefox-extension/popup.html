@@ -334,11 +334,11 @@
     }
 
     #url-scope {
-      grid-template-columns: 1fr 1fr 1fr 1fr;
+      grid-template-columns: 1fr 1fr 1fr;
     }
 
     #url-scope .seg-thumb {
-      width: calc(25% - 1.5px);
+      width: calc(33.333% - 2px);
     }
 
     #url-scope:has(#scope-loopback:checked) .seg-thumb {
@@ -347,10 +347,6 @@
 
     #url-scope:has(#scope-any:checked) .seg-thumb {
       transform: translateX(200%);
-    }
-
-    #url-scope:has(#scope-files:checked) .seg-thumb {
-      transform: translateX(300%);
     }
 
     #console-level {
@@ -684,10 +680,6 @@
       <label class="seg" for="scope-any">
         <input type="radio" id="scope-any" name="url-scope" value="any">
         <span data-i18n="popupUrlScopeAnyName"></span>
-      </label>
-      <label class="seg" for="scope-files">
-        <input type="radio" id="scope-files" name="url-scope" value="files">
-        <span data-i18n="popupUrlScopeFilesName"></span>
       </label>
     </div>
     <div id="url-scope-hint" class="mode-hint"></div>

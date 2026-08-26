@@ -1114,6 +1114,33 @@ describe("MessageHandler", () => {
         ).rejects.toThrow();
         expect(browser.tabs.executeScript).not.toHaveBeenCalled();
       });
+
+      it.each([
+        "view-source:https://example.com/",
+        "data:text/html,hello",
+        "about:license",
+        "file:///C:/notes.txt",
+      ])("should not ask for a host permission on %s", async (url) => {
+        // Arrange
+        const request: ServerMessageRequest = {
+          cmd: "read-page",
+          tabId: 123,
+          correlationId: "test-correlation-id",
+        };
+
+        (browser.tabs.get as jest.Mock).mockResolvedValue({ id: 123, url });
+        (browser.permissions.contains as jest.Mock).mockImplementation(
+          async (query: { origins?: string[] }) => query.origins?.[0] === "<all_urls>"
+        );
+
+        // Act
+        await messageHandler.handleDecodedMessage(request);
+
+        // Assert
+        expect(browser.permissions.contains).not.toHaveBeenCalledWith({
+          origins: ["null/*"],
+        });
+      });
     });
 
     describe("reorder-tabs command", () => {
