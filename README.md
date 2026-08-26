@@ -48,7 +48,8 @@ The tools the MCP server exposes.
 - `list-page-media` — list the images, videos and audio a page shows, with URLs and
   original sizes, for the whole page or inside one element
 - `fetch-media-file` — fetch an image file a page shows, with the page's own cookies
-  (off by default; only URLs `list-page-media` listed can be fetched)
+  (off by default; only URLs `list-page-media` listed can be fetched, up to 3.5MB, the most
+  Claude Code will pass on to the model)
 
 **Interact**
 
@@ -64,7 +65,7 @@ The tools the MCP server exposes.
   element, either the page or a scrolling element inside it
 - `select-page-option` — pick an option in a `<select>`
 - `upload-files-to-page-element` — attach files from the user's computer to a file input
-  (off by default)
+  (off by default; the size limit is set in the popup, 8MB by default)
 - `run-browser-actions` — run several of these in one call, stopping at the first failure
 - `wait-for-page` — with a selector, wait for an element to appear or disappear; without one,
   block until the page's text changes and return only what arrived, picking up where the last

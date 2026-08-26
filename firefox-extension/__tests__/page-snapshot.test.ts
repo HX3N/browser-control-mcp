@@ -9,6 +9,7 @@ import { REF_ATTRIBUTE } from "../injected-common";
 import type { ElementTarget } from "@browser-control-mcp/common";
 
 interface SnapshotResult {
+  scope?: PageReadResult["scope"];
   items: PageItem[];
   elements: { ref: string; tag: string; name: string }[];
   totalElements: number;
@@ -111,6 +112,14 @@ describe("buildSnapshotCode", () => {
       "load more",
     ]);
     expect(result.totalElements).toBe(3);
+  });
+
+  it("names the scope element, and leaves scope out of a whole-page read", () => {
+    expect(runSnapshot({}).scope).toBeUndefined();
+
+    const scoped = runSnapshot({ target: { selector: "#list button" } });
+
+    expect(scoped.scope).toEqual({ role: "button", tag: "button", name: "load more" });
   });
 
   it("keeps refs stamped outside the scope and never reuses one of them", () => {

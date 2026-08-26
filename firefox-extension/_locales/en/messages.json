@@ -212,6 +212,12 @@
     "popupToggleUploadFilesHint": {
         "message": "Local file access"
     },
+    "popupUploadLimitLabel": {
+        "message": "Upload size limit"
+    },
+    "popupUploadLimitHint": {
+        "message": "Files attached in one call, added together (1~256MB)"
+    },
     "popupToggleHiddenName": {
         "message": "Read hidden elements"
     },

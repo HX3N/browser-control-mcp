@@ -47,6 +47,65 @@ describe("find script", () => {
     expect(document.querySelector(`[${REF_ATTRIBUTE}="${matches[0].ref}"]`)?.closest(".comment")?.id).toBe("c2");
   });
 
+  it("returns the controls inside the block, stamped with refs of their own", () => {
+    document.body.innerHTML = `
+      <div class="row">Row for KR <button>Edit</button><a href="/x">Reply</a><button style="display:none">Hidden</button></div>
+    `;
+
+    const match = find("Row for KR")[0];
+
+    expect(match.tag).toBe("div");
+    expect(match.controls?.map((control) => control.label.split(" ")[0])).toEqual(["button", "a"]);
+    expect(match.moreControls).toBeUndefined();
+    expect(document.querySelector("button")?.getAttribute(REF_ATTRIBUTE)).toBe(match.controls![0].ref);
+    expect(match.controls![0].ref).not.toBe(match.ref);
+  });
+
+  it("leaves the controls out when the block holds none", () => {
+    expect(find("level was missing")[0].controls).toBeUndefined();
+  });
+
+  it("leaves out a control the page hides from the user", () => {
+    document.body.innerHTML = `
+      <div class="row">Row for KR <button aria-hidden="true">Ghost</button><button>Edit</button></div>
+    `;
+
+    expect(find("Row for KR")[0].controls?.map((control) => control.label)).toHaveLength(1);
+  });
+
+  it("does not list the block itself when the block is the control", () => {
+    document.body.innerHTML = `
+      <div role="button">Row for KR <span>with a span</span></div>
+    `;
+
+    const match = find("Row for KR")[0];
+
+    expect(match.tag).toBe("div");
+    expect(match.controls).toBeUndefined();
+  });
+
+  it("caps the controls at twelve and counts the rest", () => {
+    const buttons = Array.from({ length: 14 }, (_, i) => `<button>B${i}</button>`).join("");
+    document.body.innerHTML = `<div class="row">Row for KR ${buttons}</div>`;
+
+    const match = find("Row for KR")[0];
+
+    expect(match.controls).toHaveLength(12);
+    expect(match.moreControls).toBe(2);
+  });
+
+  it("does not match text the page hides from the user", () => {
+    document.body.innerHTML = `
+      <p>Ghosted KR phrase</p>
+      <p aria-hidden="true">Ghosted KR phrase</p>
+      <p style="display:none">Ghosted KR phrase</p>
+      <p style="visibility:hidden">Ghosted KR phrase</p>
+      <p style="opacity:0">Ghosted KR phrase</p>
+    `;
+
+    expect(find("Ghosted KR phrase")).toHaveLength(1);
+  });
+
   it("matches across inline elements", () => {
     expect(find("on KR: level")).toHaveLength(1);
   });

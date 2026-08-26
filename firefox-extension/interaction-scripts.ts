@@ -19,8 +19,9 @@ import {
   isElementTargeted,
   jsValue,
   targetLiteral,
+  VISIBILITY_SOURCE,
 } from "./injected-common";
-import { BLOCK_TAGS } from "./page-snapshot";
+import { BLOCK_TAGS, INTERACTIVE_SELECTOR } from "./page-snapshot";
 
 export interface InteractionScriptResult {
   target: string;
@@ -1211,19 +1212,25 @@ export interface FindMatchResult {
   tag: string;
   context: string;
   frame?: string;
+  controls?: { ref: string; label: string }[];
+  moreControls?: number;
 }
 
 export const MAX_FIND_MATCHES = 20;
 const FIND_CONTEXT_CHARS = 120;
+const MAX_FIND_CONTROLS = 12;
 
 // Refs already on the page are kept: a find is a lookup, not a fresh snapshot, and the caller
 // may still hold refs from the last read.
 export function buildFindCode(phrase: string, maxMatches: number): string {
   return `(function () {
 ${ELEMENT_RESOLVER_SOURCE}
+${VISIBILITY_SOURCE}
   var phrase = ${jsValue(phrase)}.replace(/\\s+/g, ' ').trim();
   var maxMatches = ${jsValue(maxMatches)};
   var blockTags = ${jsValue(BLOCK_TAGS)};
+  var interactive = ${jsValue(INTERACTIVE_SELECTOR)};
+  var maxControls = ${jsValue(MAX_FIND_CONTROLS)};
   var skipped = ['script', 'style', 'noscript', 'template'];
   var matches = [];
   if (!phrase) { return { matches: matches }; }
@@ -1235,11 +1242,6 @@ ${ELEMENT_RESOLVER_SOURCE}
     if (seen && parseInt(seen[1], 10) > base) { base = parseInt(seen[1], 10); }
   }
 
-  function rendered(el) {
-    var view = el.ownerDocument && el.ownerDocument.defaultView;
-    var style = view ? view.getComputedStyle(el) : null;
-    return !style || (style.display !== 'none' && style.visibility !== 'hidden');
-  }
   function container(node) {
     var el = node.parentElement;
     while (el && blockTags.indexOf(el.tagName.toLowerCase()) === -1 && el.parentElement) { el = el.parentElement; }
@@ -1253,6 +1255,18 @@ ${ELEMENT_RESOLVER_SOURCE}
     el.setAttribute('${REF_ATTRIBUTE}', ref);
     __bcmRemember(ref, el);
     return ref;
+  }
+  function controls(block) {
+    var found = [];
+    var inner = block.querySelectorAll(interactive);
+    for (var i = 0; i < inner.length; i++) {
+      if (__bcmVisible(inner[i])) { found.push(inner[i]); }
+    }
+    var listed = [];
+    for (var c = 0; c < found.length && c < maxControls; c++) {
+      listed.push({ ref: stamp(found[c]), label: __bcmLabel(found[c]) });
+    }
+    return { controls: listed, more: found.length - listed.length };
   }
 
   var roots = __bcmRoots(null);
@@ -1269,7 +1283,7 @@ ${ELEMENT_RESOLVER_SOURCE}
     while ((node = walker.nextNode())) {
       var parent = node.parentElement;
       if (!parent || skipped.indexOf(parent.tagName.toLowerCase()) !== -1) { continue; }
-      if (!rendered(parent)) { continue; }
+      if (!__bcmVisible(parent)) { continue; }
       var block = container(node);
       var group = byContainer.get(block);
       if (!group) {
@@ -1292,6 +1306,9 @@ ${ELEMENT_RESOLVER_SOURCE}
           context: (from > 0 ? '...' : '') + text.slice(from, to).trim() + (to < text.length ? '...' : '')
         };
         if (frame) { entry.frame = frame; }
+        var inside = controls(groups[g].el);
+        if (inside.controls.length) { entry.controls = inside.controls; }
+        if (inside.more > 0) { entry.moreControls = inside.more; }
         matches.push(entry);
         at = text.indexOf(phrase, at + phrase.length);
       }

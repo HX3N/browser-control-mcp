@@ -23,6 +23,13 @@ export interface PageExtensionMessage extends ExtensionMessageBase {
   scrollMax: number;
   collapsed?: CollapsedSection[];
   unreachableFrames?: UnreachableFrame[];
+  scope?: ScopeElement;
+}
+
+export interface ScopeElement {
+  role: string;
+  tag: string;
+  name: string;
 }
 
 export interface UnreachableFrame {
@@ -113,6 +120,13 @@ export interface FindMatch {
   tag: string;
   context: string;
   frame?: string;
+  controls?: FindControl[];
+  moreControls?: number;
+}
+
+export interface FindControl {
+  ref: string;
+  label: string;
 }
 
 export interface FindHighlightExtensionMessage extends ExtensionMessageBase {
@@ -237,6 +251,11 @@ export interface TabsReleasedExtensionMessage extends ExtensionMessageBase {
   releasedTabIds: number[];
 }
 
+export interface LimitsExtensionMessage extends ExtensionMessageBase {
+  resource: "limits";
+  uploadBytes: number;
+}
+
 export type ExtensionMessage =
   | PageExtensionMessage
   | TabsExtensionMessage
@@ -255,7 +274,8 @@ export type ExtensionMessage =
   | PageWaitExtensionMessage
   | WindowResizedExtensionMessage
   | NetworkRequestsExtensionMessage
-  | TabsReleasedExtensionMessage;
+  | TabsReleasedExtensionMessage
+  | LimitsExtensionMessage;
 
 export interface ExtensionError {
   correlationId: string;

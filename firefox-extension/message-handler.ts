@@ -46,6 +46,7 @@ import {
   describeUrlScope,
   isConsoleCaptureEnabled,
   getConsoleCaptureLevel,
+  getUploadLimitBytes,
 } from "./extension-config";
 import { ensureTabAccess } from "./tab-access";
 import { diffText } from "./text-diff";
@@ -138,8 +139,9 @@ const MAX_CAPTURE_SLICES = 8;
 const SLICE_OVERLAP_PX = 80;
 // A fetch spends real network time, so it gets a longer leash than an in-page script.
 const MEDIA_FETCH_STALL_MS = 20_000;
-const MAX_MEDIA_BYTES = 8 * 1024 * 1024;
-const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
+// Claude Code compares each image's base64 against 5 MiB before the request and fails the turn
+// over it; 3.5 MiB of bytes stays under that.
+const MAX_MEDIA_BYTES = 3.5 * 1024 * 1024;
 const MEDIA_IMAGE_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -346,6 +348,13 @@ export class MessageHandler {
         break;
       case "release-tabs":
         await this.releaseTabs(req);
+        break;
+      case "get-limits":
+        await this.client.sendResourceToServer({
+          resource: "limits",
+          correlationId: req.correlationId,
+          uploadBytes: await getUploadLimitBytes(),
+        });
         break;
       default:
         const _exhaustiveCheck: never = req;
@@ -783,6 +792,7 @@ export class MessageHandler {
         scrollMax: page.scrollMax,
         collapsed: page.collapsed,
         unreachableFrames: page.unreachableFrames,
+        scope: page.scope,
       },
       tabId
     );
@@ -1448,9 +1458,10 @@ export class MessageHandler {
       (sum, file) => sum + base64ByteLength(file.base64),
       0
     );
-    if (req.files.length === 0 || bytes > MAX_UPLOAD_BYTES) {
+    const limit = await getUploadLimitBytes();
+    if (req.files.length === 0 || bytes > limit) {
       throw new Error(
-        `An upload carries between one file and ${MAX_UPLOAD_BYTES} bytes in total; this one is ${req.files.length} file(s) and ${bytes} bytes.`
+        `An upload carries between one file and ${limit} bytes in total, the limit set in the extension popup; this one is ${req.files.length} file(s) and ${bytes} bytes.`
       );
     }
     await this.performInteraction(

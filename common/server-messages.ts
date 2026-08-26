@@ -216,6 +216,10 @@ export interface ReleaseTabsServerMessage extends ServerMessageBase {
   tabIds?: number[];
 }
 
+export interface GetLimitsServerMessage extends ServerMessageBase {
+  cmd: "get-limits";
+}
+
 export type ServerMessage =
   | OpenTabServerMessage
   | NavigateTabServerMessage
@@ -241,6 +245,7 @@ export type ServerMessage =
   | PressKeyServerMessage
   | SelectOptionServerMessage
   | WaitForPageServerMessage
-  | ReleaseTabsServerMessage;
+  | ReleaseTabsServerMessage
+  | GetLimitsServerMessage;
 
 export type ServerMessageRequest = ServerMessage & { correlationId: string };

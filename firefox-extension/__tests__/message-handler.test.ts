@@ -503,6 +503,50 @@ describe("MessageHandler", () => {
       });
     });
 
+    describe("get-limits command", () => {
+      it("answers with the default upload limit when none is stored", async () => {
+        defaultConfig.toolSettings = { ...defaultConfig.toolSettings, "upload-files": true };
+
+        await messageHandler.handleDecodedMessage({
+          cmd: "get-limits",
+          correlationId: "test-correlation-id",
+        });
+
+        expect(mockClient.sendResourceToServer).toHaveBeenCalledWith({
+          resource: "limits",
+          correlationId: "test-correlation-id",
+          uploadBytes: 8 * 1024 * 1024,
+        });
+      });
+
+      it("answers with the stored upload limit", async () => {
+        defaultConfig.toolSettings = { ...defaultConfig.toolSettings, "upload-files": true };
+        defaultConfig.uploadLimitBytes = 20 * 1024 * 1024;
+
+        await messageHandler.handleDecodedMessage({
+          cmd: "get-limits",
+          correlationId: "test-correlation-id",
+        });
+
+        expect(mockClient.sendResourceToServer).toHaveBeenCalledWith(
+          expect.objectContaining({ uploadBytes: 20 * 1024 * 1024 })
+        );
+      });
+
+      it("answers even when the upload tool is switched off", async () => {
+        defaultConfig.toolSettings = { ...defaultConfig.toolSettings, "upload-files": false };
+
+        await messageHandler.handleDecodedMessage({
+          cmd: "get-limits",
+          correlationId: "test-correlation-id",
+        });
+
+        expect(mockClient.sendResourceToServer).toHaveBeenCalledWith(
+          expect.objectContaining({ resource: "limits" })
+        );
+      });
+    });
+
     describe("get-browser-recent-history command", () => {
       it("should get history items and send them to the server", async () => {
         // Arrange

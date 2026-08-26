@@ -19,6 +19,7 @@ import type {
   FindHighlightExtensionMessage,
   ServerMessageRequest,
   ExtensionError,
+  LimitsExtensionMessage,
   MediaContentExtensionMessage,
   PageMediaExtensionMessage,
   ScreenshotExtensionMessage,
@@ -161,6 +162,11 @@ export class BrowserAPI {
       "tabs-released",
       INTERACTION_RESPONSE_TIMEOUT_MS
     );
+  }
+
+  async getLimits(): Promise<LimitsExtensionMessage> {
+    const correlationId = this.sendMessageToExtension({ cmd: "get-limits" });
+    return await this.waitForResponse(correlationId, "limits");
   }
 
   // Two sessions can see the same port as free at the same moment, so a successful bind is

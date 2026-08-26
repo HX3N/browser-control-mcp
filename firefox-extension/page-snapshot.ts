@@ -5,11 +5,12 @@ import {
   PAGE_READ_SOURCE,
   REF_ATTRIBUTE,
   RESOLVER_SOURCE,
+  VISIBILITY_SOURCE,
   ROOT_WALKER_SOURCE,
   targetLiteral,
 } from "./injected-common";
 
-const INTERACTIVE_SELECTOR = [
+export const INTERACTIVE_SELECTOR = [
   "a[href]",
   "button",
   "input:not([type=hidden])",
@@ -47,36 +48,12 @@ const SKIPPED_TAGS = ["script", "style", "noscript", "template", "svg", "canvas"
 const SNAPSHOT_HELPERS_SOURCE = `
 ${ROOT_WALKER_SOURCE}
 ${RESOLVER_SOURCE}
+${VISIBILITY_SOURCE}
 function __bcmScope(el) {
   var root = el.getRootNode ? el.getRootNode() : el.ownerDocument;
   return root && root.querySelectorAll ? root : el.ownerDocument;
 }
 
-function __bcmVisible(el) {
-  var rect = el.getBoundingClientRect();
-  if (rect.width <= 0 || rect.height <= 0) { return false; }
-  if (el.hasAttribute('hidden') || el.getAttribute('aria-hidden') === 'true') { return false; }
-  // Elements from a frame belong to another document, and the top window's getComputedStyle
-  // rejects them.
-  var view = el.ownerDocument && el.ownerDocument.defaultView;
-  var style = view ? view.getComputedStyle(el) : null;
-  if (!style) { return false; }
-  if (style.visibility === 'hidden' || style.display === 'none' || style.opacity === '0') { return false; }
-  return __bcmWithinPage(el, rect, view);
-}
-
-// A rect is measured against the viewport, so it goes negative for anything the page has merely
-// scrolled past. Only a box the page parked outside the document itself is beyond reach.
-function __bcmWithinPage(el, rect, view) {
-  if (!view) { return true; }
-  var root = el.ownerDocument.documentElement;
-  if (!root) { return true; }
-  var left = rect.left + (view.scrollX || 0);
-  var top = rect.top + (view.scrollY || 0);
-  if (left + rect.width <= 0 || top + rect.height <= 0) { return false; }
-  if (left >= Math.max(root.scrollWidth || 0, view.innerWidth || 0)) { return false; }
-  return true;
-}
 
 function __bcmText(node) {
   if (!node) { return ''; }
@@ -285,6 +262,7 @@ export interface PageElementItem {
 export type PageItem = PageTextItem | PageElementItem;
 
 export interface PageReadResult {
+  scope?: { role: string; tag: string; name: string };
   url: string;
   title: string;
   items: PageItem[];
@@ -519,6 +497,7 @@ ${WALKER_SOURCE}
 
   var doc = document.scrollingElement || document.documentElement;
   return {
+    scope: scopeRoot ? { role: __bcmRole(scopeRoot), tag: scopeRoot.tagName.toLowerCase(), name: __bcmTrim(__bcmName(scopeRoot), 60) } : undefined,
     url: location.href,
     title: document.title,
     items: items,

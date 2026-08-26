@@ -244,6 +244,14 @@
       flex: 0 0 auto;
     }
 
+    .limit-row {
+      margin-top: 0;
+    }
+
+    .limit-row + .mode-hint + .toggle {
+      border-top: 1px solid var(--panel-border);
+    }
+
     .tab-title {
       font-weight: 600;
       overflow: hidden;
@@ -728,6 +736,12 @@
         <span class="toggle-hint" data-i18n="popupToggleUploadFilesHint"></span>
       </span>
     </label>
+    <div class="port-row limit-row">
+      <label for="upload-limit" class="port-label" data-i18n="popupUploadLimitLabel"></label>
+      <input type="number" id="upload-limit" min="1" max="256" step="1">
+      <span class="port-label">MB</span>
+    </div>
+    <div class="mode-hint" data-i18n="popupUploadLimitHint"></div>
     <label class="toggle" for="toggle-include-hidden">
       <input type="checkbox" id="toggle-include-hidden">
       <span class="toggle-body">

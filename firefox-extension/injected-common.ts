@@ -205,6 +205,34 @@ function __bcmScrollToAnchor(el, smooth) {
 }
 `;
 
+export const VISIBILITY_SOURCE = `
+function __bcmVisible(el) {
+  var rect = el.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) { return false; }
+  if (el.hasAttribute('hidden') || el.getAttribute('aria-hidden') === 'true') { return false; }
+  // Elements from a frame belong to another document, and the top window's getComputedStyle
+  // rejects them.
+  var view = el.ownerDocument && el.ownerDocument.defaultView;
+  var style = view ? view.getComputedStyle(el) : null;
+  if (!style) { return false; }
+  if (style.visibility === 'hidden' || style.display === 'none' || style.opacity === '0') { return false; }
+  return __bcmWithinPage(el, rect, view);
+}
+
+// A rect is measured against the viewport, so it goes negative for anything the page has merely
+// scrolled past. Only a box the page parked outside the document itself is beyond reach.
+function __bcmWithinPage(el, rect, view) {
+  if (!view) { return true; }
+  var root = el.ownerDocument.documentElement;
+  if (!root) { return true; }
+  var left = rect.left + (view.scrollX || 0);
+  var top = rect.top + (view.scrollY || 0);
+  if (left + rect.width <= 0 || top + rect.height <= 0) { return false; }
+  if (left >= Math.max(root.scrollWidth || 0, view.innerWidth || 0)) { return false; }
+  return true;
+}
+`;
+
 export const ELEMENT_RESOLVER_SOURCE = `
 ${ROOT_WALKER_SOURCE}
 ${RESOLVER_SOURCE}

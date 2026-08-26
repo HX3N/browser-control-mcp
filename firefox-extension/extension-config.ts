@@ -128,6 +128,7 @@ export const COMMAND_TO_TOOL_ID: Record<ServerMessageRequest["cmd"], string> = {
   "type-text": "interact-type",
   "press-key": "interact-type",
   "upload-files": "upload-files",
+  "get-limits": "upload-files",
   "get-network-requests": "get-network-requests",
   "resize-window": "reorder-browser-tabs",
   "execute-js": "execute-javascript",
@@ -239,6 +240,29 @@ export interface ExtensionConfig {
   consoleLevel?: ConsoleCaptureLevel;
   overlayTimings?: Partial<OverlayTimings>;
   overlayColors?: StoredOverlayColors;
+  uploadLimitBytes?: number;
+}
+
+export const DEFAULT_UPLOAD_LIMIT_BYTES = 8 * 1024 * 1024;
+export const UPLOAD_LIMIT_MB_RANGE = { min: 1, max: 256 };
+
+export async function getUploadLimitBytes(): Promise<number> {
+  const stored = (await getConfig()).uploadLimitBytes;
+  if (typeof stored !== "number" || !Number.isFinite(stored)) {
+    return DEFAULT_UPLOAD_LIMIT_BYTES;
+  }
+  const mb = Math.round(stored / (1024 * 1024));
+  return (
+    Math.min(UPLOAD_LIMIT_MB_RANGE.max, Math.max(UPLOAD_LIMIT_MB_RANGE.min, mb)) *
+    1024 *
+    1024
+  );
+}
+
+export async function setUploadLimitMb(megabytes: number): Promise<void> {
+  const config = await getConfig();
+  config.uploadLimitBytes = megabytes * 1024 * 1024;
+  await saveConfig(config);
 }
 
 export interface OverlayTimings {
@@ -450,6 +474,11 @@ export async function isToolEnabled(toolId: string): Promise<boolean> {
  * @returns A Promise that resolves with true if the command is allowed, false otherwise
  */
 export async function isCommandAllowed(command: ServerMessageRequest["cmd"]): Promise<boolean> {
+  // The upload asks for the limit before it reads the files, and a switched-off upload has to
+  // refuse under its own name, so the question itself is never refused.
+  if (command === "get-limits") {
+    return true;
+  }
   const toolId = COMMAND_TO_TOOL_ID[command];
   if (!toolId) {
     console.error(`Unknown command: ${command}`);

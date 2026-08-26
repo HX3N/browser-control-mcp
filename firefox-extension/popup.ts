@@ -3,6 +3,7 @@ import type {
   PermissionMode,
   UrlScope,
 } from "./extension-config";
+import { UPLOAD_LIMIT_MB_RANGE } from "./extension-config";
 import { localizeDocument, t } from "./i18n";
 import type {
   ConnectionStatus,
@@ -82,6 +83,9 @@ const basePortInput = document.getElementById("base-port") as HTMLInputElement;
 const saveBasePortButton = document.getElementById(
   "save-base-port"
 ) as HTMLButtonElement;
+const uploadLimitInput = document.getElementById(
+  "upload-limit"
+) as HTMLInputElement;
 const backgroundModeToggle = document.getElementById(
   "toggle-background-mode"
 ) as HTMLInputElement;
@@ -462,6 +466,9 @@ function render(status: PopupStatus): void {
   if (document.activeElement !== basePortInput) {
     basePortInput.value = status.basePort === null ? "" : String(status.basePort);
   }
+  if (document.activeElement !== uploadLimitInput) {
+    uploadLimitInput.value = String(status.uploadLimitMb);
+  }
 
   // Without the blanket host permission nothing can run, so the mode picker would only be
   // offering choices between things that all fail.
@@ -591,6 +598,30 @@ saveBasePortButton.addEventListener("click", async () => {
   }
   await refresh({ kind: "set-base-port", port });
   showFeedback(t("popupFeedbackSaved"));
+});
+
+uploadLimitInput.addEventListener("change", async () => {
+  if (!uploadLimitInput.value.trim()) {
+    return;
+  }
+  const megabytes = Math.min(
+    UPLOAD_LIMIT_MB_RANGE.max,
+    Math.max(UPLOAD_LIMIT_MB_RANGE.min, Math.round(Number(uploadLimitInput.value)))
+  );
+  if (!Number.isFinite(megabytes)) {
+    return;
+  }
+  if (String(megabytes) !== uploadLimitInput.value) {
+    uploadLimitInput.value = String(megabytes);
+  }
+  await refresh({ kind: "set-upload-limit", megabytes });
+  showFeedback(t("popupFeedbackSaved"));
+});
+
+uploadLimitInput.addEventListener("blur", async () => {
+  if (!uploadLimitInput.value.trim()) {
+    await refresh({ kind: "get-status" });
+  }
 });
 
 inheritContainerToggle.addEventListener("change", async () => {

@@ -212,6 +212,12 @@
     "popupToggleUploadFilesHint": {
         "message": "이 컴퓨터 파일 접근"
     },
+    "popupUploadLimitLabel": {
+        "message": "업로드 크기 한도"
+    },
+    "popupUploadLimitHint": {
+        "message": "한 번에 첨부하는 파일의 합계 (1~256MB)"
+    },
     "popupToggleHiddenName": {
         "message": "숨은 내용 읽기"
     },

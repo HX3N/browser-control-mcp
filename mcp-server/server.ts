@@ -76,7 +76,6 @@ const MAX_BATCH_ACTIONS = 20;
 const MAX_BATCH_WAIT_MS = 10_000;
 const BATCH_TOOL_NAME = "run-browser-actions";
 
-const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 const MIME_BY_EXTENSION: Record<string, string> = {
   ".png": "image/png",
   ".jpg": "image/jpeg",
@@ -484,8 +483,12 @@ defineTool(
     const header = [
       `${page.title} - ${page.url}`,
       scoped
-        ? `Scoped to the element matched by ${
+        ? `Scoped to ${
             ref ? `ref ${ref}` : `selector "${selector}" (index ${index})`
+          }${
+            page.scope
+              ? `, ${page.scope.role} <${page.scope.tag}> "${page.scope.name}"`
+              : ""
           }: the text and the counts below cover that element and what is inside it, nothing else`
         : null,
       `${page.listedElements} of ${page.totalElements} element(s) stamped with a ref${
@@ -542,9 +545,9 @@ defineTool(
   `
     Find a phrase in a browser tab, highlight every match on screen the way the browser's own
     find bar does, and return each match with a ref and the text around it. The ref is stamped
-    on the block that holds the match - a paragraph, a comment, a row - so the next call can
-    read that block alone with read-page, or act on it: read-page with the ref lists the
-    controls inside it, such as the menu button of the comment the phrase was found in.
+    on the block that holds the match - a paragraph, a comment, a row - and the controls inside
+    that block come back on the next line with refs of their own, so the button beside the
+    phrase can be clicked straight away; read-page with the block's ref shows the rest of it.
     This is the way to locate one item on a long page: a comment by its wording, a row by its
     label, a message by a sentence in it. Do not walk the page one element at a time.
     The phrase has to be text the page renders, not a URL or an attribute, and the match is
@@ -563,17 +566,34 @@ defineTool(
   },
   async ({ tabId, queryPhrase, maxMatches }) => {
     const found = await browserApi.findHighlight(tabId, queryPhrase, maxMatches);
-    const lines = found.matches.map(
-      (match) =>
-        `[${match.ref}] <${match.tag}>${match.frame ? ` (${match.frame})` : ""}: ${match.context}`
-    );
+    const lines = found.matches.map((match) => {
+      const line = `[${match.ref}] <${match.tag}>${match.frame ? ` (${match.frame})` : ""}: ${match.context}`;
+      if (!match.controls?.length) {
+        return line;
+      }
+      const controls = match.controls
+        .map((control) => `[${control.ref}] ${control.label}`)
+        .join(", ");
+      const more = match.moreControls ? ` (+${match.moreControls} more)` : "";
+      return `${line}\n  controls: ${controls}${more}`;
+    });
+    const shown = found.matches.length;
+    const total = found.noOfResults;
+    const counted = (n: number) => `${n} ${n === 1 ? "match" : "matches"}`;
+    // A full page of matches is read as truncation, though some of the rest may be hidden too:
+    // the two causes are indistinguishable once the walker has dropped what it cannot address.
+    const missing =
+      shown === maxMatches
+        ? "the rest are past maxMatches, which can be raised to reach them"
+        : "the rest sit in content hidden from the user and cannot be acted on";
     const summary =
-      found.noOfResults === 0
+      total === 0
         ? `No match for "${queryPhrase}" in the tab.`
-        : `${found.noOfResults} match(es) found and highlighted in the tab` +
-          (found.matches.length < found.noOfResults
-            ? `; the first ${found.matches.length} are below with the ref of the block that holds each one.`
-            : `, each below with the ref of the block that holds it.`);
+        : shown === 0
+          ? `The browser's own find sees ${counted(total)} for "${queryPhrase}", but ${total === 1 ? "it cannot" : "none of them can"} be acted on: that text sits in content hidden from the user, or in a cross-origin frame this tool cannot reach. No ref was stamped.`
+          : shown < total
+            ? `${counted(total)} found and highlighted in the tab; ${shown === 1 ? "one is" : `${shown} are`} below with a ref, and ${missing}.`
+            : `${counted(total)} found and highlighted in the tab, ${total === 1 ? "with" : "each with"} the ref of the block that holds it.`;
     return {
       content: [
         {
@@ -852,7 +872,8 @@ defineTool(
     with its cookies, so it works where a plain download would be refused. Prefer this over a
     screenshot when the original is larger than it is displayed, or when the exact file matters.
     The URL must be one that list-page-media listed for this tab, on the page it is showing now.
-    Only jpeg, png, gif and webp answers are returned, capped at 8MB.
+    Only jpeg, png, gif and webp answers are returned, capped at 3.5MB: the image is handed to
+    you as it is, and Claude Code refuses to send a larger one.
     This tool is off by default; when it is refused, ask the user to enable "Fetch media files"
     in the extension popup.
   `,
@@ -1002,7 +1023,8 @@ defineTool(
     input with read-page instead - it is often hidden, so ask the user to turn on
     "Read hidden elements" if it does not show - and pass its ref here.
     The files are read by the MCP server on the user's machine, so use paths the user gave you or
-    files you produced for them, never a path you guessed. Up to 8MB in total.
+    files you produced for them, never a path you guessed. The total size is capped by the
+    "Upload size limit" in the extension popup, 8MB by default.
     This tool is off by default; when it is refused, ask the user to enable "Attach local files"
     in the extension popup.
   `,
@@ -1016,24 +1038,25 @@ defineTool(
       .describe("Absolute paths of the files to attach"),
   },
   async ({ tabId, paths, ...target }) => {
-    const files: UploadFile[] = [];
+    const limits = await browserApi.getLimits();
+    let bytes = 0;
     for (const filePath of paths) {
-      files.push(await readUpload(filePath));
+      bytes += (await fs.stat(path.resolve(filePath))).size;
     }
-    const bytes = files.reduce(
-      (sum, file) => sum + Math.ceil((file.base64.length * 3) / 4),
-      0
-    );
-    if (bytes > MAX_UPLOAD_BYTES) {
+    if (bytes > limits.uploadBytes) {
       return {
         content: [
           {
             type: "text",
-            text: `The files add up to ${formatBytes(bytes)}, over the 8MB upload limit.`,
+            text: `The files add up to ${formatBytes(bytes)}, over the ${formatBytes(limits.uploadBytes)} upload limit set in the extension popup; the user can raise it there.`,
           },
         ],
         isError: true,
       };
+    }
+    const files: UploadFile[] = [];
+    for (const filePath of paths) {
+      files.push(await readUpload(filePath));
     }
     const result = await browserApi.uploadFiles(
       tabId,
