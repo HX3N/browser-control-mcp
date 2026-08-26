@@ -88,7 +88,9 @@ describe("MessageHandler", () => {
       // Act & Assert
       await expect(
         messageHandler.handleDecodedMessage(request)
-      ).rejects.toThrow("Command 'open-tab' is disabled in extension settings");
+      ).rejects.toThrow(
+        "Command 'open-tab' is disabled in extension settings. Ask the user to turn on 'toolOpenBrowserTabName' in the extension options page."
+      );
     });
 
     describe("press-key command", () => {
@@ -1603,7 +1605,9 @@ describe("MessageHandler", () => {
         // Act & Assert
         await expect(
           messageHandler.handleDecodedMessage(request)
-        ).rejects.toThrow("Command 'capture-screenshot' is disabled");
+        ).rejects.toThrow(
+          "Command 'capture-screenshot' is disabled in extension settings. Ask the user to turn on 'toolCaptureTabScreenshotName' in the extension popup."
+        );
         expect(browser.tabs.captureVisibleTab).not.toHaveBeenCalled();
       });
     });

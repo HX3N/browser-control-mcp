@@ -31,6 +31,8 @@ import {
   isCommandAllowed,
   isDomainInDenyList,
   COMMAND_TO_TOOL_ID,
+  INTERACTION_TOOL_IDS,
+  getToolNameById,
   addAuditLogEntry,
   isAuroraEnabled,
   isBadgeEnabled,
@@ -260,7 +262,13 @@ export class MessageHandler {
   private async dispatch(req: ServerMessageRequest): Promise<void> {
     const isAllowed = await isCommandAllowed(req.cmd);
     if (!isAllowed) {
-      throw new Error(`Command '${req.cmd}' is disabled in extension settings`);
+      const toolId = COMMAND_TO_TOOL_ID[req.cmd];
+      const where = (INTERACTION_TOOL_IDS as readonly string[]).includes(toolId)
+        ? "the extension popup"
+        : "the extension options page";
+      throw new Error(
+        `Command '${req.cmd}' is disabled in extension settings. Ask the user to turn on '${getToolNameById(toolId)}' in ${where}.`
+      );
     }
 
     this.addAuditLogForReq(req).catch((error) => {
