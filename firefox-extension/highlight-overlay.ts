@@ -207,17 +207,23 @@ const OVERLAY_RUNTIME_SOURCE = `
     document.documentElement.appendChild(host);
   }
 
-  function claimIcon() {
+  function claimIcon(force) {
     if (!document.head) { return; }
     if (removedIcons === null) { removedIcons = []; }
 
+    var taken = 0;
     var existing = document.querySelectorAll('link[rel~="icon"], link[rel="shortcut icon"]');
     for (var i = 0; i < existing.length; i++) {
       if (existing[i] === injectedIcon) { continue; }
       removedIcons.push(existing[i]);
       existing[i].remove();
+      taken++;
     }
 
+    // Firefox reads an icon when its link is inserted, so ours has to go back in after theirs.
+    if (injectedIcon && injectedIcon.isConnected && (taken > 0 || force)) {
+      injectedIcon.remove();
+    }
     if (!injectedIcon || !injectedIcon.isConnected) {
       injectedIcon = document.createElement('link');
       injectedIcon.rel = 'icon';
@@ -238,6 +244,10 @@ const OVERLAY_RUNTIME_SOURCE = `
       });
       iconKeeper.observe(document.head, { childList: true, subtree: true });
     }
+  }
+
+  function reclaimTabMark() {
+    if (injectedIcon) { claimIcon(true); }
   }
 
   function restoreTabMark() {
@@ -373,6 +383,7 @@ const OVERLAY_RUNTIME_SOURCE = `
     setStatus: setStatus,
     focus: focus,
     clearFocus: clearFocus,
+    reclaimTabMark: reclaimTabMark,
     conceal: conceal,
     reveal: reveal,
     detach: detach
@@ -442,6 +453,13 @@ export function buildConcealOverlayCode(): string {
 export function buildRevealOverlayCode(): string {
   return `(function () {
   if (window.__bcmOverlay) { window.__bcmOverlay.reveal(); }
+  return true;
+})();`;
+}
+
+export function buildReclaimTabMarkCode(): string {
+  return `(function () {
+  if (window.__bcmOverlay) { window.__bcmOverlay.reclaimTabMark(); }
   return true;
 })();`;
 }

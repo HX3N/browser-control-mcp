@@ -287,8 +287,9 @@ defineTool(
   `
     Send an open tab to a URL, or "back" / "forward" through its history. Prefer it over
     open-browser-tab once a tab is in use; click-page-element on a link also stays in the tab, so
-    use this when the address is known up front or no link leads there. Answers once the page has
-    loaded; earlier refs are gone by then.
+    use this when the address is known up front or no link leads there. A same-origin address is
+    first handed to the page itself, so an app that routes on its own keeps its state; the answer
+    says when that happened. Answers once the page has loaded; earlier refs are gone by then.
   `,
   {
     tabId: z.number(),
@@ -301,11 +302,14 @@ defineTool(
     const settledNotice = result.settled
       ? ""
       : " The page had not finished loading when this timed out, so it may still be settling.";
+    const routedNotice = result.inPage
+      ? " The page routed there on its own without reloading, so what it held in memory is kept."
+      : "";
     return {
       content: [
         {
           type: "text",
-          text: `Tab ${result.tabId} is now on ${result.url} ("${result.title}").${settledNotice}`,
+          text: `Tab ${result.tabId} is now on ${result.url} ("${result.title}").${routedNotice}${settledNotice}`,
         },
         ...dialogNotice(result),
       ],

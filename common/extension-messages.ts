@@ -108,6 +108,7 @@ export interface TabNavigatedExtensionMessage extends ExtensionMessageBase {
   url: string;
   title: string;
   settled: boolean;
+  inPage?: boolean;
 }
 
 export interface BrowserHistoryItem {

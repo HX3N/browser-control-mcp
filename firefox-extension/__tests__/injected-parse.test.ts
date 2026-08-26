@@ -3,6 +3,7 @@ import {
   buildAttachOverlayCode,
   buildConcealOverlayCode,
   buildDetachOverlayCode,
+  buildReclaimTabMarkCode,
   buildRevealOverlayCode,
 } from "../highlight-overlay";
 import {
@@ -15,6 +16,8 @@ import {
   buildFindCode,
   buildHoverCode,
   buildDragCode,
+  buildInPageNavigateCode,
+  buildInPageNavigationCheckCode,
   buildMediaFetchCode,
   buildMediaListCode,
   buildPressKeyCode,
@@ -83,6 +86,9 @@ const cases: [string, string][] = [
   ["overlay detach", buildDetachOverlayCode()],
   ["overlay conceal", buildConcealOverlayCode()],
   ["overlay reveal", buildRevealOverlayCode()],
+  ["overlay reclaim tab mark", buildReclaimTabMarkCode()],
+  ["in-page navigation, start", buildInPageNavigateCode("https://example.com/a?b='c'")],
+  ["in-page navigation, check", buildInPageNavigationCheckCode({ via: "history", before: "https://example.com/" }, true)],
   ["dialog guard, console off", buildDialogGuardCode()],
   ["dialog guard, errors only", buildDialogGuardCode("error")],
   ["dialog guard, errors and warnings", buildDialogGuardCode("warn")],

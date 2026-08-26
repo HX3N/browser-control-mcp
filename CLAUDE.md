@@ -111,6 +111,25 @@ refused. Firefox grants it at load and never prompts per domain. That removes th
 backstop: these two gates are the only thing between the server and a page. The defaults are
 locked down to compensate.
 
+### Routing within a page
+
+`browser.tabs.update({ url })` always loads a document, and on an app that routes on its own that
+throws away everything it held: the store, the scroll, an onboarding it had already dismissed.
+`navigateTab` therefore hands a same-origin address to the page first, through `routeWithinPage`.
+`buildInPageNavigateCode` clicks the page's own `<a href>` for that address when one exists, so
+the app's router handles it exactly as a user's click would, and otherwise calls
+`history.pushState` and dispatches `popstate`, which history-based routers listen to. The page
+has to prove it reacted: a MutationObserver counts DOM changes from the moment of the hand-over,
+and `buildInPageNavigationCheckCode` is polled every `IN_PAGE_ROUTE_POLL_MS` until
+`IN_PAGE_ROUTE_WAIT_MS`, reporting `moved` only when the address changed and something rendered.
+Three outcomes come back: `routed` (answered without a load, `inPage: true`), `loading` (the click
+started a real navigation, so the settle wait is simply awaited), and `none` (the page did nothing;
+a pushed history entry is put back and `tabs.update` runs as before). The dialog guard is
+registered before the hand-over, so a click that turns into a real load is covered the same way.
+`waitForTabToSettle` returns a `SettleWatch` for this: `started()` tells the poll that a load has
+begun, and `cancel()` drops the listener once the page routed on its own. A cross-origin address
+and a history move never take this path.
+
 ### Containers
 
 Zen ties workspaces to containers, and each container has its own cookie jar, so a tab created
@@ -291,7 +310,11 @@ transition otherwise. Every one of those colours is a setting: the options page 
 already held rather than waiting for the next command. The tab is also marked by
 swapping its favicon, which is restored on release. Sites re-write their own icon link on route
 changes and a later link wins, so a MutationObserver on `document.head` reclaims the mark for as
-long as the session holds the tab.
+long as the session holds the tab. Firefox reads an icon when its link is inserted, so reclaiming
+means removing our link and appending it again, not merely removing theirs: a link that stays
+where it was is never read a second time. The browser also fetches `/favicon.ico` on its own after
+the load, which changes no DOM, so `onTabUpdated` watches `favIconUrl` on held tabs and re-injects
+the mark when the icon is not ours, throttled to once per `MARK_RECLAIM_GAP_MS`.
 
 Holding a tab and acting on it are separate clocks, and both lengths live in `overlayTimings`
 (`statusResetMs`, `holdReleaseMs`, `leadMs`), defaulting to the values the extension shipped with.

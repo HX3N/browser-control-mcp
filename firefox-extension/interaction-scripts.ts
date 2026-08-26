@@ -1544,3 +1544,62 @@ export function buildMediaFetchCode(url: string, maxBytes: number): string {
   });
 })();`;
 }
+
+export interface InPageNavigationStart {
+  via: "link" | "history" | null;
+  before: string;
+}
+
+export interface InPageNavigationCheck {
+  moved: boolean;
+  href: string;
+}
+
+export function buildInPageNavigateCode(url: string): string {
+  return `(function () {
+${ELEMENT_RESOLVER_SOURCE}
+${SCROLL_ANCHOR_SOURCE}
+${CLICK_DISPATCH_SOURCE}
+  var before = location.href;
+  var target = new URL(${jsValue(url)}, before);
+  if (target.origin !== location.origin || target.href === before) {
+    return { via: null, before: before };
+  }
+  if (window.__bcmNavWatch) { window.__bcmNavWatch.disconnect(); }
+  var watch = new MutationObserver(function () { watch.count++; });
+  watch.count = 0;
+  watch.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
+  window.__bcmNavWatch = watch;
+
+  var links = document.querySelectorAll('a[href]');
+  for (var i = 0; i < links.length; i++) {
+    var link = links[i];
+    if ((link.target && link.target !== '_self') || link.hasAttribute('download')) { continue; }
+    if (link.href === target.href) {
+      __bcmDispatchClick(link, 0, 1, []);
+      return { via: 'link', before: before };
+    }
+  }
+  history.pushState(null, '', target.href);
+  window.dispatchEvent(new PopStateEvent('popstate', { state: null }));
+  return { via: 'history', before: before };
+})();`;
+}
+
+export function buildInPageNavigationCheckCode(
+  start: InPageNavigationStart,
+  final: boolean
+): string {
+  return `(function () {
+  var watch = window.__bcmNavWatch;
+  var moved = location.href !== ${jsValue(start.before)} && !!watch && watch.count > 0;
+  if (moved || ${jsValue(final)}) {
+    if (watch) { watch.disconnect(); }
+    window.__bcmNavWatch = null;
+    if (!moved && ${jsValue(start.via)} === 'history') {
+      history.replaceState(null, '', ${jsValue(start.before)});
+    }
+  }
+  return { moved: moved, href: location.href };
+})();`;
+}

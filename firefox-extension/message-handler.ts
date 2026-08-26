@@ -55,9 +55,16 @@ import { diffText } from "./text-diff";
 import { buildSnapshotCode, formatPageItems, PageReadResult } from "./page-snapshot";
 import { ELEMENT_RESOLVER_SOURCE, isElementTargeted } from "./injected-common";
 import {
+  buildInPageNavigateCode,
+  buildInPageNavigationCheckCode,
+  InPageNavigationCheck,
+  InPageNavigationStart,
+} from "./interaction-scripts";
+import {
   buildAttachOverlayCode,
   buildConcealOverlayCode,
   buildDetachOverlayCode,
+  buildReclaimTabMarkCode,
   buildRevealOverlayCode,
   OverlayResult,
   OverlayState,
@@ -131,6 +138,16 @@ const idleStatus = () => t("overlayIdle");
 
 const NAVIGATION_SETTLE_MS = 15_000;
 const HISTORY_MOVE_GRACE_MS = 1_000;
+const IN_PAGE_ROUTE_POLL_MS = 250;
+const IN_PAGE_ROUTE_WAIT_MS = 1_500;
+const MARK_RECLAIM_GAP_MS = 2_000;
+const MARK_ICON_PREFIX = "data:image/svg+xml";
+
+interface SettleWatch {
+  done: Promise<boolean>;
+  started: () => boolean;
+  cancel: () => void;
+}
 
 const DEFAULT_ELEMENT_LIMIT = 500;
 const MAX_PAGE_TEXT_LENGTH = 50_000;
@@ -160,6 +177,15 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function sameOrigin(a: string, b: string): boolean {
+  try {
+    const origin = new URL(a).origin;
+    return origin !== "null" && origin === new URL(b).origin;
+  } catch (error) {
+    return false;
+  }
+}
+
 function elementTargetOf(target: ElementTarget): ElementTarget | undefined {
   if (!target.ref && !target.selector) {
     return undefined;
@@ -173,6 +199,7 @@ export class MessageHandler {
   private openedTabs: Set<number> = new Set();
   private textBaselines: Map<number, Map<string, string>> = new Map();
   private knownMediaUrls: Map<number, Set<string>> = new Map();
+  private lastMarkReclaim: Map<number, number> = new Map();
 
   private readonly onTabRemoved = (tabId: number) => {
     this.forgetTab(tabId);
@@ -203,12 +230,20 @@ export class MessageHandler {
   // The overlay is injected DOM, so a navigation wipes it and nothing puts it back on its own.
   private readonly onTabUpdated = (
     tabId: number,
-    changeInfo: { status?: string }
+    changeInfo: { status?: string; favIconUrl?: string }
   ) => {
-    if (changeInfo.status !== "complete" || !this.claimedTabs.has(tabId)) {
+    if (!this.claimedTabs.has(tabId)) {
       return;
     }
-    void this.redrawOverlay(tabId);
+    if (changeInfo.status === "complete") {
+      void this.redrawOverlay(tabId);
+    } else if (
+      // The browser fetches /favicon.ico on its own after the load, which changes no DOM.
+      changeInfo.favIconUrl &&
+      !changeInfo.favIconUrl.startsWith(MARK_ICON_PREFIX)
+    ) {
+      void this.reclaimTabMark(tabId);
+    }
   };
 
   constructor(client: WebsocketClient) {
@@ -216,7 +251,7 @@ export class MessageHandler {
     browser.tabs.onRemoved.addListener(this.onTabRemoved);
     browser.webNavigation.onCommitted.addListener(this.onNavigationCommitted);
     browser.tabs.onUpdated.addListener(this.onTabUpdated, {
-      properties: ["status"],
+      properties: ["status", "favIconUrl"],
     });
   }
 
@@ -238,6 +273,19 @@ export class MessageHandler {
       await this.attachOverlay(tabId, "idle", idleStatus());
     } catch (error) {
       console.error("Could not redraw the overlay on tab", tabId, error);
+    }
+  }
+
+  private async reclaimTabMark(tabId: number): Promise<void> {
+    const now = Date.now();
+    if (now - (this.lastMarkReclaim.get(tabId) ?? 0) < MARK_RECLAIM_GAP_MS) {
+      return;
+    }
+    this.lastMarkReclaim.set(tabId, now);
+    try {
+      await this.runScript(tabId, { code: buildReclaimTabMarkCode() });
+    } catch (error) {
+      console.error("Could not reclaim the tab mark on tab", tabId, error);
     }
   }
 
@@ -447,7 +495,7 @@ export class MessageHandler {
         if (!registration) {
           this.guardDialogs(tab.id, "document_start").catch(() => undefined);
         }
-        await settling;
+        await settling.done;
         await unregisterDialogGuard(registration);
         registration = null;
         await this.verifyGuard(tab.id);
@@ -516,19 +564,38 @@ export class MessageHandler {
           current.cookieStoreId
         );
     let settled: boolean;
+    let inPage = false;
     try {
       const settling = this.waitForTabToSettle(req.tabId);
-      if (req.url === "back") {
-        await browser.tabs.goBack(req.tabId);
-      } else if (req.url === "forward") {
-        await browser.tabs.goForward(req.tabId);
+      let outcome: boolean | null;
+      if (inHistory) {
+        if (req.url === "back") {
+          await browser.tabs.goBack(req.tabId);
+        } else {
+          await browser.tabs.goForward(req.tabId);
+        }
+        outcome = await Promise.race([
+          settling.done,
+          this.historyEnd(req.tabId, current.url),
+        ]);
       } else {
-        await browser.tabs.update(req.tabId, { url: req.url });
+        const route = await this.routeWithinPage(
+          req.tabId,
+          req.url,
+          current.url,
+          settling
+        );
+        if (route === "routed") {
+          settling.cancel();
+          inPage = true;
+          outcome = true;
+        } else {
+          if (route === "none") {
+            await browser.tabs.update(req.tabId, { url: req.url });
+          }
+          outcome = await settling.done;
+        }
       }
-      const outcome = await Promise.race([
-        settling,
-        inHistory ? this.historyEnd(req.tabId, current.url) : settling,
-      ]);
       if (outcome === null) {
         throw new Error(
           `Tab ${req.tabId} has no page to go ${req.url} to; it is still on ${current.url}.`
@@ -543,6 +610,9 @@ export class MessageHandler {
       // announces itself in it; the one it had is still there, and re-injecting covers the rest.
       takeUnguardedDocuments(req.tabId);
       await this.guardDialogs(req.tabId);
+    } else if (inPage) {
+      this.knownMediaUrls.delete(req.tabId);
+      this.textBaselines.delete(req.tabId);
     } else {
       await this.verifyGuard(req.tabId);
     }
@@ -561,9 +631,59 @@ export class MessageHandler {
         url: tab.url ?? req.url,
         title: tab.title ?? "",
         settled,
+        inPage,
       },
       req.tabId
     );
+  }
+
+  // A router that ignores the hand-over leaves the address changed and the page as it was, so
+  // the page has to prove it reacted with a DOM change before the load is skipped.
+  private async routeWithinPage(
+    tabId: number,
+    url: string,
+    currentUrl: string | undefined,
+    settling: SettleWatch
+  ): Promise<"routed" | "loading" | "none"> {
+    if (!currentUrl || !sameOrigin(currentUrl, url)) {
+      return "none";
+    }
+    let start: InPageNavigationStart;
+    try {
+      const results = await this.runScript(tabId, {
+        code: buildInPageNavigateCode(url),
+      });
+      start = results[0] as InPageNavigationStart;
+    } catch (error) {
+      console.error("Could not hand the address to the page:", error);
+      return "none";
+    }
+    if (!start.via) {
+      return "none";
+    }
+    const deadline = Date.now() + IN_PAGE_ROUTE_WAIT_MS;
+    for (;;) {
+      await delay(IN_PAGE_ROUTE_POLL_MS);
+      if (settling.started()) {
+        return "loading";
+      }
+      const final = Date.now() >= deadline;
+      let check: InPageNavigationCheck;
+      try {
+        const results = await this.runScript(tabId, {
+          code: buildInPageNavigationCheckCode(start, final),
+        });
+        check = results[0] as InPageNavigationCheck;
+      } catch (error) {
+        return settling.started() ? "loading" : "none";
+      }
+      if (check.moved) {
+        return "routed";
+      }
+      if (final) {
+        return "none";
+      }
+    }
   }
 
   // goBack and goForward resolve without moving when the history ends there, and the settle
@@ -588,30 +708,33 @@ export class MessageHandler {
 
   // The tab the command lands on is still showing the old page for a moment, so a "complete"
   // that arrives before the first "loading" belongs to the page being left behind.
-  private waitForTabToSettle(tabId: number): Promise<boolean> {
-    return new Promise((resolve) => {
-      let started = false;
-      const finish = (settled: boolean) => {
-        clearTimeout(timer);
-        browser.tabs.onUpdated.removeListener(onUpdated);
-        resolve(settled);
-      };
-      const onUpdated = (
-        updatedTabId: number,
-        changeInfo: browser.tabs._OnUpdatedChangeInfo
-      ) => {
-        if (updatedTabId !== tabId) {
-          return;
-        }
-        if (changeInfo.status === "loading") {
-          started = true;
-        } else if (changeInfo.status === "complete" && started) {
-          finish(true);
-        }
-      };
-      const timer = setTimeout(() => finish(false), NAVIGATION_SETTLE_MS);
-      browser.tabs.onUpdated.addListener(onUpdated, { properties: ["status"] });
+  private waitForTabToSettle(tabId: number): SettleWatch {
+    let started = false;
+    let resolve: (settled: boolean) => void = () => undefined;
+    const done = new Promise<boolean>((r) => {
+      resolve = r;
     });
+    const finish = (settled: boolean) => {
+      clearTimeout(timer);
+      browser.tabs.onUpdated.removeListener(onUpdated);
+      resolve(settled);
+    };
+    const onUpdated = (
+      updatedTabId: number,
+      changeInfo: browser.tabs._OnUpdatedChangeInfo
+    ) => {
+      if (updatedTabId !== tabId) {
+        return;
+      }
+      if (changeInfo.status === "loading") {
+        started = true;
+      } else if (changeInfo.status === "complete" && started) {
+        finish(true);
+      }
+    };
+    const timer = setTimeout(() => finish(false), NAVIGATION_SETTLE_MS);
+    browser.tabs.onUpdated.addListener(onUpdated, { properties: ["status"] });
+    return { done, started: () => started, cancel: () => finish(false) };
   }
 
   // Container tabs each keep their own cookie jar, and Zen ties workspaces to containers. A
@@ -1329,6 +1452,7 @@ export class MessageHandler {
     this.openedTabs.delete(tabId);
     this.knownMediaUrls.delete(tabId);
     this.textBaselines.delete(tabId);
+    this.lastMarkReclaim.delete(tabId);
     forgetPageEvents(tabId);
     forgetNetworkLog(tabId);
     const timer = this.claimedTabs.get(tabId);

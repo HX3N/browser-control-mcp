@@ -31,7 +31,8 @@ The tools the MCP server exposes.
 
 - Open and close tabs
 - `navigate-browser-tab` — send an open tab to another URL, or back and forward through its
-  history, so one tab is reused instead of piling up
+  history, so one tab is reused instead of piling up. A same-origin address is first handed to
+  the page itself, so an app that routes on its own keeps its state instead of reloading
 - List open tabs, marking the ones this session holds
 - `resize-browser-window` — resize the window a tab is in, to check a layout at a given width
 - `read-network-requests` — list the requests a page made since it loaded: method, URL, status,
@@ -139,8 +140,8 @@ switched on its own in the popup, so the ones you find intrusive can stay off.
 - **Action highlight** — an outline and a halo around the element being clicked, typed into or
   scrolled to.
 - **Tab icon** — the favicon is swapped, so a driven tab is recognisable from the tab strip.
-  Sites re-write their own icon on route changes, so the mark is reclaimed for as long as the
-  session holds the tab.
+  Sites re-write their own icon on route changes and the browser picks up an icon of its own after
+  the load, so the mark is reclaimed on both for as long as the session holds the tab.
 - **Status badge** — a small tag at the top centre naming the action in progress.
 
 The overlay colour follows the kind of action in progress. Every colour, the aurora's four
