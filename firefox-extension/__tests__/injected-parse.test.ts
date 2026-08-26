@@ -12,12 +12,18 @@ import {
   buildClickCode,
   buildElementBoxCode,
   buildExecuteJsCode,
+  buildHoverCode,
+  buildDragCode,
   buildMediaFetchCode,
   buildMediaListCode,
   buildPressKeyCode,
+  buildRegionBoxCode,
   buildScrollCode,
   buildSelectOptionCode,
+  buildTextReadCode,
+  buildTextWatchCode,
   buildTypeCode,
+  buildUploadFilesCode,
   buildWaitProbeCode,
 } from "../interaction-scripts";
 import { PAGE_READ_SOURCE } from "../injected-common";
@@ -96,6 +102,64 @@ const cases: [string, string][] = [
       submit: true,
     }),
   ],
+  [
+    "type with a click after it",
+    buildTypeCode({
+      cmd: "type-text",
+      tabId: 1,
+      ...bySelector,
+      text: "hello",
+      clearFirst: true,
+      submit: false,
+      clickAfter: target,
+    }),
+  ],
+  [
+    "text watch, whole page, no baseline yet",
+    buildTextWatchCode(
+      { cmd: "wait-for-text-change", tabId: 1 },
+      "abc-1",
+      null,
+      800,
+      30000,
+      0
+    ),
+  ],
+  [
+    "text watch, carrying a baseline",
+    buildTextWatchCode(
+      { cmd: "wait-for-text-change", tabId: 1 },
+      "abc-2",
+      "what the page said last time\n'quoted'",
+      0,
+      0,
+      0
+    ),
+  ],
+  [
+    "text watch, scoped by selector",
+    buildTextWatchCode(
+      { cmd: "wait-for-text-change", tabId: 1, ...bySelector },
+      "abc-3",
+      null,
+      5000,
+      180000,
+      0
+    ),
+  ],
+  [
+    "text watch, ignoring changes under a threshold",
+    buildTextWatchCode(
+      { cmd: "wait-for-text-change", tabId: 1, ...bySelector, minChars: 12 },
+      "abc-4",
+      "what the page said last time\n'quoted'",
+      800,
+      30000,
+      12
+    ),
+  ],
+  ["text read, whole page", buildTextReadCode(undefined)],
+  ["text read, scoped by ref", buildTextReadCode(target)],
   [
     "press key",
     buildPressKeyCode({
@@ -178,6 +242,57 @@ const cases: [string, string][] = [
   ],
   ["execute js", buildExecuteJsCode("return document.title;", 20000)],
   [
+    "click with modifiers",
+    buildClickCode({
+      cmd: "click-element",
+      tabId: 1,
+      ...target,
+      button: "left",
+      clickCount: 1,
+      modifiers: ["Control", "Shift"],
+    }),
+  ],
+  ["hover", buildHoverCode({ cmd: "hover-element", tabId: 1, ...bySelector })],
+  [
+    "drag",
+    buildDragCode({
+      cmd: "drag-element",
+      tabId: 1,
+      ...target,
+      to: { selector: "#drop'zone", index: 1 },
+    }),
+  ],
+  [
+    "key repeat",
+    buildPressKeyCode({
+      cmd: "press-key",
+      tabId: 1,
+      ...target,
+      key: "ArrowDown",
+      repeat: 5,
+    }),
+  ],
+  [
+    "scroll inside an element",
+    buildScrollCode({
+      cmd: "scroll-page",
+      tabId: 1,
+      direction: "right",
+      amount: 120,
+      ...bySelector,
+    }),
+  ],
+  [
+    "upload files",
+    buildUploadFilesCode({
+      cmd: "upload-files",
+      tabId: 1,
+      ...target,
+      files: [{ name: "a'b.png", mimeType: "image/png", base64: "AAAA" }],
+    }),
+  ],
+  ["region box", buildRegionBoxCode({ x0: 10, y0: 20, x1: 300, y1: 200 })],
+  [
     "wait probe",
     buildWaitProbeCode({
       cmd: "wait-for-element",
@@ -185,6 +300,17 @@ const cases: [string, string][] = [
       selector: "#done",
       state: "visible",
       timeoutMs: 5000,
+    }),
+  ],
+  [
+    "wait probe, scoped by ref",
+    buildWaitProbeCode({
+      cmd: "wait-for-element",
+      tabId: 1,
+      selector: "#done",
+      state: "detached",
+      timeoutMs: 5000,
+      within: target,
     }),
   ],
   ["page read helpers", PAGE_READ_SOURCE],

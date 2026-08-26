@@ -1,9 +1,11 @@
 import {
+  awaitTextChange,
   drainPageEvents,
   forgetPageEvents,
   isPageEventMessage,
   noteCommittedDocument,
   recordPageEvent,
+  resolveTextWait,
   takeUnguardedDocuments,
 } from "../page-events";
 
@@ -113,5 +115,38 @@ describe("page events", () => {
       isPageEventMessage({ kind: "page-event", channel: "other", text: "x" })
     ).toBe(false);
     expect(isPageEventMessage(undefined)).toBe(false);
+  });
+});
+
+describe("waiting for a text change", () => {
+  it("ends as soon as the watcher reports", async () => {
+    const wait = awaitTextChange(1, "c1", 5000);
+    recordPageEvent(1, "text-change", "c1");
+
+    await expect(wait).resolves.toBe("changed");
+  });
+
+  it("ends by itself when nothing reports", async () => {
+    await expect(awaitTextChange(1, "c1", 5)).resolves.toBe("timeout");
+  });
+
+  it("ends when the tab navigates instead", async () => {
+    const wait = awaitTextChange(1, "c1", 5000);
+    resolveTextWait(1, "navigated");
+
+    await expect(wait).resolves.toBe("navigated");
+  });
+
+  it("ignores a watcher left behind by an earlier wait", async () => {
+    const wait = awaitTextChange(1, "c2", 20);
+    recordPageEvent(1, "text-change", "c1");
+
+    await expect(wait).resolves.toBe("timeout");
+  });
+
+  it("never lands in the events a command drains", () => {
+    recordPageEvent(1, "text-change", "c1");
+
+    expect(drainPageEvents(1)).toEqual({ dialogs: [], console: [] });
   });
 });

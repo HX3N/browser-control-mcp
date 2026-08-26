@@ -50,6 +50,7 @@ import {
 } from "./tab-authorization";
 import { hasAllUrlsPermission } from "./tab-access";
 import { isPageEventMessage, recordPageEvent } from "./page-events";
+import { startNetworkLog } from "./network-log";
 import type { PageEventMessage } from "./page-events";
 import type {
   ActiveTabStatus,
@@ -61,6 +62,8 @@ const UNSCRIPTABLE_SCHEME = /^(about|moz-extension|chrome|resource|view-source|d
 
 const SLOT_SYNC_INTERVAL_MS = 2000;
 const MAX_SPARE_SLOTS = 15;
+
+startNetworkLog();
 
 interface ConnectionSlot {
   port: number;

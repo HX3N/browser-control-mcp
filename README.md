@@ -30,8 +30,12 @@ The tools the MCP server exposes.
 **Navigate and read**
 
 - Open and close tabs
-- `navigate-browser-tab` — send an open tab to another URL, so one tab is reused instead of piling up
-- List open tabs
+- `navigate-browser-tab` — send an open tab to another URL, or back and forward through its
+  history, so one tab is reused instead of piling up
+- List open tabs, marking the ones this session holds
+- `resize-browser-window` — resize the window a tab is in, to check a layout at a given width
+- `read-network-requests` — list the requests a page made since it loaded: method, URL, status,
+  timing
 - Create tab groups with a name and a colour
 - Reorder tabs
 - Read and search browsing history
@@ -48,13 +52,23 @@ The tools the MCP server exposes.
 
 **Interact**
 
-- `click-page-element` — click, including double, middle and right button
-- `type-into-page-element` — enter text into a field, with an option to submit the form
+- `click-page-element` — click, including double, middle and right button, with modifier keys held
+- `hover-page-element` — move the pointer over an element to reveal a tooltip or a menu
+- `drag-page-element` — drag one element and drop it on another
+- `type-into-page-element` — enter text into a field, with an option to submit the form or to
+  click a send button in the same call
 - `press-key-in-tab` — press Enter, Tab, Escape, and the editing shortcuts: `Ctrl+A`, `Ctrl+C`,
-  `Ctrl+X`, `Ctrl+Z`, `Ctrl+Y`, the caret keys, Backspace and Delete
-- `scroll-browser-tab` — scroll up, down, to the top, to the bottom, or to an element
+  `Ctrl+X`, `Ctrl+Z`, `Ctrl+Y`, the caret keys, Backspace and Delete; `repeat` presses a key
+  several times in one call
+- `scroll-browser-tab` — scroll up, down, left, right, to the top, to the bottom, or to an
+  element, either the page or a scrolling element inside it
 - `select-page-option` — pick an option in a `<select>`
+- `upload-files-to-page-element` — attach files from the user's computer to a file input
+  (off by default)
+- `run-browser-actions` — run several of these in one call, stopping at the first failure
 - `wait-for-page-element` — wait for an element to appear or disappear
+- `wait-for-page-text-change` — block until the page's text changes, then return only what arrived,
+  picking up where the last call stopped so nothing is lost in between
 - `execute-javascript-in-tab` — run arbitrary JavaScript in the page
 
 ## Toolbar popup

@@ -70,7 +70,7 @@ A monorepo with three components:
 | --- | --- |
 | `common/server-messages.ts` | Commands the server sends to the extension |
 | `common/extension-messages.ts` | Responses the extension sends back |
-| `mcp-server/server.ts` | MCP tool definitions (21 tools) |
+| `mcp-server/server.ts` | MCP tool definitions (28 tools) |
 | `mcp-server/browser-api.ts` | Request/response round trip with the extension |
 | `firefox-extension/background.ts` | Entry point, WebSocket clients, popup message channel |
 | `firefox-extension/message-handler.ts` | Executes every command |
@@ -131,7 +131,14 @@ snapshot and the ref resolver in `injected-common.ts` iterate `__bcmRoots()` rat
 Elements the page hides are listed only when the user turns that on in the popup, and they are
 appended after the visible ones so that `maxElements` truncates them first. Each is marked
 `hidden`, and the snapshot header warns that their text is untrusted: text nobody can see is a
-carrier for prompt injection.
+carrier for prompt injection. `display:none` and `visibility:hidden` are not the only way to hide
+one - a box parked at `left:-9999px` renders normally and would otherwise have been listed as an
+ordinary element, so `__bcmWithinPage` measures the rect in document coordinates and counts
+anything outside the document as hidden too. Document coordinates rather than the viewport's,
+because a rect goes negative for everything the page has merely scrolled past.
+
+A `password` or `hidden` input has its length reported instead of its value. The text read has
+always left these out; the snapshot used to hand the value over in full.
 
 Refs die when the page re-renders, so a stale ref is an error that tells the caller to snapshot
 again. The stamp is an attribute, so a page that copies markup copies the ref with it: the
@@ -160,6 +167,71 @@ taller than `MAX_CAPTURE_HEIGHT_PX` (2000) follows the scroll position instead, 
 tells the model to scroll on and capture the rest. When `captureTab` is refused, the fallback
 foregrounds the tab and uses `captureVisibleTab`. For the shot the overlay is hidden and
 restored (`conceal`/`reveal`), never detached.
+
+### Scroll position and key defaults
+
+Every command's answer ends with the scroll position, and it is reported against the furthest the
+page can scroll, not against `scrollHeight`: those differ by one viewport, so a page already at
+the bottom used to report `2251 of 3310` and read as though a screenful were still below.
+`__bcmScroll` returns `scrollMax` alongside, and a page that does not scroll says so.
+
+A synthetic key event has no default action, so the extension performs the common ones itself.
+Enter is the one that has to know where it is pressed: in a single-line field it submits the
+owning form, but in a `textarea` or a contenteditable a real Enter inserts a line break, so
+`__bcmMultiline` splits the two. `type-into-page-element`'s `submit` flag is unaffected - there
+the caller asked for a submit.
+
+### Waiting for a page to speak
+
+A page that updates on its own - a chat, a feed, a job reporting progress - was reachable only by
+reading it again on a timer, which spends a round trip per attempt and still misses whatever landed
+between two of them. `wait-for-page-text-change` blocks instead: `buildTextWatchCode` reads the
+scope's text as a baseline and installs a `MutationObserver`, and the first mutation that actually
+changes the text reports through the same `runtime.sendMessage` channel the dialog guard uses, on
+the `text-change` page-event channel. `page-events.ts` holds one waiter per tab and settles it on
+that report, on the tab navigating, or on the timeout; the handler then reads the text once more
+and returns the part that grew past the baseline. `MAX_TEXT_WAIT_TIMEOUT_MS` is 180 seconds, well
+past `runScript`'s stall timer, which is why the wait cannot live inside an injected script.
+
+The baseline is not re-read from the page on each call - `textBaselines` in the handler keeps
+where the last wait stopped, per tab and per scope (a whole-page wait and a scoped one on the same
+tab each keep their own), and hands it to the next watch. Without that, everything the page said
+between one wait returning and the next one installing itself would be swallowed: on a chat that
+window is exactly as long as the model spends composing, which is how the polling loop lost
+messages in the first place. It also makes `timeoutMs: 0` meaningful - no observer is installed
+and the page is diffed against the carried baseline on the spot - so a caller can check for new
+text without waiting, which is what a reply should do before it is sent. The first call on a scope
+has nothing to compare against and says so through `fresh`.
+
+The watch ends on quiet, not on the first mutation: `settleMs` (800 by default) restarts on each
+mutation so a burst of updates comes back as one answer, with a ceiling of four settle windows for
+a page that never stops moving. The same window is waited out when the carried baseline already
+differs at install time, or a burst still in flight would come back split in two. The observer
+watches the scope's whole document rather than the scope element, and `compare` resolves the
+target again: a framework that re-renders the container replaces the element, and an observer on
+the old one would never fire again. It disconnects itself after the one report it sends, and the
+next watch or the closing read disconnects a leftover through `window.__bcmTextWatch`. A report
+carries the `correlationId` it was installed with, so a watcher a previous wait left behind cannot
+settle the current one.
+
+The answer is a common-prefix / common-suffix diff (`text-diff.ts`), not a `startsWith` check: on
+almost every real page the part that changes sits above a composer, buttons and a footer, so a
+prefix diff would have called every new line a rewrite and returned the whole page. What sits
+between the two matches comes back as `addedText`; when the baseline had text there too, the
+page dropped or replaced something, and `rewritten` with `removedChars` say how much. On a
+navigation the wait ends empty, says so, and the carried baseline is dropped: every ref on the
+old document is dead.
+
+A wait longer than `holdReleaseMs` would otherwise outlive the hold on its own tab: the idle timer
+fires, `releaseTab` forgets the tab, and `forgetPageEvents` settles the waiter as a timeout with
+the page unread. The handler therefore stretches the hold to cover the wait before blocking and
+puts it back afterwards.
+
+Frames the walk cannot open are reported by `__bcmUnreachableFrames`, which lives in
+`ROOT_WALKER_SOURCE` so the snapshot, the read and the media list all reach it. It returns each
+frame's `src`, size and whether the page renders it, not a count: a page whose real content sits in
+one large cross-origin frame carries almost nothing outside it, and the count alone left the model
+reading the wrapper and believing that was the page.
 
 ### What a read leaves out
 

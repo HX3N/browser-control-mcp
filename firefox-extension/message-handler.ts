@@ -6,16 +6,24 @@ import type {
   ExtensionMessage,
   ExecuteJsServerMessage,
   FetchMediaServerMessage,
+  GetNetworkRequestsServerMessage,
   GetPageMediaServerMessage,
   GetTabContentServerMessage,
+  HoverElementServerMessage,
+  DragElementServerMessage,
   PageSnapshotServerMessage,
   PressKeyServerMessage,
   ReleaseTabsServerMessage,
+  ResizeWindowServerMessage,
   ScrollPageServerMessage,
   SelectOptionServerMessage,
   ServerMessageRequest,
   TypeTextServerMessage,
+  UploadFilesServerMessage,
+  ViewportRegion,
   WaitForElementServerMessage,
+  WaitForTextChangeServerMessage,
+  InteractionResultExtensionMessage,
 } from "@browser-control-mcp/common";
 import { WebsocketClient } from "./client";
 import { t } from "./i18n";
@@ -41,6 +49,7 @@ import {
   getConsoleCaptureLevel,
 } from "./extension-config";
 import { ensureTabAccess } from "./tab-access";
+import { diffText } from "./text-diff";
 import { buildSnapshotCode } from "./page-snapshot";
 import {
   ELEMENT_RESOLVER_SOURCE,
@@ -63,28 +72,40 @@ import {
 } from "./dialog-guard";
 import type { ConsoleLevel } from "./dialog-guard";
 import {
+  awaitTextChange,
   drainPageEvents,
   forgetPageEvents,
   noteCommittedDocument,
   recordPageEvent,
+  resolveTextWait,
+  TextWaitOutcome,
   takeUnguardedDocuments,
 } from "./page-events";
+import { forgetNetworkLog, readNetworkLog } from "./network-log";
 import {
   buildClickCode,
   buildElementBoxCode,
   buildExecuteJsCode,
+  buildHoverCode,
+  buildDragCode,
   buildMediaFetchCode,
   buildMediaListCode,
   MAX_CAPTURE_HEIGHT_PX,
   MediaFetchResult,
   MediaListResult,
   buildPressKeyCode,
+  buildRegionBoxCode,
   buildScrollCode,
   buildSelectOptionCode,
+  buildTextReadCode,
+  buildTextWatchCode,
+  DEFAULT_TEXT_SETTLE_MS,
   buildTypeCode,
+  buildUploadFilesCode,
   buildWaitProbeCode,
   ElementBoxResult,
   InteractionScriptResult,
+  TextWatchResult,
   WaitProbeResult,
 } from "./interaction-scripts";
 
@@ -109,6 +130,7 @@ const BLANK_URL = "about:blank";
 const idleStatus = () => t("overlayIdle");
 
 const NAVIGATION_SETTLE_MS = 15_000;
+const HISTORY_MOVE_GRACE_MS = 1_000;
 
 const DEFAULT_SNAPSHOT_LIMIT = 200;
 const MAX_SCRIPT_RESULT_LENGTH = 20_000;
@@ -119,6 +141,7 @@ const SLICE_OVERLAP_PX = 80;
 // A fetch spends real network time, so it gets a longer leash than an in-page script.
 const MEDIA_FETCH_STALL_MS = 20_000;
 const MAX_MEDIA_BYTES = 8 * 1024 * 1024;
+const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 const MEDIA_IMAGE_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -126,6 +149,10 @@ const MEDIA_IMAGE_TYPES = new Set([
   "image/webp",
 ]);
 const WAIT_POLL_INTERVAL_MS = 200;
+const DEFAULT_TEXT_WAIT_TIMEOUT_MS = 30_000;
+const MAX_TEXT_SETTLE_MS = 5_000;
+const MAX_TEXT_WAIT_TIMEOUT_MS = 180_000;
+const MAX_ADDED_TEXT_LENGTH = 20_000;
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -142,6 +169,7 @@ export class MessageHandler {
   private client: WebsocketClient;
   private claimedTabs: Map<number, ReturnType<typeof setTimeout>> = new Map();
   private openedTabs: Set<number> = new Set();
+  private textBaselines: Map<number, Map<string, string>> = new Map();
   private knownMediaUrls: Map<number, Set<string>> = new Map();
 
   private readonly onTabRemoved = (tabId: number) => {
@@ -159,6 +187,8 @@ export class MessageHandler {
       return;
     }
     this.knownMediaUrls.delete(details.tabId);
+    this.textBaselines.delete(details.tabId);
+    resolveTextWait(details.tabId, "navigated");
     if (!this.isGuarded(details.tabId)) {
       return;
     }
@@ -290,6 +320,21 @@ export class MessageHandler {
       case "click-element":
         await this.clickElement(req);
         break;
+      case "hover-element":
+        await this.hoverElement(req);
+        break;
+      case "drag-element":
+        await this.dragElement(req);
+        break;
+      case "upload-files":
+        await this.uploadFiles(req);
+        break;
+      case "resize-window":
+        await this.resizeWindow(req);
+        break;
+      case "get-network-requests":
+        await this.sendNetworkRequests(req);
+        break;
       case "type-text":
         await this.typeText(req);
         break;
@@ -307,6 +352,9 @@ export class MessageHandler {
         break;
       case "wait-for-element":
         await this.waitForElement(req);
+        break;
+      case "wait-for-text-change":
+        await this.waitForTextChange(req);
         break;
       case "release-tabs":
         await this.releaseTabs(req);
@@ -441,31 +489,64 @@ export class MessageHandler {
   private async navigateTab(
     req: NavigateTabServerMessage & { correlationId: string }
   ): Promise<void> {
-    await this.ensureUrlInScope(req.url);
-
-    if (await isDomainInDenyList(req.url)) {
-      throw new Error("Domain in user defined deny list");
+    const inHistory = req.url === "back" || req.url === "forward";
+    if (!inHistory) {
+      await this.ensureUrlInScope(req.url);
+      if (await isDomainInDenyList(req.url)) {
+        throw new Error("Domain in user defined deny list");
+      }
     }
 
     const current = await this.prepareTabAccess(req.tabId);
     await this.attachOverlay(req.tabId, "read", t("overlayNavigate"));
     await delay((await getOverlayTimings()).leadMs);
 
-    const registration = await registerDialogGuard(
-      req.url,
-      buildDialogGuardCode(await this.consoleLevel()),
-      current.cookieStoreId
-    );
+    // A history move has no URL to register a guard for until the document has committed;
+    // the onCommitted listener injects it then, which is the same cover a reload gets.
+    const registration = inHistory
+      ? null
+      : await registerDialogGuard(
+          req.url,
+          buildDialogGuardCode(await this.consoleLevel()),
+          current.cookieStoreId
+        );
     let settled: boolean;
     try {
       const settling = this.waitForTabToSettle(req.tabId);
-      await browser.tabs.update(req.tabId, { url: req.url });
-      settled = await settling;
+      if (req.url === "back") {
+        await browser.tabs.goBack(req.tabId);
+      } else if (req.url === "forward") {
+        await browser.tabs.goForward(req.tabId);
+      } else {
+        await browser.tabs.update(req.tabId, { url: req.url });
+      }
+      const outcome = await Promise.race([
+        settling,
+        inHistory ? this.historyEnd(req.tabId, current.url) : settling,
+      ]);
+      if (outcome === null) {
+        throw new Error(
+          `Tab ${req.tabId} has no page to go ${req.url} to; it is still on ${current.url}.`
+        );
+      }
+      settled = outcome;
     } finally {
       await unregisterDialogGuard(registration);
     }
-    await this.verifyGuard(req.tabId);
+    if (inHistory) {
+      // A document restored from the back-forward cache commits without loading, so no guard
+      // announces itself in it; the one it had is still there, and re-injecting covers the rest.
+      takeUnguardedDocuments(req.tabId);
+      await this.guardDialogs(req.tabId);
+    } else {
+      await this.verifyGuard(req.tabId);
+    }
     const tab = await browser.tabs.get(req.tabId);
+    if (inHistory && tab.url && (await isDomainInDenyList(tab.url))) {
+      throw new Error(
+        `The tab went ${req.url} to ${tab.url}, which is on the user's deny list; the page was not read.`
+      );
+    }
 
     await this.sendResource(
       {
@@ -478,6 +559,26 @@ export class MessageHandler {
       },
       req.tabId
     );
+  }
+
+  // goBack and goForward resolve without moving when the history ends there, and the settle
+  // wait would only run to its timeout. Resolves only when the tab visibly never left.
+  private historyEnd(
+    tabId: number,
+    urlBefore: string | undefined
+  ): Promise<null> {
+    return new Promise((resolve) => {
+      setTimeout(async () => {
+        try {
+          const tab = await browser.tabs.get(tabId);
+          if (tab.status === "complete" && tab.url === urlBefore) {
+            resolve(null);
+          }
+        } catch (error) {
+          console.error("Could not read the tab after a history move:", error);
+        }
+      }, HISTORY_MOVE_GRACE_MS);
+    });
   }
 
   // The tab the command lands on is still showing the old page for a moment, so a "complete"
@@ -568,6 +669,7 @@ export class MessageHandler {
         title: tab.title,
         lastAccessed: tab.lastAccessed,
         cookieStoreId: tab.cookieStoreId,
+        held: tab.id !== undefined && this.isGuarded(tab.id),
       })),
     });
   }
@@ -756,6 +858,7 @@ export class MessageHandler {
     await ensureTabAccess(tab);
 
     await this.checkForGlobalPermission(["find"]);
+    await this.attachOverlay(tabId, "read", t("overlayFind"));
 
     const findResults = await browser.find.find(queryPhrase, {
       tabId,
@@ -809,7 +912,9 @@ export class MessageHandler {
       );
       const box = isElementTargeted(req)
         ? await this.measureElement(tabId, req)
-        : null;
+        : req.region
+          ? await this.measureRegion(tabId, req.region)
+          : null;
       const rects = box ? sliceRects(box, maxSlices) : [undefined];
 
       let sliced = rects.length > 1;
@@ -888,6 +993,7 @@ export class MessageHandler {
                   ...(sliced ? { slices: parsed.length } : {}),
                   scrollY: box.scrollY,
                   scrollHeight: box.scrollHeight,
+                  scrollMax: box.scrollMax,
                 },
               }
             : {}),
@@ -904,6 +1010,12 @@ export class MessageHandler {
       }
       await this.runScript(tabId, { code: buildRevealOverlayCode() }).catch(
         () => undefined
+      );
+      await this.attachOverlay(
+        tabId,
+        "read",
+        t("overlayCapture"),
+        isElementTargeted(req) ? req : undefined
       );
     }
   }
@@ -1011,6 +1123,16 @@ export class MessageHandler {
   ): Promise<ElementBoxResult> {
     const results = await this.runScript(tabId, {
       code: buildElementBoxCode(target),
+    });
+    return results[0] as ElementBoxResult;
+  }
+
+  private async measureRegion(
+    tabId: number,
+    region: ViewportRegion
+  ): Promise<ElementBoxResult> {
+    const results = await this.runScript(tabId, {
+      code: buildRegionBoxCode(region),
     });
     return results[0] as ElementBoxResult;
   }
@@ -1204,7 +1326,9 @@ export class MessageHandler {
   private forgetTab(tabId: number): void {
     this.openedTabs.delete(tabId);
     this.knownMediaUrls.delete(tabId);
+    this.textBaselines.delete(tabId);
     forgetPageEvents(tabId);
+    forgetNetworkLog(tabId);
     const timer = this.claimedTabs.get(tabId);
     if (timer === undefined) {
       return;
@@ -1262,7 +1386,7 @@ export class MessageHandler {
     req: ServerMessageRequest & ElementTarget & { tabId: number },
     state: OverlayState,
     label: string,
-    action: "click" | "type" | "scroll" | "press-key" | "select-option",
+    action: InteractionResultExtensionMessage["action"],
     code: string
   ): Promise<void> {
     await this.prepareTabAccess(req.tabId);
@@ -1285,7 +1409,10 @@ export class MessageHandler {
     const result = results[0] as InteractionScriptResult;
 
     const detail =
-      action === "scroll" && shown?.wasInView && result.scrollY === 0
+      action === "scroll" &&
+      (req as ScrollPageServerMessage).direction === "element" &&
+      shown?.wasInView &&
+      result.scrollY === 0
         ? `${result.detail}. The element was already inside the viewport, so nothing moved.`
         : result.detail;
 
@@ -1300,6 +1427,7 @@ export class MessageHandler {
         url: result.url,
         scrollY: result.scrollY,
         scrollHeight: result.scrollHeight,
+        scrollMax: result.scrollMax,
       },
       req.tabId
     );
@@ -1346,6 +1474,8 @@ export class MessageHandler {
         isTruncated: snapshot.isTruncated,
         scrollY: snapshot.scrollY,
         scrollHeight: snapshot.scrollHeight,
+        scrollMax: snapshot.scrollMax,
+        unreachableFrames: snapshot.unreachableFrames,
       },
       req.tabId
     );
@@ -1360,6 +1490,97 @@ export class MessageHandler {
       t("overlayClick"),
       "click",
       buildClickCode(req)
+    );
+  }
+
+  private async hoverElement(
+    req: HoverElementServerMessage & { correlationId: string }
+  ): Promise<void> {
+    await this.performInteraction(
+      req,
+      "click",
+      t("overlayHover"),
+      "hover",
+      buildHoverCode(req)
+    );
+  }
+
+  private async dragElement(
+    req: DragElementServerMessage & { correlationId: string }
+  ): Promise<void> {
+    await this.performInteraction(
+      req,
+      "click",
+      t("overlayDrag"),
+      "drag",
+      buildDragCode(req)
+    );
+  }
+
+  private async uploadFiles(
+    req: UploadFilesServerMessage & { correlationId: string }
+  ): Promise<void> {
+    const bytes = req.files.reduce(
+      (sum, file) => sum + base64ByteLength(file.base64),
+      0
+    );
+    if (req.files.length === 0 || bytes > MAX_UPLOAD_BYTES) {
+      throw new Error(
+        `An upload carries between one file and ${MAX_UPLOAD_BYTES} bytes in total; this one is ${req.files.length} file(s) and ${bytes} bytes.`
+      );
+    }
+    await this.performInteraction(
+      req,
+      "type",
+      t("overlayUpload"),
+      "upload",
+      buildUploadFilesCode(req)
+    );
+  }
+
+  private async resizeWindow(
+    req: ResizeWindowServerMessage & { correlationId: string }
+  ): Promise<void> {
+    const tab = await browser.tabs.get(req.tabId);
+    if (tab.windowId === undefined) {
+      throw new Error(`Tab ${req.tabId} does not belong to a window`);
+    }
+    const updated = await browser.windows.update(tab.windowId, {
+      width: req.width,
+      height: req.height,
+      state: "normal",
+    });
+    await this.client.sendResourceToServer({
+      resource: "window-resized",
+      correlationId: req.correlationId,
+      tabId: req.tabId,
+      width: updated.width ?? req.width,
+      height: updated.height ?? req.height,
+    });
+  }
+
+  private async sendNetworkRequests(
+    req: GetNetworkRequestsServerMessage & { correlationId: string }
+  ): Promise<void> {
+    await this.prepareTabAccess(req.tabId);
+    await this.attachOverlay(req.tabId, "read", t("overlayReadingContent"));
+    const scope = await getUrlScope();
+    const log = readNetworkLog(req.tabId, {
+      urlPattern: req.urlPattern,
+      limit: req.limit,
+      clear: req.clear,
+    });
+    await this.sendResource(
+      {
+        resource: "network-requests",
+        correlationId: req.correlationId,
+        tabId: req.tabId,
+        requests: log.requests.filter((record) =>
+          isUrlInScope(record.url, scope)
+        ),
+        total: log.total,
+      },
+      req.tabId
     );
   }
 
@@ -1484,7 +1705,8 @@ export class MessageHandler {
   ): Promise<void> {
     await this.prepareTabAccess(req.tabId);
 
-    await this.attachOverlay(req.tabId, "read", t("overlayWait"));
+    const within = req.within ? elementTargetOf(req.within) : undefined;
+    await this.attachOverlay(req.tabId, "read", t("overlayWait"), within);
 
     const timeoutMs = Math.min(
       MAX_WAIT_TIMEOUT_MS,
@@ -1515,6 +1737,120 @@ export class MessageHandler {
       req.tabId
     );
   }
+
+  private async waitForTextChange(
+    req: WaitForTextChangeServerMessage & { correlationId: string }
+  ): Promise<void> {
+    await this.prepareTabAccess(req.tabId);
+
+    const scoped = isElementTargeted(req);
+    await this.attachOverlay(
+      req.tabId,
+      "read",
+      t("overlayWaitText"),
+      scoped ? req : undefined
+    );
+
+    const timeoutMs = Math.min(
+      MAX_TEXT_WAIT_TIMEOUT_MS,
+      Math.max(0, req.timeoutMs ?? DEFAULT_TEXT_WAIT_TIMEOUT_MS)
+    );
+    const settleMs = Math.min(
+      MAX_TEXT_SETTLE_MS,
+      Math.max(0, req.settleMs ?? DEFAULT_TEXT_SETTLE_MS)
+    );
+    const minChars = Math.max(0, req.minChars ?? 0);
+    const startedAt = Date.now();
+
+    // Anything the page said since the last wait has to be diffed against where that wait
+    // stopped, not against the page as it looks now, or it is swallowed while the caller thinks.
+    const scopeKey = scoped
+      ? JSON.stringify([req.ref, req.selector, req.index])
+      : "";
+    const held =
+      this.textBaselines.get(req.tabId) ?? new Map<string, string>();
+    const carried = held.get(scopeKey) ?? null;
+
+    const watchResults = await this.runScript(
+      req.tabId,
+      {
+        code: buildTextWatchCode(
+          req,
+          req.correlationId,
+          carried,
+          settleMs,
+          timeoutMs,
+          minChars
+        ),
+      },
+      LONG_SCRIPT_STALL_MS
+    );
+    const watch = watchResults[0] as TextWatchResult;
+
+    let current = watch.current;
+    let outcome: TextWaitOutcome = "changed";
+
+    if (!watch.settled) {
+      // The hold would otherwise expire under a wait longer than holdReleaseMs and end it.
+      const timings = await getOverlayTimings();
+      this.extendHold(req.tabId, timeoutMs + timings.holdReleaseMs);
+      outcome = await awaitTextChange(
+        req.tabId,
+        req.correlationId,
+        timeoutMs
+      );
+      this.extendHold(req.tabId, timings.holdReleaseMs);
+      if (outcome !== "navigated") {
+        const readResults = await this.runScript(
+          req.tabId,
+          { code: buildTextReadCode(scoped ? req : undefined) },
+          LONG_SCRIPT_STALL_MS
+        );
+        current = readResults[0] as string;
+      }
+    }
+
+    const diff =
+      outcome === "navigated"
+        ? { added: "", removed: 0, delta: 0 }
+        : diffText(watch.baseline, current);
+    // A change too small to report leaves the baseline where it was, so the small ones that
+    // follow are measured together and reported once they add up past the threshold.
+    const changed =
+      outcome !== "navigated" &&
+      current !== watch.baseline &&
+      diff.delta >= minChars;
+
+    if (outcome === "navigated") {
+      this.textBaselines.delete(req.tabId);
+    } else {
+      held.set(scopeKey, changed ? current : watch.baseline);
+      this.textBaselines.set(req.tabId, held);
+    }
+
+    await this.sendResource(
+      {
+        resource: "text-change-wait-result",
+        correlationId: req.correlationId,
+        tabId: req.tabId,
+        changed,
+        navigated: outcome === "navigated",
+        fresh: carried === null,
+        addedText: diff.added.slice(0, MAX_ADDED_TEXT_LENGTH),
+        rewritten: diff.removed > 0,
+        removedChars: diff.removed,
+        elapsedMs: Date.now() - startedAt,
+      },
+      req.tabId
+    );
+  }
+
+  private extendHold(tabId: number, holdMs: number): void {
+    if (this.claimedTabs.has(tabId)) {
+      this.touchTab(tabId, holdMs);
+    }
+  }
+
 
   private async groupTabs(
     correlationId: string,

@@ -498,7 +498,7 @@ describe("MessageHandler", () => {
         expect(mockClient.sendResourceToServer).toHaveBeenCalledWith({
           resource: "tabs",
           correlationId: "test-correlation-id",
-          tabs: mockTabs,
+          tabs: [{ id: 123, url: "https://example.com", held: false }],
         });
       });
     });
@@ -1390,7 +1390,7 @@ describe("MessageHandler", () => {
         ).mock.calls.map(([, details]) => String(details.code));
         expect(injected.some((code) => code.includes("conceal()"))).toBe(true);
         expect(injected.some((code) => code.includes("reveal()"))).toBe(true);
-        expect(injected.some((code) => code.includes("detach()"))).toBe(false);
+        expect(injected.some((code) => code.includes("__bcmOverlay.detach()"))).toBe(false);
       });
 
       it("falls back to the visible tab when captureTab is refused", async () => {

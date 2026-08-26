@@ -1,4 +1,4 @@
-export type PageEventChannel = "dialog" | "console" | "guard";
+export type PageEventChannel = "dialog" | "console" | "guard" | "text-change";
 
 export interface PageEventMessage {
   kind: "page-event";
@@ -34,7 +34,8 @@ export function isPageEventMessage(
     candidate.kind === "page-event" &&
     (candidate.channel === "dialog" ||
       candidate.channel === "console" ||
-      candidate.channel === "guard") &&
+      candidate.channel === "guard" ||
+      candidate.channel === "text-change") &&
     typeof candidate.text === "string"
   );
 }
@@ -74,6 +75,10 @@ export function recordPageEvent(
     noteGuardedDocument(tabId, text);
     return;
   }
+  if (channel === "text-change") {
+    resolveTextWait(tabId, "changed", text);
+    return;
+  }
   const events = byTabId.get(tabId) ?? [];
   events.push({ channel, text });
   while (events.length > MAX_EVENTS_PER_TAB) {
@@ -86,6 +91,53 @@ export function noteGuardedDocument(tabId: number, url: string): void {
   const guarded = guardedByTabId.get(tabId) ?? new Set<string>();
   guarded.add(url);
   guardedByTabId.set(tabId, guarded);
+}
+
+export type TextWaitOutcome = "changed" | "navigated" | "timeout";
+
+interface TextWaiter {
+  token: string;
+  settle: (outcome: TextWaitOutcome) => void;
+}
+
+const textWaiterByTabId = new Map<number, TextWaiter>();
+
+export function awaitTextChange(
+  tabId: number,
+  token: string,
+  timeoutMs: number
+): Promise<TextWaitOutcome> {
+  textWaiterByTabId.get(tabId)?.settle("timeout");
+  return new Promise<TextWaitOutcome>((resolve) => {
+    const timer = setTimeout(() => {
+      textWaiterByTabId.delete(tabId);
+      resolve("timeout");
+    }, timeoutMs);
+    textWaiterByTabId.set(tabId, {
+      token,
+      settle: (outcome) => {
+        clearTimeout(timer);
+        textWaiterByTabId.delete(tabId);
+        resolve(outcome);
+      },
+    });
+  });
+}
+
+export function resolveTextWait(
+  tabId: number,
+  outcome: TextWaitOutcome,
+  token?: string
+): void {
+  const waiter = textWaiterByTabId.get(tabId);
+  if (!waiter) {
+    return;
+  }
+  // A watcher left behind by an earlier wait can still report from the same tab.
+  if (token !== undefined && token !== waiter.token) {
+    return;
+  }
+  waiter.settle(outcome);
 }
 
 export function noteCommittedDocument(tabId: number, url: string): void {
@@ -117,6 +169,7 @@ export function drainPageEvents(tabId: number): DrainedPageEvents {
 }
 
 export function forgetPageEvents(tabId: number): void {
+  resolveTextWait(tabId, "timeout");
   byTabId.delete(tabId);
   guardedByTabId.delete(tabId);
   committedByTabId.delete(tabId);

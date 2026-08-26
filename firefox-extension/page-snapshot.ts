@@ -64,6 +64,19 @@ function __bcmVisible(el) {
   var style = view ? view.getComputedStyle(el) : null;
   if (!style) { return false; }
   if (style.visibility === 'hidden' || style.display === 'none' || style.opacity === '0') { return false; }
+  return __bcmWithinPage(el, rect, view);
+}
+
+// A rect is measured against the viewport, so it goes negative for anything the page has merely
+// scrolled past. Only a box the page parked outside the document itself is beyond reach.
+function __bcmWithinPage(el, rect, view) {
+  if (!view) { return true; }
+  var root = el.ownerDocument.documentElement;
+  if (!root) { return true; }
+  var left = rect.left + (view.scrollX || 0);
+  var top = rect.top + (view.scrollY || 0);
+  if (left + rect.width <= 0 || top + rect.height <= 0) { return false; }
+  if (left >= Math.max(root.scrollWidth || 0, view.innerWidth || 0)) { return false; }
   return true;
 }
 
@@ -201,7 +214,13 @@ function __bcmDescribe(el, ref, hidden, frame) {
   if (frame) { entry.frame = frame; }
 
   if (tag === 'input' || tag === 'textarea' || tag === 'select') {
-    if (typeof el.value === 'string' && el.value) { entry.value = __bcmTrim(el.value, 120); }
+    var kind = tag === 'input' ? (el.type || 'text').toLowerCase() : '';
+    if (typeof el.value === 'string' && el.value) {
+      // The page masks these, and the text read leaves them out for the same reason.
+      entry.value = kind === 'password' || kind === 'hidden'
+        ? '(' + el.value.length + ' characters, not shown)'
+        : __bcmTrim(el.value, 120);
+    }
     if (el.disabled) { entry.disabled = true; }
   }
   var placeholder = el.getAttribute('placeholder');
@@ -319,7 +338,9 @@ ${SNAPSHOT_HELPERS_SOURCE}
     hiddenElements: concealed.length,
     isTruncated: found.length > elements.length,
     scrollY: Math.round(doc.scrollTop),
-    scrollHeight: Math.round(doc.scrollHeight)
+    scrollHeight: Math.round(doc.scrollHeight),
+    scrollMax: Math.max(0, Math.round(doc.scrollHeight) - Math.round(doc.clientHeight || 0)),
+    unreachableFrames: __bcmUnreachableFrames(scopeRoot)
   };
 })();`;
 }

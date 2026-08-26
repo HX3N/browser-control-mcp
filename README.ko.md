@@ -30,8 +30,11 @@ MCP 서버가 제공하는 도구입니다.
 **탐색과 읽기**
 
 - 탭 열기 / 닫기
-- `navigate-browser-tab` — 열려 있는 탭의 주소를 바꿉니다. 탭을 새로 열지 않고 하나를 계속 씁니다
-- 열린 탭 목록 조회
+- `navigate-browser-tab` — 열려 있는 탭의 주소를 바꾸거나 방문 기록에서 앞뒤로 이동합니다.
+  탭을 새로 열지 않고 하나를 계속 씁니다
+- 열린 탭 목록 조회 (이 세션이 잡고 있는 탭 표시)
+- `resize-browser-window` — 탭이 속한 창의 크기를 바꿉니다. 특정 너비에서 레이아웃 확인용
+- `read-network-requests` — 페이지가 로드된 뒤 보낸 요청 목록: 메서드·URL·상태·소요 시간
 - 이름과 색을 지정해 탭 그룹 만들기
 - 탭 순서 바꾸기
 - 방문 기록 읽기 및 검색
@@ -46,13 +49,20 @@ MCP 서버가 제공하는 도구입니다.
 
 **조작**
 
-- `click-page-element` — 클릭 (더블 클릭, 가운데·오른쪽 버튼 포함)
-- `type-into-page-element` — 입력란에 텍스트 넣기, 폼 제출 옵션
+- `click-page-element` — 클릭 (더블 클릭, 가운데·오른쪽 버튼, 보조키 누른 채 클릭 포함)
+- `hover-page-element` — 요소 위에 포인터를 올려 툴팁이나 메뉴를 드러냅니다
+- `drag-page-element` — 요소를 끌어 다른 요소 위에 놓습니다
+- `type-into-page-element` — 입력란에 텍스트 넣기, 폼 제출 또는 전송 버튼 클릭까지 한 호출로
 - `press-key-in-tab` — Enter·Tab·Escape와 편집 단축키: `Ctrl+A`, `Ctrl+C`, `Ctrl+X`, `Ctrl+Z`,
-  `Ctrl+Y`, 캐럿 이동 키, Backspace·Delete
-- `scroll-browser-tab` — 위/아래/맨위/맨아래/특정 요소로 스크롤
+  `Ctrl+Y`, 캐럿 이동 키, Backspace·Delete. `repeat`로 같은 키를 여러 번
+- `scroll-browser-tab` — 위/아래/왼쪽/오른쪽/맨위/맨아래/특정 요소로 스크롤. 페이지 전체 또는
+  페이지 안의 스크롤 요소
 - `select-page-option` — `<select>` 항목 선택
+- `upload-files-to-page-element` — 파일 입력란에 사용자 컴퓨터의 파일 첨부 (기본 꺼짐)
+- `run-browser-actions` — 여러 도구를 한 호출로 순서대로 실행, 첫 실패에서 멈춤
 - `wait-for-page-element` — 요소가 나타나거나 사라질 때까지 대기
+- `wait-for-page-text-change` — 페이지 텍스트가 바뀔 때까지 블로킹하고, 새로 나온 부분만 반환.
+  지난 호출이 멈춘 자리에서 이어받아 그 사이에 들어온 것도 놓치지 않습니다
 - `execute-javascript-in-tab` — 페이지에서 임의의 JavaScript 실행
 
 ## 툴바 팝업

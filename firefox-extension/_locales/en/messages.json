@@ -80,6 +80,18 @@
     "toolGetMediaContentDescription": {
         "message": "Lets the MCP server fetch the image files a page shows"
     },
+    "toolUploadFilesName": {
+        "message": "Attach local files"
+    },
+    "toolUploadFilesDescription": {
+        "message": "Lets the MCP server read files from this computer by path and attach them to a page's file input"
+    },
+    "toolGetNetworkRequestsName": {
+        "message": "Read network requests"
+    },
+    "toolGetNetworkRequestsDescription": {
+        "message": "Lets the MCP server list the HTTP requests a page made, with method, status and timing but no bodies"
+    },
     "overlayIdle": {
         "message": "Claude connected"
     },
@@ -107,6 +119,15 @@
     "overlayType": {
         "message": "Typing"
     },
+    "overlayHover": {
+        "message": "Hovering"
+    },
+    "overlayDrag": {
+        "message": "Dragging"
+    },
+    "overlayUpload": {
+        "message": "Attaching files"
+    },
     "overlayPressKey": {
         "message": "Key press: $1"
     },
@@ -121,6 +142,15 @@
     },
     "overlayWait": {
         "message": "Waiting for an element"
+    },
+    "overlayCapture": {
+        "message": "Captured a screenshot"
+    },
+    "overlayFind": {
+        "message": "Finding text"
+    },
+    "overlayWaitText": {
+        "message": "Waiting for new text"
     },
     "popupStatusChecking": {
         "message": "Checking…"
@@ -175,6 +205,12 @@
     },
     "popupToggleMediaFetchHint": {
         "message": "Page image file access"
+    },
+    "popupToggleUploadFilesName": {
+        "message": "Attach local files"
+    },
+    "popupToggleUploadFilesHint": {
+        "message": "Local file access"
     },
     "popupToggleHiddenName": {
         "message": "Read hidden elements"

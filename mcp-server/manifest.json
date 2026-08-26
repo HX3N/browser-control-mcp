@@ -128,12 +128,40 @@
             "description": "Wait until a CSS selector becomes visible, hidden, attached or detached"
         },
         {
+            "name": "wait-for-page-text-change",
+            "description": "Block until the text of a tab or one element changes, then return only the text that arrived, continuing from where the last call stopped"
+        },
+        {
             "name": "execute-javascript-in-tab",
             "description": "Run JavaScript in a browser tab and return the value of its last expression"
         },
         {
             "name": "release-browser-tab",
             "description": "Let go of the tabs this session was driving, removing the overlay and restoring the tab's icon"
+        },
+        {
+            "name": "hover-page-element",
+            "description": "Move the pointer over an element without clicking, to reveal a tooltip or a menu"
+        },
+        {
+            "name": "drag-page-element",
+            "description": "Drag one element and drop it on another, addressed by ref or selector"
+        },
+        {
+            "name": "upload-files-to-page-element",
+            "description": "Attach files from the user's computer to a file input, by path (off by default)"
+        },
+        {
+            "name": "resize-browser-window",
+            "description": "Resize the window that holds a tab"
+        },
+        {
+            "name": "read-network-requests",
+            "description": "List the HTTP requests a tab made since its page started loading, without bodies"
+        },
+        {
+            "name": "run-browser-actions",
+            "description": "Run several browser tools in one call, in order, stopping at the first failure"
         }
     ]
 }

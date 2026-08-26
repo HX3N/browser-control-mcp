@@ -16,6 +16,13 @@ function __bcmRoots(start) {
   function walk(root, depth) {
     if (!root || depth > ${MAX_ROOT_DEPTH} || roots.indexOf(root) !== -1) { return; }
     roots.push(root);
+    // A frame has no light-DOM children, so a walk that starts on one reaches nothing at all.
+    if (root.tagName === 'IFRAME' || root.tagName === 'FRAME') {
+      var own = null;
+      try { own = root.contentDocument; } catch (err) { own = null; }
+      if (own) { walk(own, depth + 1); }
+    }
+    if (root.shadowRoot) { walk(root.shadowRoot, depth + 1); }
     var nodes = root.querySelectorAll('*');
     for (var i = 0; i < nodes.length; i++) {
       var node = nodes[i];
@@ -30,6 +37,35 @@ function __bcmRoots(start) {
   }
   walk(start || document, 0);
   return roots;
+}
+
+function __bcmUnreachableFrames(scope) {
+  var roots = __bcmRoots(scope);
+  var out = [];
+  for (var i = 0; i < roots.length; i++) {
+    if (!roots[i].querySelectorAll) { continue; }
+    var frames = roots[i].querySelectorAll('iframe,frame');
+    for (var f = 0; f < frames.length; f++) {
+      var inner = null;
+      try { inner = frames[f].contentDocument; } catch (err) { inner = null; }
+      if (inner) { continue; }
+      var el = frames[f];
+      var rect = { width: 0, height: 0 };
+      try { rect = el.getBoundingClientRect(); } catch (err) { rect = { width: 0, height: 0 }; }
+      var src = '';
+      try { src = el.src || el.getAttribute('src') || ''; } catch (err) { src = ''; }
+      var entry = {
+        src: src,
+        width: Math.round(rect.width || 0),
+        height: Math.round(rect.height || 0)
+      };
+      var name = el.getAttribute('name') || el.getAttribute('title') || el.getAttribute('id') || '';
+      if (name) { entry.name = name.slice(0, 80); }
+      if (!entry.width || !entry.height) { entry.hidden = true; }
+      out.push(entry);
+    }
+  }
+  return out;
 }
 
 function __bcmFrameLabel(root) {
@@ -142,7 +178,9 @@ function __bcmLabel(el) {
 
 function __bcmScroll() {
   var doc = document.scrollingElement || document.documentElement;
-  return { scrollY: Math.round(doc.scrollTop), scrollHeight: Math.round(doc.scrollHeight) };
+  var height = Math.round(doc.scrollHeight);
+  var seen = Math.round(doc.clientHeight || window.innerHeight || 0);
+  return { scrollY: Math.round(doc.scrollTop), scrollHeight: height, scrollMax: Math.max(0, height - seen) };
 }
 `;
 
@@ -221,21 +259,6 @@ function __bcmReadRoots(scope) {
     if (root !== scope && root.nodeType === 9 && root !== document && root.body) { out.push(root.body); }
   }
   return out;
-}
-
-function __bcmUnreachableFrames(scope) {
-  var roots = __bcmRoots(scope);
-  var count = 0;
-  for (var i = 0; i < roots.length; i++) {
-    if (!roots[i].querySelectorAll) { continue; }
-    var frames = roots[i].querySelectorAll('iframe,frame');
-    for (var f = 0; f < frames.length; f++) {
-      var inner = null;
-      try { inner = frames[f].contentDocument; } catch (err) { inner = null; }
-      if (!inner) { count++; }
-    }
-  }
-  return count;
 }
 
 function __bcmReadText(scope) {

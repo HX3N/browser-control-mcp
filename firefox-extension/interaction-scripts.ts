@@ -1,16 +1,22 @@
 import type {
   ClickElementServerMessage,
   ElementTarget,
+  HoverElementServerMessage,
+  DragElementServerMessage,
   PressKeyServerMessage,
+  UploadFilesServerMessage,
+  ViewportRegion,
   ScrollPageServerMessage,
   SelectOptionServerMessage,
   TypeTextServerMessage,
   WaitForElementServerMessage,
+  WaitForTextChangeServerMessage,
 } from "@browser-control-mcp/common/server-messages";
 import {
   ELEMENT_RESOLVER_SOURCE,
   PAGE_READ_SOURCE,
   SCROLL_ANCHOR_SOURCE,
+  isElementTargeted,
   jsValue,
   targetLiteral,
 } from "./injected-common";
@@ -21,6 +27,7 @@ export interface InteractionScriptResult {
   url: string;
   scrollY: number;
   scrollHeight: number;
+  scrollMax: number;
 }
 
 export interface WaitProbeResult {
@@ -38,6 +45,7 @@ export interface ElementBoxResult {
   clipped: boolean;
   scrollY: number;
   scrollHeight: number;
+  scrollMax: number;
 }
 
 export interface MediaListResult {
@@ -215,6 +223,28 @@ function __bcmClipboard(command) {
   return command === 'cut' ? 'cut the selection to the clipboard' : 'copied the selection to the clipboard';
 }
 
+function __bcmMultiline(el, kind) {
+  return kind === 'rich' || (kind === 'text' && el.tagName.toLowerCase() === 'textarea');
+}
+
+function __bcmInsertBreak(el, kind) {
+  if (kind === 'rich') {
+    var done = false;
+    try { done = document.execCommand('insertLineBreak'); } catch (err) { done = false; }
+    if (!done) {
+      try { done = document.execCommand('insertHTML', false, '<br>'); } catch (err) { done = false; }
+    }
+    return done ? 'inserted a line break' : '';
+  }
+  var value = el.value == null ? '' : String(el.value);
+  var from = el.selectionStart == null ? value.length : el.selectionStart;
+  var to = el.selectionEnd == null ? value.length : el.selectionEnd;
+  __bcmSetValue(el, value.slice(0, from) + '\\n' + value.slice(to));
+  try { el.setSelectionRange(from + 1, from + 1); } catch (err) { /* caret is best effort */ }
+  __bcmNotify(el);
+  return 'inserted a line break';
+}
+
 function __bcmPaste(el, kind, text) {
   if (typeof text !== 'string' || text === '') {
     throw new Error('The clipboard holds no text, so there was nothing to paste.');
@@ -332,6 +362,32 @@ function __bcmDeleteInText(el, backspace, word) {
   return 'deleted ' + removed + (removed === 1 ? ' character' : ' characters');
 }
 
+function __bcmScrollByKey(el, key, whole) {
+  var doc = document.scrollingElement || document.documentElement;
+  var sideways = key === 'ArrowLeft' || key === 'ArrowRight';
+  var box = null;
+  for (var n = el; n && n !== doc && n !== document.body; n = n.parentElement) {
+    var style = getComputedStyle(n);
+    var overflow = sideways ? style.overflowX : style.overflowY;
+    var room = sideways ? n.scrollWidth - n.clientWidth : n.scrollHeight - n.clientHeight;
+    if ((overflow === 'auto' || overflow === 'scroll') && room > 1) { box = n; break; }
+  }
+  var page = box ? box.clientHeight : window.innerHeight;
+  var line = 40;
+  var dx = 0;
+  var dy = 0;
+  if (key === 'ArrowDown') { dy = line; }
+  else if (key === 'ArrowUp') { dy = -line; }
+  else if (key === 'ArrowRight') { dx = line; }
+  else if (key === 'ArrowLeft') { dx = -line; }
+  else if (key === 'PageDown') { dy = Math.round(page * 0.85); }
+  else if (key === 'PageUp') { dy = -Math.round(page * 0.85); }
+  else if (key === 'Home') { dy = -1e9; }
+  else if (key === 'End') { dy = 1e9; }
+  if (box) { box.scrollTop += dy; box.scrollLeft += dx; } else { window.scrollBy(dx, dy); }
+  return 'scrolled ' + (box ? __bcmLabel(box) : 'the page');
+}
+
 function __bcmDeleteInPage(el, backspace, word) {
   var sel = __bcmSelection(el);
   if (word && sel && typeof sel.modify === 'function' && sel.isCollapsed) {
@@ -366,9 +422,11 @@ function __bcmDefaultAction(el, key, modifiers, pasteText) {
   if (alt) { return ''; }
 
   if (key === 'ArrowLeft' || key === 'ArrowRight' || key === 'ArrowUp' ||
-      key === 'ArrowDown' || key === 'Home' || key === 'End') {
+      key === 'ArrowDown' || key === 'Home' || key === 'End' ||
+      key === 'PageUp' || key === 'PageDown') {
     if (kind === 'text') { return __bcmMoveCaretInText(el, key, accel, shift); }
-    return __bcmMoveCaretInPage(el, key, accel, shift);
+    if (kind === 'rich') { return __bcmMoveCaretInPage(el, key, accel, shift); }
+    return __bcmScrollByKey(el, key);
   }
 
   if (key === 'Backspace' || key === 'Delete') {
@@ -377,38 +435,48 @@ function __bcmDefaultAction(el, key, modifiers, pasteText) {
     return '';
   }
 
+  if (key === 'Enter' && !accel && __bcmMultiline(el, kind)) {
+    return __bcmInsertBreak(el, kind);
+  }
+
   return '';
 }
 `;
 
-export function buildClickCode(request: ClickElementServerMessage): string {
-  const button = request.button ?? "left";
-  const buttonIndex = button === "middle" ? 1 : button === "right" ? 2 : 0;
-  const clickCount = Math.max(1, Math.min(3, request.clickCount ?? 1));
-
-  return `(function () {
-${ELEMENT_RESOLVER_SOURCE}
-${SCROLL_ANCHOR_SOURCE}
-  var el = __bcmResolve(${targetLiteral(request)});
-  if (el.disabled) {
-    throw new Error('The element is disabled and cannot be clicked');
-  }
-
-  var label = __bcmLabel(el);
-  __bcmScrollToAnchor(el, false);
+const CLICK_DISPATCH_SOURCE = `
+function __bcmPointerInit(el, buttonIndex, modifiers) {
   var rect = el.getBoundingClientRect();
-  var clientX = rect.left + rect.width / 2;
-  var clientY = rect.top + rect.height / 2;
-  var buttonIndex = ${buttonIndex};
-  var pointerInit = {
+  var mods = modifiers || [];
+  return {
     bubbles: true,
     cancelable: true,
     view: window,
-    clientX: clientX,
-    clientY: clientY,
+    clientX: rect.left + rect.width / 2,
+    clientY: rect.top + rect.height / 2,
     button: buttonIndex,
-    buttons: buttonIndex === 0 ? 1 : buttonIndex === 1 ? 4 : 2
+    buttons: buttonIndex === 0 ? 1 : buttonIndex === 1 ? 4 : 2,
+    ctrlKey: mods.indexOf('Control') !== -1,
+    shiftKey: mods.indexOf('Shift') !== -1,
+    altKey: mods.indexOf('Alt') !== -1,
+    metaKey: mods.indexOf('Meta') !== -1
   };
+}
+
+function __bcmDispatchHover(el) {
+  __bcmScrollToAnchor(el, false);
+  var pointerInit = __bcmPointerInit(el, 0, []);
+  pointerInit.buttons = 0;
+  el.dispatchEvent(new PointerEvent('pointerover', pointerInit));
+  el.dispatchEvent(new PointerEvent('pointerenter', pointerInit));
+  el.dispatchEvent(new MouseEvent('mouseover', pointerInit));
+  el.dispatchEvent(new MouseEvent('mouseenter', pointerInit));
+  el.dispatchEvent(new PointerEvent('pointermove', pointerInit));
+  el.dispatchEvent(new MouseEvent('mousemove', pointerInit));
+}
+
+function __bcmDispatchClick(el, buttonIndex, clickCount, modifiers) {
+  __bcmScrollToAnchor(el, false);
+  var pointerInit = __bcmPointerInit(el, buttonIndex, modifiers);
 
   if (typeof el.focus === 'function') {
     try { el.focus({ preventScroll: true }); } catch (err) { /* focus is best effort */ }
@@ -419,10 +487,12 @@ ${SCROLL_ANCHOR_SOURCE}
   el.dispatchEvent(new MouseEvent('mousedown', pointerInit));
   el.dispatchEvent(new MouseEvent('mouseup', pointerInit));
 
-  var clickCount = ${clickCount};
+  var plain = !pointerInit.ctrlKey && !pointerInit.shiftKey && !pointerInit.altKey && !pointerInit.metaKey;
   if (buttonIndex === 0) {
     for (var i = 0; i < clickCount; i++) {
-      el.click();
+      // el.click() cannot carry modifier keys, and a modified click must not run the plain
+      // default action (a link would navigate the tab instead of opening a new one).
+      if (plain) { el.click(); } else { el.dispatchEvent(new MouseEvent('click', pointerInit)); }
     }
     if (clickCount > 1) {
       el.dispatchEvent(new MouseEvent('dblclick', pointerInit));
@@ -432,23 +502,213 @@ ${SCROLL_ANCHOR_SOURCE}
   } else {
     el.dispatchEvent(new MouseEvent('auxclick', pointerInit));
   }
+}
+`;
+
+export function buildClickCode(request: ClickElementServerMessage): string {
+  const button = request.button ?? "left";
+  const buttonIndex = button === "middle" ? 1 : button === "right" ? 2 : 0;
+  const clickCount = Math.max(1, Math.min(3, request.clickCount ?? 1));
+  const modifiers = request.modifiers ?? [];
+  const combo = modifiers.length ? `${modifiers.join("+")}+` : "";
+
+  return `(function () {
+${ELEMENT_RESOLVER_SOURCE}
+${SCROLL_ANCHOR_SOURCE}
+${CLICK_DISPATCH_SOURCE}
+  var el = __bcmResolve(${targetLiteral(request)});
+  if (el.disabled) {
+    throw new Error('The element is disabled and cannot be clicked');
+  }
+
+  var label = __bcmLabel(el);
+  __bcmDispatchClick(el, ${buttonIndex}, ${clickCount}, ${jsValue(modifiers)});
 
   var scroll = __bcmScroll();
   return {
     target: label,
-    detail: 'Dispatched ' + clickCount + ' ' + ${jsValue(button)} + ' click(s)',
+    detail: 'Dispatched ' + ${clickCount} + ' ' + ${jsValue(combo + button)} + ' click(s)',
     url: location.href,
     scrollY: scroll.scrollY,
-    scrollHeight: scroll.scrollHeight
+    scrollHeight: scroll.scrollHeight,
+    scrollMax: scroll.scrollMax
+  };
+})();`;
+}
+
+export function buildHoverCode(request: HoverElementServerMessage): string {
+  return `(function () {
+${ELEMENT_RESOLVER_SOURCE}
+${SCROLL_ANCHOR_SOURCE}
+${CLICK_DISPATCH_SOURCE}
+  var el = __bcmResolve(${targetLiteral(request)});
+  var label = __bcmLabel(el);
+  __bcmDispatchHover(el);
+
+  var scroll = __bcmScroll();
+  return {
+    target: label,
+    detail: 'Moved the pointer over the element without clicking',
+    url: location.href,
+    scrollY: scroll.scrollY,
+    scrollHeight: scroll.scrollHeight,
+    scrollMax: scroll.scrollMax
+  };
+})();`;
+}
+
+export function buildDragCode(request: DragElementServerMessage): string {
+  return `(function () {
+${ELEMENT_RESOLVER_SOURCE}
+${SCROLL_ANCHOR_SOURCE}
+${CLICK_DISPATCH_SOURCE}
+  var source = __bcmResolve(${targetLiteral(request)});
+  var target = __bcmResolve(${targetLiteral(request.to)});
+  if (source === target) {
+    throw new Error('The drag source and the drop target are the same element');
+  }
+  var sourceLabel = __bcmLabel(source);
+  var targetLabel = __bcmLabel(target);
+
+  __bcmScrollToAnchor(source, false);
+  var down = __bcmPointerInit(source, 0, []);
+  source.dispatchEvent(new PointerEvent('pointerdown', down));
+  source.dispatchEvent(new MouseEvent('mousedown', down));
+
+  var dataTransfer = null;
+  try { dataTransfer = new DataTransfer(); } catch (err) { dataTransfer = null; }
+  var dragInit = function (base) {
+    var init = {};
+    for (var k in base) { init[k] = base[k]; }
+    if (dataTransfer) { init.dataTransfer = dataTransfer; }
+    return init;
+  };
+  var native = source.draggable || source.getAttribute('draggable') === 'true';
+  var dragStarted = false;
+  if (native) {
+    dragStarted = source.dispatchEvent(new DragEvent('dragstart', dragInit(down)));
+    source.dispatchEvent(new DragEvent('drag', dragInit(down)));
+  }
+
+  var over = __bcmPointerInit(target, 0, []);
+  var steps = 4;
+  for (var i = 1; i <= steps; i++) {
+    var mid = {};
+    for (var key in down) { mid[key] = down[key]; }
+    mid.clientX = down.clientX + (over.clientX - down.clientX) * i / steps;
+    mid.clientY = down.clientY + (over.clientY - down.clientY) * i / steps;
+    var under = document.elementFromPoint(mid.clientX, mid.clientY) || target;
+    under.dispatchEvent(new PointerEvent('pointermove', mid));
+    under.dispatchEvent(new MouseEvent('mousemove', mid));
+  }
+  target.dispatchEvent(new PointerEvent('pointerover', over));
+  target.dispatchEvent(new MouseEvent('mouseover', over));
+
+  var dropped = false;
+  if (native && dragStarted) {
+    target.dispatchEvent(new DragEvent('dragenter', dragInit(over)));
+    var accepted = !target.dispatchEvent(new DragEvent('dragover', dragInit(over)));
+    if (accepted) {
+      target.dispatchEvent(new DragEvent('drop', dragInit(over)));
+      dropped = true;
+    } else {
+      target.dispatchEvent(new DragEvent('dragleave', dragInit(over)));
+    }
+    source.dispatchEvent(new DragEvent('dragend', dragInit(over)));
+  }
+
+  var up = {};
+  for (var k2 in over) { up[k2] = over[k2]; }
+  up.buttons = 0;
+  target.dispatchEvent(new PointerEvent('pointerup', up));
+  target.dispatchEvent(new MouseEvent('mouseup', up));
+
+  var detail;
+  if (!native) {
+    detail = 'Dragged with pointer events from ' + sourceLabel + ' to ' + targetLabel + '; the source is not draggable, so no HTML drag-and-drop events were sent';
+  } else if (!dragStarted) {
+    detail = 'The page cancelled dragstart on ' + sourceLabel + ', so nothing was dropped';
+  } else if (dropped) {
+    detail = 'Dropped ' + sourceLabel + ' on ' + targetLabel;
+  } else {
+    detail = 'Dragged ' + sourceLabel + ' over ' + targetLabel + ', but the target did not accept the drop (dragover was not cancelled)';
+  }
+
+  var scroll = __bcmScroll();
+  return {
+    target: sourceLabel,
+    detail: detail,
+    url: location.href,
+    scrollY: scroll.scrollY,
+    scrollHeight: scroll.scrollHeight,
+    scrollMax: scroll.scrollMax
+  };
+})();`;
+}
+
+export function buildUploadFilesCode(request: UploadFilesServerMessage): string {
+  return `(function () {
+${ELEMENT_RESOLVER_SOURCE}
+${SCROLL_ANCHOR_SOURCE}
+  var el = __bcmResolve(${targetLiteral(request)});
+  var label = __bcmLabel(el);
+  if (!(el.tagName && el.tagName.toLowerCase() === 'input' && el.type === 'file')) {
+    throw new Error('The element ' + label + ' is not an <input type="file">, so no file can be attached to it. Find the file input with list-page-elements (it may be hidden) and pass its ref.');
+  }
+  if (el.disabled) {
+    throw new Error('The file input is disabled');
+  }
+  var files = ${jsValue(request.files)};
+  if (files.length > 1 && !el.multiple) {
+    throw new Error('The file input accepts one file, but ' + files.length + ' were given');
+  }
+  __bcmScrollToAnchor(el, false);
+  var transfer = new DataTransfer();
+  for (var i = 0; i < files.length; i++) {
+    var raw = atob(files[i].base64);
+    var bytes = new Uint8Array(raw.length);
+    for (var j = 0; j < raw.length; j++) { bytes[j] = raw.charCodeAt(j); }
+    transfer.items.add(new File([bytes], files[i].name, { type: files[i].mimeType }));
+  }
+  el.files = transfer.files;
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+
+  var names = [];
+  for (var k = 0; k < el.files.length; k++) { names.push(el.files[k].name); }
+  var scroll = __bcmScroll();
+  return {
+    target: label,
+    detail: 'Attached ' + names.length + ' file(s): ' + names.join(', '),
+    url: location.href,
+    scrollY: scroll.scrollY,
+    scrollHeight: scroll.scrollHeight,
+    scrollMax: scroll.scrollMax
   };
 })();`;
 }
 
 export function buildTypeCode(request: TypeTextServerMessage): string {
+  const targeted = isElementTargeted(request.clickAfter);
+  const clickAfter = targeted
+    ? `__bcmResolve(${targetLiteral(request.clickAfter!)})`
+    : "null";
+  const focusAfter = targeted
+    ? `try {
+      if (window.__bcmOverlay) { window.__bcmOverlay.focus(after, 'click'); }
+    } catch (err) { /* the overlay must never break an interaction */ }
+    `
+    : "";
+
   return `(function () {
 ${ELEMENT_RESOLVER_SOURCE}
+${SCROLL_ANCHOR_SOURCE}
+${CLICK_DISPATCH_SOURCE}
 ${VALUE_SETTER_SOURCE}
   var el = __bcmResolve(${targetLiteral(request)});
+  if (el.tagName && el.tagName.toLowerCase() === 'select') {
+    throw new Error('The element is a <select>; choose one of its options with select-page-option instead');
+  }
   if (el.disabled || el.readOnly) {
     throw new Error('The element is disabled or read-only and cannot accept text');
   }
@@ -480,13 +740,24 @@ ${VALUE_SETTER_SOURCE}
     submitted = __bcmSubmitOwner(el);
   }
 
+  var clicked = '';
+  var after = ${clickAfter};
+  if (after) {
+    if (after.disabled) {
+      throw new Error('The text was typed, but the clickAfter element is disabled and cannot be clicked');
+    }
+    ${focusAfter}__bcmDispatchClick(after, 0, 1);
+    clicked = __bcmLabel(after);
+  }
+
   var scroll = __bcmScroll();
   return {
     target: label,
-    detail: 'Typed ' + text.length + ' character(s)' + (submitted ? ' and submitted the owning form' : ''),
+    detail: 'Typed ' + text.length + ' character(s)' + (submitted ? ' and submitted the owning form' : '') + (clicked ? ', then clicked "' + clicked + '"' : ''),
     url: location.href,
     scrollY: scroll.scrollY,
-    scrollHeight: scroll.scrollHeight
+    scrollHeight: scroll.scrollHeight,
+    scrollMax: scroll.scrollMax
   };
 })();`;
 }
@@ -514,16 +785,19 @@ ${KEY_DEFAULT_ACTION_SOURCE}
     try { el.focus({ preventScroll: true }); } catch (err) { /* focus is best effort */ }
   }
 
-  var allowed = __bcmKeyEvents(el, key, modifiers);
-
+  var repeat = ${jsValue(Math.max(1, Math.min(100, request.repeat ?? 1)))};
+  var allowed = true;
   var submitted = false;
   var performed = '';
-  if (allowed) {
-    if (key === 'Enter' && modifiers.length === 0) {
+  var pressed = 0;
+  for (; pressed < repeat && !submitted; pressed++) {
+    allowed = __bcmKeyEvents(el, key, modifiers);
+    if (!allowed) { pressed++; break; }
+    if (key === 'Enter' && modifiers.length === 0 && !__bcmMultiline(el, __bcmEditableKind(el))) {
       submitted = __bcmSubmitOwner(el);
     }
     if (!submitted) {
-      performed = __bcmDefaultAction(el, key, modifiers, pasteText);
+      performed = __bcmDefaultAction(el, key, modifiers, pasteText) || performed;
     }
   }
 
@@ -539,10 +813,11 @@ ${KEY_DEFAULT_ACTION_SOURCE}
   var scroll = __bcmScroll();
   return {
     target: label,
-    detail: 'Pressed ' + (modifiers.length ? modifiers.join('+') + '+' : '') + key + outcome,
+    detail: 'Pressed ' + (modifiers.length ? modifiers.join('+') + '+' : '') + key + (pressed > 1 ? ' ' + pressed + ' times' : '') + outcome,
     url: location.href,
     scrollY: scroll.scrollY,
-    scrollHeight: scroll.scrollHeight
+    scrollHeight: scroll.scrollHeight,
+    scrollMax: scroll.scrollMax
   };
 })();`;
 }
@@ -554,39 +829,77 @@ ${ELEMENT_RESOLVER_SOURCE}
 ${SCROLL_ANCHOR_SOURCE}
   var doc = document.scrollingElement || document.documentElement;
   var direction = ${jsValue(request.direction)};
-  var viewport = window.innerHeight || doc.clientHeight;
-  var step = ${jsValue(request.amount ?? null)};
-  if (step === null) { step = Math.round(viewport * 0.85); }
+  var horizontal = direction === 'left' || direction === 'right';
   var label = 'document';
+  var box = null;
+  var el = null;
+  ${
+    hasTarget
+      ? `el = __bcmResolve(${targetLiteral(request)});
+  label = __bcmLabel(el);`
+      : ""
+  }
+
+  function __bcmScrollBox(node) {
+    for (var n = node; n && n !== doc && n !== document.body; n = n.parentElement) {
+      var style = getComputedStyle(n);
+      var overflow = horizontal ? style.overflowX : style.overflowY;
+      var room = horizontal ? n.scrollWidth - n.clientWidth : n.scrollHeight - n.clientHeight;
+      if ((overflow === 'auto' || overflow === 'scroll') && room > 1) { return n; }
+    }
+    return null;
+  }
 
   if (direction === 'element') {
-    ${
-      hasTarget
-        ? `var el = __bcmResolve(${targetLiteral(request)});
+    if (!el) { throw new Error('Scrolling to an element needs a ref or a selector'); }
     if (typeof el.scrollIntoView === 'function') {
       try { el.scrollIntoView({ block: 'nearest', inline: 'center' }); } catch (err) { el.scrollIntoView(); }
     }
     __bcmScrollToAnchor(el, false);
-    label = __bcmLabel(el);`
-        : `throw new Error('Scrolling to an element needs a ref or a selector');`
-    }
-  } else if (direction === 'top') {
-    window.scrollTo(0, 0);
-  } else if (direction === 'bottom') {
-    window.scrollTo(0, doc.scrollHeight);
-  } else if (direction === 'up') {
-    window.scrollBy(0, -step);
   } else {
-    window.scrollBy(0, step);
+    if (el) {
+      box = __bcmScrollBox(el);
+      if (!box) { throw new Error('Neither ' + label + ' nor an ancestor of it scrolls ' + (horizontal ? 'horizontally' : 'vertically') + '; leave out the ref or selector to scroll the page itself'); }
+    }
+    var viewport = box ? (horizontal ? box.clientWidth : box.clientHeight) : (horizontal ? window.innerWidth || doc.clientWidth : window.innerHeight || doc.clientHeight);
+    var step = ${jsValue(request.amount ?? null)};
+    if (step === null) { step = Math.round(viewport * 0.85); }
+    var to = function (x, y) { if (box) { box.scrollLeft = x; box.scrollTop = y; } else { window.scrollTo(x, y); } };
+    var by = function (x, y) { if (box) { box.scrollLeft += x; box.scrollTop += y; } else { window.scrollBy(x, y); } };
+    if (direction === 'top') {
+      to(box ? box.scrollLeft : window.scrollX, 0);
+    } else if (direction === 'bottom') {
+      to(box ? box.scrollLeft : window.scrollX, box ? box.scrollHeight : doc.scrollHeight);
+    } else if (direction === 'up') {
+      by(0, -step);
+    } else if (direction === 'down') {
+      by(0, step);
+    } else if (direction === 'left') {
+      by(-step, 0);
+    } else {
+      by(step, 0);
+    }
   }
 
   var scroll = __bcmScroll();
+  var detail;
+  if (box) {
+    var at = horizontal ? Math.round(box.scrollLeft) : Math.round(box.scrollTop);
+    var max = horizontal ? Math.max(0, box.scrollWidth - box.clientWidth) : Math.max(0, box.scrollHeight - box.clientHeight);
+    detail = 'Scrolled ' + direction + ' inside ' + __bcmLabel(box) + ', now at ' + at + ' of ' + max + (at >= max ? ' (the end)' : '') + '; the page itself did not move';
+  } else if (horizontal) {
+    var maxX = Math.max(0, Math.round(doc.scrollWidth - doc.clientWidth));
+    detail = 'Scrolled ' + direction + ', now at ' + Math.round(window.scrollX) + ' of ' + maxX + ' horizontally';
+  } else {
+    detail = 'Scrolled ' + direction + ', now at ' + scroll.scrollY + ' of ' + scroll.scrollMax + (scroll.scrollY >= scroll.scrollMax ? ' (the bottom)' : '');
+  }
   return {
-    target: label,
-    detail: 'Scrolled ' + direction + ', now at ' + scroll.scrollY + ' of ' + scroll.scrollHeight,
+    target: box ? __bcmLabel(box) : label,
+    detail: detail,
     url: location.href,
     scrollY: scroll.scrollY,
-    scrollHeight: scroll.scrollHeight
+    scrollHeight: scroll.scrollHeight,
+    scrollMax: scroll.scrollMax
   };
 })();`;
 }
@@ -616,10 +929,11 @@ ${VALUE_SETTER_SOURCE}
     }
     if (el.multiple) {
       option.selected = matched;
+      if (matched) { chosen.push(optionText || option.value); }
     } else if (matched && chosen.length === 0) {
       el.selectedIndex = i;
+      chosen.push(optionText || option.value);
     }
-    if (matched) { chosen.push(optionText || option.value); }
   }
 
   if (chosen.length === 0) {
@@ -634,7 +948,8 @@ ${VALUE_SETTER_SOURCE}
     detail: 'Selected ' + chosen.join(', '),
     url: location.href,
     scrollY: scroll.scrollY,
-    scrollHeight: scroll.scrollHeight
+    scrollHeight: scroll.scrollHeight,
+    scrollMax: scroll.scrollMax
   };
 })();`;
 }
@@ -686,10 +1001,25 @@ export function buildWaitProbeCode(
   request: WaitForElementServerMessage
 ): string {
   const state = request.state ?? "visible";
+  const scope = isElementTargeted(request.within)
+    ? `__bcmResolve(${targetLiteral(request.within!)})`
+    : "null";
   return `(function () {
-  var matches;
+${ELEMENT_RESOLVER_SOURCE}
+  var scope = ${scope};
+  var matches = [];
   try {
-    matches = document.querySelectorAll(${jsValue(request.selector)});
+    var roots = __bcmRoots(scope);
+    for (var r = 0; r < roots.length; r++) {
+      var found = roots[r].querySelectorAll(${jsValue(request.selector)});
+      for (var m = 0; m < found.length; m++) {
+        if (matches.indexOf(found[m]) === -1) { matches.push(found[m]); }
+      }
+    }
+    // querySelectorAll reaches descendants only, so the scope element is matched on its own.
+    if (scope && scope.matches && scope.matches(${jsValue(request.selector)}) && matches.indexOf(scope) === -1) {
+      matches.push(scope);
+    }
   } catch (err) {
     throw new Error('Invalid CSS selector ' + ${jsValue(request.selector)} + ': ' + err.message);
   }
@@ -697,7 +1027,8 @@ export function buildWaitProbeCode(
   function visible(el) {
     var rect = el.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) { return false; }
-    var style = window.getComputedStyle(el);
+    var view = el.ownerDocument && el.ownerDocument.defaultView;
+    var style = view ? view.getComputedStyle(el) : null;
     if (!style) { return false; }
     return style.visibility !== 'hidden' && style.display !== 'none' && style.opacity !== '0';
   }
@@ -720,6 +1051,155 @@ export function buildWaitProbeCode(
   }
 
   return { matchCount: matches.length, satisfied: satisfied };
+})();`;
+}
+
+export interface TextWatchResult {
+  baseline: string;
+  current: string;
+  settled: boolean;
+  label: string;
+}
+
+const TEXT_DELTA_SOURCE = `
+function __bcmCharDelta(before, after) {
+  var shortest = Math.min(before.length, after.length);
+  var prefix = 0;
+  while (prefix < shortest && before.charCodeAt(prefix) === after.charCodeAt(prefix)) { prefix++; }
+  var room = shortest - prefix;
+  var suffix = 0;
+  while (suffix < room &&
+    before.charCodeAt(before.length - 1 - suffix) === after.charCodeAt(after.length - 1 - suffix)) { suffix++; }
+  return (after.length - prefix - suffix) + (before.length - prefix - suffix);
+}
+function __bcmTextDelta(before, after) {
+  var b = before.split('\\n');
+  var a = after.split('\\n');
+  var prefix = 0;
+  while (prefix < b.length && prefix < a.length && b[prefix] === a[prefix]) { prefix++; }
+  var ahead = new Map();
+  for (var k = prefix; k < a.length; k++) { ahead.set(a[k], (ahead.get(a[k]) || 0) + 1); }
+  var suffix = 0;
+  while (suffix < b.length - prefix && suffix < a.length - prefix &&
+    b[b.length - 1 - suffix] === a[a.length - 1 - suffix]) {
+    var line = a[a.length - 1 - suffix];
+    var left = (ahead.has(line) ? ahead.get(line) : 1) - 1;
+    if (left > 0) { break; }
+    ahead.set(line, left);
+    suffix++;
+  }
+  var oldMid = b.slice(prefix, b.length - suffix);
+  var newMid = a.slice(prefix, a.length - suffix);
+  if (!oldMid.length || !newMid.length || oldMid.length * newMid.length > 250000) {
+    return __bcmCharDelta(oldMid.join('\\n'), newMid.join('\\n'));
+  }
+  var width = newMid.length + 1;
+  var table = new Uint32Array((oldMid.length + 1) * width);
+  for (var i = oldMid.length - 1; i >= 0; i--) {
+    for (var j = newMid.length - 1; j >= 0; j--) {
+      table[i * width + j] = oldMid[i] === newMid[j]
+        ? table[(i + 1) * width + j + 1] + 1
+        : Math.max(table[(i + 1) * width + j], table[i * width + j + 1]);
+    }
+  }
+  var added = [];
+  var removed = [];
+  var x = 0;
+  var y = 0;
+  while (x < oldMid.length && y < newMid.length) {
+    if (oldMid[x] === newMid[y]) { x++; y++; }
+    else if (table[(x + 1) * width + y] >= table[x * width + y + 1]) { removed.push(oldMid[x]); x++; }
+    else { added.push(newMid[y]); y++; }
+  }
+  removed = removed.concat(oldMid.slice(x));
+  added = added.concat(newMid.slice(y));
+  return __bcmCharDelta(removed.join('\\n'), added.join('\\n'));
+}
+`;
+
+const TEXT_SCOPE_SOURCE = (target: ElementTarget | undefined) =>
+  isElementTargeted(target)
+    ? `__bcmResolve(${targetLiteral(target!)})`
+    : "document.body";
+
+export const DEFAULT_TEXT_SETTLE_MS = 800;
+
+export function buildTextWatchCode(
+  request: WaitForTextChangeServerMessage,
+  token: string,
+  carried: string | null,
+  settleMs: number,
+  timeoutMs: number,
+  minChars: number
+): string {
+  return `(function () {
+${ELEMENT_RESOLVER_SOURCE}
+${PAGE_READ_SOURCE}
+${TEXT_DELTA_SOURCE}
+  function scope() { return ${TEXT_SCOPE_SOURCE(request)}; }
+  var el = scope();
+  var label = __bcmLabel(el);
+  var carried = ${jsValue(carried)};
+  var current = __bcmReadText(el);
+  try { if (window.__bcmTextWatch) { window.__bcmTextWatch(); window.__bcmTextWatch = null; } } catch (err) { /* nothing was watching */ }
+
+  var baseline = carried === null ? current : carried;
+  if (${jsValue(timeoutMs <= 0)}) {
+    return { baseline: baseline, current: current, settled: true, label: label };
+  }
+
+  var settleMs = ${jsValue(settleMs)};
+  var done = false;
+  var timer = null;
+  var firstSeenAt = 0;
+
+  function stop() {
+    done = true;
+    if (timer) { clearTimeout(timer); timer = null; }
+    try { observer.disconnect(); } catch (err) { /* already gone */ }
+  }
+  function compare() {
+    timer = null;
+    if (done) { return; }
+    var now;
+    try { now = __bcmReadText(scope()); } catch (err) { return; }
+    firstSeenAt = 0;
+    if (now === baseline) { return; }
+    if (__bcmTextDelta(baseline, now) < ${jsValue(minChars)}) { return; }
+    stop();
+    try {
+      browser.runtime.sendMessage({
+        kind: 'page-event',
+        channel: 'text-change',
+        text: ${jsValue(token)}
+      });
+    } catch (err) { /* the background is the only listener and it may be gone */ }
+  }
+  function schedule() {
+    var at = Date.now();
+    if (!firstSeenAt) { firstSeenAt = at; }
+    // A page that never stops mutating would hold the settle window open forever.
+    if (at - firstSeenAt >= settleMs * 4) { compare(); return; }
+    if (timer) { clearTimeout(timer); }
+    timer = setTimeout(compare, settleMs);
+  }
+  var observer = new MutationObserver(function () {
+    if (!done) { schedule(); }
+  });
+  observer.observe(el.ownerDocument.documentElement, { childList: true, characterData: true, subtree: true });
+  window.__bcmTextWatch = stop;
+  if (current !== baseline) { schedule(); }
+
+  return { baseline: baseline, current: current, settled: false, label: label };
+})();`;
+}
+
+export function buildTextReadCode(target: ElementTarget | undefined): string {
+  return `(function () {
+${ELEMENT_RESOLVER_SOURCE}
+${PAGE_READ_SOURCE}
+  try { if (window.__bcmTextWatch) { window.__bcmTextWatch(); window.__bcmTextWatch = null; } } catch (err) { /* nothing was watching */ }
+  return __bcmReadText(${TEXT_SCOPE_SOURCE(target)});
 })();`;
 }
 
@@ -771,7 +1251,40 @@ ${ELEMENT_RESOLVER_SOURCE}
     elementHeight: Math.round(box.height),
     clipped: top > fullTop || top + height < fullBottom,
     scrollY: scroll.scrollY,
-    scrollHeight: scroll.scrollHeight
+    scrollHeight: scroll.scrollHeight,
+    scrollMax: scroll.scrollMax
+  };
+})();`;
+}
+
+export function buildRegionBoxCode(region: ViewportRegion): string {
+  return `(function () {
+${ELEMENT_RESOLVER_SOURCE}
+  var region = ${jsValue(region)};
+  var viewWidth = document.documentElement.clientWidth || window.innerWidth;
+  var viewHeight = document.documentElement.clientHeight || window.innerHeight;
+  var x0 = Math.max(0, Math.min(region.x0, region.x1, viewWidth));
+  var y0 = Math.max(0, Math.min(region.y0, region.y1, viewHeight));
+  var x1 = Math.min(viewWidth, Math.max(region.x0, region.x1, 0));
+  var y1 = Math.min(viewHeight, Math.max(region.y0, region.y1, 0));
+  var width = Math.round(x1 - x0);
+  var height = Math.round(y1 - y0);
+  if (width <= 0 || height <= 0) {
+    throw new Error('The region (' + region.x0 + ',' + region.y0 + ')-(' + region.x1 + ',' + region.y1 + ') lies outside the ' + viewWidth + 'x' + viewHeight + ' viewport.');
+  }
+  var scroll = __bcmScroll();
+  var top = Math.round(y0 + window.scrollY);
+  return {
+    rect: { x: Math.round(x0 + window.scrollX), y: top, width: width, height: height },
+    fullTop: top,
+    fullBottom: top + height,
+    label: 'the viewport region (' + Math.round(x0) + ',' + Math.round(y0) + ')-(' + Math.round(x1) + ',' + Math.round(y1) + ')',
+    elementWidth: width,
+    elementHeight: height,
+    clipped: false,
+    scrollY: scroll.scrollY,
+    scrollHeight: scroll.scrollHeight,
+    scrollMax: scroll.scrollMax
   };
 })();`;
 }
@@ -853,7 +1366,7 @@ ${PAGE_READ_SOURCE}
     items: items,
     totalItems: total,
     isTruncated: total > items.length,
-    unreachableFrames: __bcmUnreachableFrames(scope)
+    unreachableFrames: __bcmUnreachableFrames(scope).length
   };
 })();`;
 }

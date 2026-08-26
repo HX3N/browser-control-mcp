@@ -23,8 +23,16 @@ const collapsed = (limit = 30) =>
   run<CollapsedSection[]>(`__bcmCollapsed(document.body, ${limit})`);
 const fields = (limit = 40) =>
   run<FormField[]>(`__bcmFields(document.body, ${limit})`);
+interface UnreachableFrame {
+  src: string;
+  name?: string;
+  width: number;
+  height: number;
+  hidden?: boolean;
+}
+
 const unreachableFrames = () =>
-  run<number>("__bcmUnreachableFrames(document.body)");
+  run<UnreachableFrame[]>("__bcmUnreachableFrames(document.body)");
 const readRoots = () => run<Element[]>("__bcmReadRoots(document.body)");
 
 function stubRects() {
@@ -160,15 +168,29 @@ describe("collapsed sections", () => {
 describe("frames", () => {
   stubRects();
 
-  it("counts the frames it cannot open", () => {
-    document.body.innerHTML = `<iframe id="near"></iframe><iframe id="far"></iframe>`;
+  it("lists the frames it cannot open, and leaves out the ones it can", () => {
+    document.body.innerHTML = `<iframe id="near"></iframe><iframe id="far" src="https://chat.example.com/" title="Chat"></iframe>`;
     frameOn(
       document.getElementById("near") as HTMLIFrameElement,
       document.implementation.createHTMLDocument("near")
     );
     frameOn(document.getElementById("far") as HTMLIFrameElement, null);
 
-    expect(unreachableFrames()).toBe(1);
+    expect(unreachableFrames()).toEqual([
+      {
+        src: "https://chat.example.com/",
+        name: "Chat",
+        width: 10,
+        height: 10,
+      },
+    ]);
+  });
+
+  it("marks a frame the page does not render", () => {
+    document.body.innerHTML = `<iframe id="far" src="https://ads.example.com/" style="display:none"></iframe>`;
+    frameOn(document.getElementById("far") as HTMLIFrameElement, null);
+
+    expect(unreachableFrames()[0].hidden).toBe(true);
   });
 
   it("adds the body of a frame it can open, and no shadow root", () => {

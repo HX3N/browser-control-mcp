@@ -6,11 +6,17 @@ import type {
   ElementTarget,
   ElementWaitExtensionMessage,
   InteractionResultExtensionMessage,
+  KeyModifier,
+  NetworkRequestsExtensionMessage,
+  UploadFile,
+  ViewportRegion,
+  WindowResizedExtensionMessage,
   PageSnapshotExtensionMessage,
   ScriptResultExtensionMessage,
   TabsReleasedExtensionMessage,
   ServerMessage,
   TabContentExtensionMessage,
+  TextChangeWaitExtensionMessage,
   ServerMessageRequest,
   ExtensionError,
   MediaContentExtensionMessage,
@@ -329,7 +335,8 @@ export class BrowserAPI {
     quality: number,
     scale: number,
     maxSlices: number,
-    target?: ElementTarget
+    target?: ElementTarget,
+    region?: ViewportRegion
   ): Promise<ScreenshotExtensionMessage> {
     const correlationId = this.sendMessageToExtension({
       cmd: "capture-screenshot",
@@ -338,6 +345,7 @@ export class BrowserAPI {
       quality,
       scale,
       maxSlices,
+      region,
       ...target,
     });
     return await this.waitForResponse(
@@ -403,13 +411,15 @@ export class BrowserAPI {
     tabId: number,
     target: ElementTarget,
     button: "left" | "middle" | "right",
-    clickCount: number
+    clickCount: number,
+    modifiers: KeyModifier[]
   ): Promise<InteractionResultExtensionMessage> {
     const correlationId = this.sendMessageToExtension({
       cmd: "click-element",
       tabId,
       button,
       clickCount,
+      modifiers,
       ...target,
     });
     return await this.waitForResponse(
@@ -419,12 +429,99 @@ export class BrowserAPI {
     );
   }
 
+  async hoverElement(
+    tabId: number,
+    target: ElementTarget
+  ): Promise<InteractionResultExtensionMessage> {
+    const correlationId = this.sendMessageToExtension({
+      cmd: "hover-element",
+      tabId,
+      ...target,
+    });
+    return await this.waitForResponse(
+      correlationId,
+      "interaction-result",
+      INTERACTION_RESPONSE_TIMEOUT_MS
+    );
+  }
+
+  async dragElement(
+    tabId: number,
+    target: ElementTarget,
+    to: ElementTarget
+  ): Promise<InteractionResultExtensionMessage> {
+    const correlationId = this.sendMessageToExtension({
+      cmd: "drag-element",
+      tabId,
+      ...target,
+      to,
+    });
+    return await this.waitForResponse(
+      correlationId,
+      "interaction-result",
+      INTERACTION_RESPONSE_TIMEOUT_MS
+    );
+  }
+
+  async uploadFiles(
+    tabId: number,
+    target: ElementTarget,
+    files: UploadFile[]
+  ): Promise<InteractionResultExtensionMessage> {
+    const correlationId = this.sendMessageToExtension({
+      cmd: "upload-files",
+      tabId,
+      files,
+      ...target,
+    });
+    return await this.waitForResponse(
+      correlationId,
+      "interaction-result",
+      MEDIA_RESPONSE_TIMEOUT_MS
+    );
+  }
+
+  async resizeWindow(
+    tabId: number,
+    width: number,
+    height: number
+  ): Promise<WindowResizedExtensionMessage> {
+    const correlationId = this.sendMessageToExtension({
+      cmd: "resize-window",
+      tabId,
+      width,
+      height,
+    });
+    return await this.waitForResponse(correlationId, "window-resized");
+  }
+
+  async getNetworkRequests(
+    tabId: number,
+    urlPattern: string | undefined,
+    clear: boolean,
+    limit: number
+  ): Promise<NetworkRequestsExtensionMessage> {
+    const correlationId = this.sendMessageToExtension({
+      cmd: "get-network-requests",
+      tabId,
+      urlPattern,
+      clear,
+      limit,
+    });
+    return await this.waitForResponse(
+      correlationId,
+      "network-requests",
+      INTERACTION_RESPONSE_TIMEOUT_MS
+    );
+  }
+
   async typeText(
     tabId: number,
     target: ElementTarget,
     text: string,
     clearFirst: boolean,
-    submit: boolean
+    submit: boolean,
+    clickAfter?: ElementTarget
   ): Promise<InteractionResultExtensionMessage> {
     const correlationId = this.sendMessageToExtension({
       cmd: "type-text",
@@ -432,6 +529,7 @@ export class BrowserAPI {
       text,
       clearFirst,
       submit,
+      clickAfter,
       ...target,
     });
     return await this.waitForResponse(
@@ -445,6 +543,7 @@ export class BrowserAPI {
     tabId: number,
     key: string,
     modifiers: ("Control" | "Shift" | "Alt" | "Meta")[],
+    repeat: number,
     target: ElementTarget
   ): Promise<InteractionResultExtensionMessage> {
     const correlationId = this.sendMessageToExtension({
@@ -452,6 +551,7 @@ export class BrowserAPI {
       tabId,
       key,
       modifiers,
+      repeat,
       ...target,
     });
     return await this.waitForResponse(
@@ -463,7 +563,7 @@ export class BrowserAPI {
 
   async scrollPage(
     tabId: number,
-    direction: "up" | "down" | "top" | "bottom" | "element",
+    direction: "up" | "down" | "left" | "right" | "top" | "bottom" | "element",
     amount: number | undefined,
     target: ElementTarget
   ): Promise<InteractionResultExtensionMessage> {
@@ -519,7 +619,8 @@ export class BrowserAPI {
     tabId: number,
     selector: string,
     state: "visible" | "hidden" | "attached" | "detached",
-    timeoutMs: number
+    timeoutMs: number,
+    within?: ElementTarget
   ): Promise<ElementWaitExtensionMessage> {
     const correlationId = this.sendMessageToExtension({
       cmd: "wait-for-element",
@@ -527,10 +628,33 @@ export class BrowserAPI {
       selector,
       state,
       timeoutMs,
+      within,
     });
     return await this.waitForResponse(
       correlationId,
       "element-wait-result",
+      timeoutMs + WAIT_RESPONSE_GRACE_MS
+    );
+  }
+
+  async waitForTextChange(
+    tabId: number,
+    target: ElementTarget | undefined,
+    timeoutMs: number,
+    settleMs: number,
+    minChars: number
+  ): Promise<TextChangeWaitExtensionMessage> {
+    const correlationId = this.sendMessageToExtension({
+      cmd: "wait-for-text-change",
+      tabId,
+      timeoutMs,
+      settleMs,
+      minChars,
+      ...target,
+    });
+    return await this.waitForResponse(
+      correlationId,
+      "text-change-wait-result",
       timeoutMs + WAIT_RESPONSE_GRACE_MS
     );
   }

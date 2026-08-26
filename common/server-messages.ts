@@ -64,6 +64,14 @@ export interface CaptureScreenshotServerMessage
   quality?: number;
   scale?: number;
   maxSlices?: number;
+  region?: ViewportRegion;
+}
+
+export interface ViewportRegion {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
 }
 
 export interface GetPageMediaServerMessage
@@ -94,6 +102,8 @@ export interface PageSnapshotServerMessage
   interactiveOnly?: boolean;
 }
 
+export type KeyModifier = "Control" | "Shift" | "Alt" | "Meta";
+
 export interface ClickElementServerMessage
   extends ServerMessageBase,
     ElementTarget {
@@ -101,6 +111,51 @@ export interface ClickElementServerMessage
   tabId: number;
   button?: "left" | "middle" | "right";
   clickCount?: number;
+  modifiers?: KeyModifier[];
+}
+
+export interface HoverElementServerMessage
+  extends ServerMessageBase,
+    ElementTarget {
+  cmd: "hover-element";
+  tabId: number;
+}
+
+export interface DragElementServerMessage
+  extends ServerMessageBase,
+    ElementTarget {
+  cmd: "drag-element";
+  tabId: number;
+  to: ElementTarget;
+}
+
+export interface UploadFile {
+  name: string;
+  mimeType: string;
+  base64: string;
+}
+
+export interface UploadFilesServerMessage
+  extends ServerMessageBase,
+    ElementTarget {
+  cmd: "upload-files";
+  tabId: number;
+  files: UploadFile[];
+}
+
+export interface ResizeWindowServerMessage extends ServerMessageBase {
+  cmd: "resize-window";
+  tabId: number;
+  width: number;
+  height: number;
+}
+
+export interface GetNetworkRequestsServerMessage extends ServerMessageBase {
+  cmd: "get-network-requests";
+  tabId: number;
+  urlPattern?: string;
+  clear?: boolean;
+  limit?: number;
 }
 
 export interface TypeTextServerMessage
@@ -111,6 +166,7 @@ export interface TypeTextServerMessage
   text: string;
   clearFirst?: boolean;
   submit?: boolean;
+  clickAfter?: ElementTarget;
 }
 
 export interface ExecuteJsServerMessage extends ServerMessageBase {
@@ -124,7 +180,7 @@ export interface ScrollPageServerMessage
     ElementTarget {
   cmd: "scroll-page";
   tabId: number;
-  direction: "up" | "down" | "top" | "bottom" | "element";
+  direction: "up" | "down" | "left" | "right" | "top" | "bottom" | "element";
   amount?: number;
 }
 
@@ -134,7 +190,8 @@ export interface PressKeyServerMessage
   cmd: "press-key";
   tabId: number;
   key: string;
-  modifiers?: ("Control" | "Shift" | "Alt" | "Meta")[];
+  modifiers?: KeyModifier[];
+  repeat?: number;
 }
 
 export interface SelectOptionServerMessage
@@ -151,6 +208,17 @@ export interface WaitForElementServerMessage extends ServerMessageBase {
   selector: string;
   state?: "visible" | "hidden" | "attached" | "detached";
   timeoutMs?: number;
+  within?: ElementTarget;
+}
+
+export interface WaitForTextChangeServerMessage
+  extends ServerMessageBase,
+    ElementTarget {
+  cmd: "wait-for-text-change";
+  tabId: number;
+  timeoutMs?: number;
+  settleMs?: number;
+  minChars?: number;
 }
 
 export interface ReleaseTabsServerMessage extends ServerMessageBase {
@@ -173,12 +241,18 @@ export type ServerMessage =
   | FetchMediaServerMessage
   | PageSnapshotServerMessage
   | ClickElementServerMessage
+  | HoverElementServerMessage
+  | DragElementServerMessage
+  | UploadFilesServerMessage
+  | ResizeWindowServerMessage
+  | GetNetworkRequestsServerMessage
   | TypeTextServerMessage
   | ExecuteJsServerMessage
   | ScrollPageServerMessage
   | PressKeyServerMessage
   | SelectOptionServerMessage
   | WaitForElementServerMessage
+  | WaitForTextChangeServerMessage
   | ReleaseTabsServerMessage;
 
 export type ServerMessageRequest = ServerMessage & { correlationId: string };

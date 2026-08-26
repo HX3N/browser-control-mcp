@@ -14,7 +14,15 @@ export interface TabContentExtensionMessage extends ExtensionMessageBase {
   links: { url: string; text: string }[];
   collapsed?: CollapsedSection[];
   fields?: FormField[];
-  unreachableFrames?: number;
+  unreachableFrames?: UnreachableFrame[];
+}
+
+export interface UnreachableFrame {
+  src: string;
+  name?: string;
+  width: number;
+  height: number;
+  hidden?: boolean;
 }
 
 export interface CollapsedSection {
@@ -36,6 +44,32 @@ export interface BrowserTab {
   title?: string;
   lastAccessed?: number;
   cookieStoreId?: string;
+  held?: boolean;
+}
+
+export interface WindowResizedExtensionMessage extends ExtensionMessageBase {
+  resource: "window-resized";
+  tabId: number;
+  width: number;
+  height: number;
+}
+
+export interface NetworkRequestRecord {
+  method: string;
+  url: string;
+  type: string;
+  status?: number;
+  error?: string;
+  fromCache?: boolean;
+  startedAt: number;
+  durationMs?: number;
+}
+
+export interface NetworkRequestsExtensionMessage extends ExtensionMessageBase {
+  resource: "network-requests";
+  tabId: number;
+  requests: NetworkRequestRecord[];
+  total: number;
 }
 
 export interface TabsExtensionMessage extends ExtensionMessageBase {
@@ -112,6 +146,7 @@ export interface CapturedElement {
   slices?: number;
   scrollY: number;
   scrollHeight: number;
+  scrollMax: number;
 }
 
 export interface MediaItem {
@@ -171,17 +206,28 @@ export interface PageSnapshotExtensionMessage extends ExtensionMessageBase {
   isTruncated: boolean;
   scrollY: number;
   scrollHeight: number;
+  scrollMax: number;
+  unreachableFrames?: UnreachableFrame[];
 }
 
 export interface InteractionResultExtensionMessage extends ExtensionMessageBase {
   resource: "interaction-result";
   tabId: number;
-  action: "click" | "type" | "scroll" | "press-key" | "select-option";
+  action:
+    | "click"
+    | "hover"
+    | "drag"
+    | "type"
+    | "upload"
+    | "scroll"
+    | "press-key"
+    | "select-option";
   target: string;
   detail: string;
   url: string;
   scrollY: number;
   scrollHeight: number;
+  scrollMax: number;
 }
 
 export interface ScriptResultExtensionMessage extends ExtensionMessageBase {
@@ -197,6 +243,21 @@ export interface ElementWaitExtensionMessage extends ExtensionMessageBase {
   found: boolean;
   elapsedMs: number;
   matchCount: number;
+}
+
+export interface TextChangeWaitExtensionMessage extends ExtensionMessageBase {
+  resource: "text-change-wait-result";
+  tabId: number;
+  changed: boolean;
+  navigated: boolean;
+  // No wait was held for this scope before, so this call had nothing to compare against
+  fresh: boolean;
+  addedText: string;
+  // Text that was there before is gone rather than merely added to, so addedText is the part that
+  // differs instead of only what arrived during the wait
+  rewritten: boolean;
+  removedChars: number;
+  elapsedMs: number;
 }
 
 export interface TabsReleasedExtensionMessage extends ExtensionMessageBase {
@@ -221,6 +282,9 @@ export type ExtensionMessage =
   | InteractionResultExtensionMessage
   | ScriptResultExtensionMessage
   | ElementWaitExtensionMessage
+  | TextChangeWaitExtensionMessage
+  | WindowResizedExtensionMessage
+  | NetworkRequestsExtensionMessage
   | TabsReleasedExtensionMessage;
 
 export interface ExtensionError {

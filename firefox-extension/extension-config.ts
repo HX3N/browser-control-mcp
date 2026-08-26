@@ -75,6 +75,16 @@ export const AVAILABLE_TOOLS: ToolInfo[] = [
     id: "get-media-content",
     nameKey: "toolGetMediaContentName",
     descriptionKey: "toolGetMediaContentDescription"
+  },
+  {
+    id: "upload-files",
+    nameKey: "toolUploadFilesName",
+    descriptionKey: "toolUploadFilesDescription"
+  },
+  {
+    id: "get-network-requests",
+    nameKey: "toolGetNetworkRequestsName",
+    descriptionKey: "toolGetNetworkRequestsDescription"
   }
 ];
 
@@ -84,6 +94,7 @@ export const INTERACTION_TOOL_IDS = [
   "interact-type",
   "execute-javascript",
   "get-media-content",
+  "upload-files",
 ] as const;
 
 // The extension holds a blanket host permission, so the browser no longer stands between the
@@ -91,6 +102,7 @@ export const INTERACTION_TOOL_IDS = [
 export const DISABLED_BY_DEFAULT_TOOL_IDS: readonly string[] = [
   "execute-javascript",
   "get-media-content",
+  "upload-files",
 ];
 
 // Map command names to tool IDs
@@ -109,11 +121,17 @@ export const COMMAND_TO_TOOL_ID: Record<ServerMessageRequest["cmd"], string> = {
   "fetch-media": "get-media-content",
   "page-snapshot": "get-tab-web-content",
   "wait-for-element": "get-tab-web-content",
+  "wait-for-text-change": "get-tab-web-content",
   "click-element": "interact-click",
+  "hover-element": "interact-click",
+  "drag-element": "interact-click",
   "select-option": "interact-click",
   "scroll-page": "interact-click",
   "type-text": "interact-type",
   "press-key": "interact-type",
+  "upload-files": "upload-files",
+  "get-network-requests": "get-network-requests",
+  "resize-window": "reorder-browser-tabs",
   "execute-js": "execute-javascript",
   // Deliberately not one of AVAILABLE_TOOLS: releasing only removes this extension's own
   // overlay, so a disabled switch must never be able to strand it on the page.
@@ -130,11 +148,16 @@ export const PAGE_ACCESS_COMMANDS: ReadonlySet<ServerMessageRequest["cmd"]> =
     "fetch-media",
     "page-snapshot",
     "wait-for-element",
+    "wait-for-text-change",
     "click-element",
+    "hover-element",
+    "drag-element",
     "select-option",
     "scroll-page",
     "type-text",
     "press-key",
+    "upload-files",
+    "get-network-requests",
     "execute-js",
   ]);
 
