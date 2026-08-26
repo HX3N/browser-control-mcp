@@ -117,6 +117,16 @@ const cases: [string, string][] = [
     }),
   ],
   [
+    "type appending, clearFirst omitted",
+    buildTypeCode({
+      cmd: "type-text",
+      tabId: 1,
+      ...bySelector,
+      text: "more",
+      submit: false,
+    }),
+  ],
+  [
     "type with a click after it",
     buildTypeCode({
       cmd: "type-text",

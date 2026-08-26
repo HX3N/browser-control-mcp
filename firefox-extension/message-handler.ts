@@ -320,7 +320,7 @@ export class MessageHandler {
         ? "the extension popup"
         : "the extension options page";
       throw new Error(
-        `Command '${req.cmd}' is disabled in extension settings: the user has '${getToolNameById(toolId)}' switched off in ${where}. Report it and continue without it.`
+        `Command '${req.cmd}' is disabled in extension settings: '${getToolNameById(toolId)}' in ${where} is off.`
       );
     }
 
@@ -456,7 +456,7 @@ export class MessageHandler {
       throw new Error(
         `Refused to open ${url}: the extension is set to open ${describeUrlScope(
           scope
-        )}. Ask the user to widen "Allowed addresses" in the Browser Control MCP popup.`
+        )} ("Allowed addresses" in the popup).`
       );
     }
   }
@@ -1116,8 +1116,7 @@ export class MessageHandler {
               fallbackError instanceof Error
                 ? fallbackError.message
                 : String(fallbackError)
-            }. Ask the user to reinstall the extension so that it holds the <all_urls> ` +
-              `permission, or to click its toolbar button on that tab.`
+            }. The extension no longer holds the <all_urls> permission it was installed with.`
           );
         }
       }
@@ -1389,7 +1388,7 @@ export class MessageHandler {
       `alert, confirm and prompt suspend the page until someone answers them. The extension ` +
       `answers them silently, but only through a guard that has to be in place before the page runs, ` +
       `and a tab this session never opened or navigated was never given one. ` +
-      `Ask the user to close the dialog in the browser, then run this command again.`
+      `The dialog has to be closed in the browser before this command can run.`
     );
   }
 
@@ -1758,7 +1757,7 @@ export class MessageHandler {
       req.key.toLowerCase() === "v";
     if (isPaste && !(await isClipboardReadAllowed())) {
       throw new Error(
-        "Pasting is disabled in extension settings: the user has 'Paste the clipboard' switched off in the extension popup. Use type-into-page-element to enter the text instead."
+        "Pasting is disabled in extension settings ('Paste the clipboard' in the popup); type-into-page-element enters the text instead."
       );
     }
     const pasteText = isPaste ? this.readClipboardText() : null;

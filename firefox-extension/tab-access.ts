@@ -42,7 +42,7 @@ export async function ensureTabAccess(
     `The extension is in allowlist mode and tab ${tab.id} ("${
       tab.title ?? url
     }") has not been authorized. The extension's toolbar button is now marked with a "!" badge on that tab. ` +
-      `Ask the user to open the Browser Control MCP popup while that tab is in front and press the authorize button, then try again. ` +
+      `Authorization is given in the Browser Control MCP popup while that tab is in front; wait for it, then try again. ` +
       `The authorization covers only that tab and ends when the tab navigates or closes, unless the user chooses to always allow the site.`
   );
 }

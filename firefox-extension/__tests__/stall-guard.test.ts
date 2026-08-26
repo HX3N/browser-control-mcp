@@ -192,7 +192,7 @@ describe("stalled pages", () => {
 
       const pending = messageHandler.handleDecodedMessage(request);
       const settled = expect(pending).rejects.toThrow(
-        /Ask the user to close the dialog/
+        /The dialog has to be closed/
       );
 
       await jest.advanceTimersByTimeAsync(11_000);

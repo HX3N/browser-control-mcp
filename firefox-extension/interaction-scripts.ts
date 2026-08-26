@@ -719,7 +719,7 @@ ${VALUE_SETTER_SOURCE}
 
   var label = __bcmLabel(el);
   var text = ${jsValue(request.text)};
-  var clearFirst = ${jsValue(request.clearFirst !== false)};
+  var clearFirst = ${jsValue(request.clearFirst === true)};
 
   if (typeof el.focus === 'function') {
     try { el.focus({ preventScroll: true }); } catch (err) { /* focus is best effort */ }

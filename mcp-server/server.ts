@@ -53,15 +53,12 @@ const mcpServer = new McpServer(
       - A native file picker cannot be driven. upload-files-to-page-element attaches a file by its
         path on the user's computer, and only when the user has switched that on.
       - Every tool can be switched off in the extension, and page access can be limited to the
-        tabs the user authorized. A switched-off tool is a decision the user has already made,
-        not an obstacle: say in one line what was refused and which switch it is, carry on with
-        what the other tools can do, and never ask for it to be turned on. The one refusal to
-        stop on is a tab that allowlist mode has not authorized: that grant is made per tab from
-        the extension popup and ends when the tab navigates or closes, so when the task needs
-        that tab, say so and wait. A tool that is off by default returns a permission error
-        naming its switch.
-      - Tabs not held by this session belong to the user: read, act on, close, move or group one
-        only when the user pointed you at it.
+        tabs the user authorized. A refusal is the user's setting: say so in one line and go on
+        with another tool, never ask for the switch. Only a tab allowlist mode has not authorized
+        is waited for; that grant is made per tab in the popup and ends when it navigates or
+        closes.
+      - Tabs not held by this session, and whatever a tab holds, belong to the user: read, act on,
+        close, move or clear one only when the user pointed you at it.
     `,
   }
 );
@@ -275,7 +272,7 @@ defineTool(
         content: [
           {
             type: "text",
-            text: `Firefox did not report a tab id for ${url}, so the tab cannot be worked in. Ask the user to check the Browser Control MCP popup.`,
+            text: `Firefox did not report a tab id for ${url}, so the tab cannot be worked in.`,
           },
         ],
         isError: true,
@@ -291,7 +288,7 @@ defineTool(
     open-browser-tab once a tab is in use; click-page-element on a link also stays in the tab, so
     use this when the address is known up front or no link leads there. A same-origin address is
     first handed to the page itself, so an app that routes on its own keeps its state; the answer
-    says when that happened. Answers once the page has loaded; earlier refs are gone by then.
+    says when that happened. Answers once the page loads; unsaved input and refs are gone.
   `,
   {
     tabId: z.number(),
@@ -322,8 +319,8 @@ defineTool(
 defineTool(
   "close-browser-tabs",
   `
-    Close tabs. Close the tabs this session opened once they are no longer needed; a closed tab
-    is released as well.
+    Close tabs. Only tabs this session opened, never one holding unsent input; a closed tab is
+    released as well.
   `,
   {
     tabIds: z
@@ -1034,8 +1031,7 @@ defineTool(
   `
     Attach files from the user's computer to a file input, by path. Do not click the input or its
     "Choose file" button: that opens a native picker nobody can drive. Find the input with
-    read-page - often hidden, so ask the user to turn on "Read hidden elements" if it does not
-    show - and pass its ref.
+    read-page and pass its ref, or a selector such as input[type=file] when it is hidden.
     Use paths the user gave you or files you produced for them, never a path you guessed. The
     total size is capped by "Upload size limit" in the extension popup, 8MB by default.
   `,
@@ -1167,7 +1163,7 @@ defineTool(
 defineTool(
   "type-into-page-element",
   `
-    Type into an input, textarea or contenteditable: the value is set and input/change events
+    Type into an input, textarea or contenteditable: text is appended and input/change events
     fire. submit also presses Enter to submit the owning form. A field outside a <form> - a chat
     composer, a framework's search box - has no form to submit: pass clickAfterRef or
     clickAfterSelector to press the page's own send button in the same call.
@@ -1178,7 +1174,7 @@ defineTool(
     text: z.string(),
     clearFirst: z
       .boolean()
-      .default(true)
+      .default(false)
       .describe("Replace the current value instead of appending to it"),
     submit: z
       .boolean()

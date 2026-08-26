@@ -89,7 +89,7 @@ describe("MessageHandler", () => {
       await expect(
         messageHandler.handleDecodedMessage(request)
       ).rejects.toThrow(
-        "Command 'open-tab' is disabled in extension settings: the user has 'toolOpenBrowserTabName' switched off in the extension options page. Report it and continue without it."
+        "Command 'open-tab' is disabled in extension settings: 'toolOpenBrowserTabName' in the extension options page is off."
       );
     });
 
@@ -886,7 +886,7 @@ describe("MessageHandler", () => {
 
           const pending = readFrozenTab();
           const settled = expect(pending).rejects.toThrow(
-            /Frozen page.*Ask the user to close the dialog/s
+            /Frozen page.*The dialog has to be closed/s
           );
 
           await jest.advanceTimersByTimeAsync(3000);
@@ -1554,7 +1554,7 @@ describe("MessageHandler", () => {
         await expect(
           messageHandler.handleDecodedMessage(request)
         ).rejects.toThrow(
-          /Missing activeTab permission.*reinstall the extension/s
+          /Missing activeTab permission.*<all_urls> permission/s
         );
       });
 
@@ -1606,7 +1606,7 @@ describe("MessageHandler", () => {
         await expect(
           messageHandler.handleDecodedMessage(request)
         ).rejects.toThrow(
-          "Command 'capture-screenshot' is disabled in extension settings: the user has 'toolCaptureTabScreenshotName' switched off in the extension popup. Report it and continue without it."
+          "Command 'capture-screenshot' is disabled in extension settings: 'toolCaptureTabScreenshotName' in the extension popup is off."
         );
         expect(browser.tabs.captureVisibleTab).not.toHaveBeenCalled();
       });
