@@ -1306,6 +1306,17 @@ describe("MessageHandler", () => {
         } as ServerMessageRequest);
       };
 
+      it("injects without waiting for the load event", async () => {
+        await readTabContent();
+
+        const runAts = (
+          browser.tabs.executeScript as jest.Mock
+        ).mock.calls.map(([, details]) => details.runAt);
+        expect(runAts.length).toBeGreaterThan(0);
+        expect(runAts).not.toContain("document_idle");
+        expect(runAts).not.toContain(undefined);
+      });
+
       it("reads the whole body when no element is targeted", async () => {
         await readTabContent();
 

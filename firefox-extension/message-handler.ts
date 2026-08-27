@@ -1491,7 +1491,7 @@ export class MessageHandler {
   // command would only time out. The dialog has to be stopped before it opens.
   private async guardDialogs(
     tabId: number,
-    runAt: "document_start" | "document_idle" = "document_idle"
+    runAt: "document_start" | "document_end" = "document_end"
   ): Promise<void> {
     try {
       const code = buildDialogGuardCode(await this.consoleLevel());
@@ -1520,7 +1520,9 @@ export class MessageHandler {
 
     try {
       return await Promise.race([
-        browser.tabs.executeScript(tabId, details),
+        // Injection defaults to document_idle, which waits for the load event; a page holding an
+        // unfinished subresource never fires it, and every command there pays the stall timer.
+        browser.tabs.executeScript(tabId, { runAt: "document_end", ...details }),
         stalled,
       ]);
     } catch (error) {
