@@ -28,6 +28,7 @@ export interface AttachRequest {
     target?: ElementTarget;
     drop?: ElementTarget;
     detail?: string;
+    scriptLabel?: string;
     swipe?: string;
 }
 
@@ -42,6 +43,7 @@ ${OVERLAY_RUNTIME_SOURCE}
     status: ${jsValue(request.status)},
     state: ${jsValue(request.state)},
     detail: ${jsValue(request.detail ?? "")},
+    scriptLabel: ${jsValue(request.scriptLabel ?? "")},
     markTab: ${jsValue(request.markTab)},
     showAurora: ${jsValue(request.showAurora)},
     showBadge: ${jsValue(request.showBadge)},
@@ -75,6 +77,17 @@ ${OVERLAY_RUNTIME_SOURCE}
     try { window.__bcmOverlay.showDrag(el, __bcmResolve(drop)); } catch (err) {}
   }
   return { rect: rect, target: __bcmLabel(el), wasInView: wasInView };
+})();`;
+}
+
+export function buildScriptResultOverlayCode(
+    text: string,
+    label: string,
+    isError: boolean
+): string {
+    return `(function () {
+  if (!window.__bcmOverlay || !window.__bcmOverlay.showResult) { return false; }
+  return window.__bcmOverlay.showResult(${jsValue(text)}, ${jsValue(label)}, ${jsValue(isError)});
 })();`;
 }
 

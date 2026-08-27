@@ -176,6 +176,18 @@
     "overlayWaitTextElement": {
         "message": "이 부분의 텍스트 변화가 생기길 기다리는 중"
     },
+    "overlayScriptLabel": {
+        "message": "스크립트"
+    },
+    "overlayResultLabel": {
+        "message": "응답"
+    },
+    "overlayErrorLabel": {
+        "message": "오류"
+    },
+    "previewExecError": {
+        "message": "JavaScript 실행 (오류)"
+    },
     "popupStatusChecking": {
         "message": "확인 중…"
     },

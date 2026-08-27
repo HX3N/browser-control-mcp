@@ -7,6 +7,7 @@ import {
   buildReclaimTabMarkCode,
   buildRestOverlayCode,
   buildRevealOverlayCode,
+  buildScriptResultOverlayCode,
 } from "../highlight-overlay";
 import {
   buildDialogGuardCode,
@@ -136,6 +137,14 @@ const cases: [string, string][] = [
     }),
   ],
   ["overlay rest", buildRestOverlayCode()],
+  [
+    "overlay script result",
+    buildScriptResultOverlayCode('["a", "b"]', "Result", false),
+  ],
+  [
+    "overlay script result, error with quotes and a backslash",
+    buildScriptResultOverlayCode("SyntaxError: it's \"bad\" \\ here", "Error", true),
+  ],
   ["element box by ref", buildElementBoxCode(target)],
   ["element box by selector", buildElementBoxCode(bySelector)],
   ["media list, whole page", buildMediaListCode()],

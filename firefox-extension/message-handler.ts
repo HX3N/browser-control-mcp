@@ -55,6 +55,7 @@ import {
 } from "./extension-config";
 import { ensureTabAccess } from "./tab-access";
 import { diffText } from "./text-diff";
+import { formatScript } from "./format-script";
 import { buildSnapshotCode, formatPageItems, PageReadResult } from "./page-snapshot";
 import { ELEMENT_RESOLVER_SOURCE, isElementTargeted } from "./injected-common";
 import {
@@ -73,6 +74,7 @@ import {
   buildOutlineOverlayCode,
   buildReclaimTabMarkCode,
   buildRevealOverlayCode,
+  buildScriptResultOverlayCode,
   OutlineRegionMark,
   OverlayResult,
   OverlayState,
@@ -197,8 +199,17 @@ function sameOrigin(a: string, b: string): boolean {
 interface OverlayExtras {
   drop?: ElementTarget;
   detail?: string;
+  scriptLabel?: string;
   resting?: boolean;
   swipe?: string;
+}
+
+function formatForOverlay(code: string): string {
+  try {
+    return formatScript(code) || code;
+  } catch (error) {
+    return code;
+  }
 }
 
 function elementTargetOf(target: ElementTarget): ElementTarget | undefined {
@@ -1552,6 +1563,7 @@ export class MessageHandler {
           target,
           drop: extras.drop,
           detail: extras.detail,
+          scriptLabel: extras.scriptLabel,
           swipe: extras.swipe,
         }),
       });
@@ -1940,17 +1952,36 @@ export class MessageHandler {
     await this.prepareTabAccess(req.tabId);
 
     await this.attachOverlay(req.tabId, "exec", t("overlayExecuteJs"), undefined, {
-      detail: req.code,
+      detail: formatForOverlay(req.code),
+      scriptLabel: t("overlayScriptLabel"),
     });
 
-    const results = await this.runScript(
-      req.tabId,
-      {
-        code: buildExecuteJsCode(req.code, MAX_SCRIPT_RESULT_LENGTH),
-      },
-      LONG_SCRIPT_STALL_MS
-    );
+    let results;
+    try {
+      results = await this.runScript(
+        req.tabId,
+        {
+          code: buildExecuteJsCode(req.code, MAX_SCRIPT_RESULT_LENGTH),
+        },
+        LONG_SCRIPT_STALL_MS
+      );
+    } catch (error) {
+      // A page that froze mid-script would freeze the drawing too, and the failure has to
+      // reach the caller either way.
+      void this.drawScriptResult(
+        req.tabId,
+        error instanceof Error ? error.message : String(error),
+        true
+      );
+      throw error;
+    }
     const output = results[0];
+
+    await this.drawScriptResult(
+      req.tabId,
+      output.isTruncated ? `${output.result}…` : output.result,
+      false
+    );
 
     await this.sendResource(
       {
@@ -1962,6 +1993,27 @@ export class MessageHandler {
       },
       req.tabId
     );
+  }
+
+  private async drawScriptResult(
+    tabId: number,
+    text: string,
+    isError: boolean
+  ): Promise<void> {
+    if (!(await isBadgeEnabled())) {
+      return;
+    }
+    try {
+      await this.runScript(tabId, {
+        code: buildScriptResultOverlayCode(
+          text,
+          isError ? t("overlayErrorLabel") : t("overlayResultLabel"),
+          isError
+        ),
+      });
+    } catch (error) {
+      console.error("Failed to draw the script result overlay:", error);
+    }
   }
 
   private async waitForPage(

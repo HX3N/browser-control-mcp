@@ -176,6 +176,18 @@
     "overlayWaitTextElement": {
         "message": "Waiting for text to change in one element"
     },
+    "overlayScriptLabel": {
+        "message": "Script"
+    },
+    "overlayResultLabel": {
+        "message": "Result"
+    },
+    "overlayErrorLabel": {
+        "message": "Error"
+    },
+    "previewExecError": {
+        "message": "Run JavaScript (error)"
+    },
     "popupStatusChecking": {
         "message": "Checking…"
     },

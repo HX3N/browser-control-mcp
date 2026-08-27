@@ -33,6 +33,7 @@ the next free port and the extension keeps one spare slot.
 | `firefox-extension/page-snapshot.ts` | Snapshot that stamps `data-bcm-ref` |
 | `firefox-extension/interaction-scripts.ts` | Click, type, key, scroll, select, execute, wait |
 | `firefox-extension/overlay-runtime.ts` | The overlay, a real function whose `toString()` is injected |
+| `firefox-extension/format-script.ts` | Re-indents a script for the overlay panel |
 | `firefox-extension/highlight-overlay.ts` | Builders that inject and drive the runtime |
 | `firefox-extension/overlay-test.html`, `overlay-test.ts` | Preview page: every effect without a server |
 | `firefox-extension/dialog-guard.ts`, `page-events.ts` | Dialog/console guard and its per-tab reports |
@@ -83,6 +84,9 @@ the next free port and the extension keeps one spare slot.
 - The scroll script asks `window.__bcmOverlay.beginSwipe()` for the sweep length and glides the
   page with `__bcmSweepEase` for exactly that long; the sweep plays once. `sweepMs` is an
   overlay timing. The easing exists twice on purpose (`sweep-ease.ts`, runtime `sweepEase`).
+- `execute-js` draws the panel twice: the script, re-indented by `format-script.ts`, before it
+  runs, and the result or the error after. A result lands only on a panel a script already
+  opened, and the error draw is not awaited — a frozen page must still fail.
 - Overlay failures are swallowed; they never break an interaction.
 
 **Dialogs**

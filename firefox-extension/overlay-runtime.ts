@@ -31,6 +31,10 @@ export function overlayRuntime() {
   var glideTimer = null;
   var badge = null;
   var panel = null;
+  var scriptBlock = null;
+  var resultBlock = null;
+  var scriptLabel = '';
+  var ERROR_COLOR = '#ff6b6b';
   var regionLayer = null;
   var regions = [];
   var dropBox = null;
@@ -237,25 +241,44 @@ export function overlayRuntime() {
       '.bcm-code {',
       '  position: absolute; top: 50%; left: 50%;',
       '  transform: translate(-50%, -50%) scale(0.97);',
-      '  box-sizing: border-box; width: min(720px, 80vw); max-height: 40vh; overflow: auto;',
-      '  margin: 0; padding: 14px 16px;',
-      '  font: 500 12px/1.5 ui-monospace, "Cascadia Code", Consolas, "Malgun Gothic", monospace;',
-      '  white-space: pre-wrap; word-break: break-all; tab-size: 2;',
-      '  color: color-mix(in srgb, var(--bcm-accent) 78%, #fff);',
-      '  background: rgba(9, 9, 14, 0.72);',
-      '  border: 1px solid color-mix(in srgb, var(--bcm-accent) 55%, transparent);',
-      '  border-radius: 14px;',
-      '  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55),',
-      '    0 0 30px color-mix(in srgb, var(--bcm-accent) 25%, transparent);',
-      '  backdrop-filter: blur(14px) saturate(1.2);',
-      '  scrollbar-width: thin;',
-      '  scrollbar-color: color-mix(in srgb, var(--bcm-accent) 55%, transparent) transparent;',
+      '  box-sizing: border-box; width: min(720px, 80vw);',
+      '  display: flex; flex-direction: column; gap: 12px;',
       '  opacity: 0; pointer-events: none;',
-      '  transition: opacity 0.45s ease, transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),',
-      '    color 0.45s ease, border-color 0.45s ease, box-shadow 0.45s ease;',
+      '  transition: opacity 0.45s ease, transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);',
       '}',
       // The panel alone takes the pointer, or a script longer than the panel could not be scrolled.
       '.bcm-code.is-active { opacity: 1; transform: translate(-50%, -50%) scale(1); pointer-events: auto; }',
+      '.bcm-code-block {',
+      '  --bcm-code-color: var(--bcm-accent);',
+      '  position: relative; box-sizing: border-box;',
+      '  border: 1px solid color-mix(in srgb, var(--bcm-code-color) 55%, transparent);',
+      '  border-radius: 14px;',
+      '  background: rgba(9, 9, 14, 0.72);',
+      '  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55),',
+      '    0 0 30px color-mix(in srgb, var(--bcm-code-color) 25%, transparent);',
+      '  backdrop-filter: blur(14px) saturate(1.2);',
+      '  transition: border-color 0.45s ease, box-shadow 0.45s ease;',
+      '}',
+      '.bcm-code-block.is-error { --bcm-code-color: ' + ERROR_COLOR + '; }',
+      '.bcm-code-block.is-empty { display: none; }',
+      '.bcm-code-tag {',
+      '  position: absolute; top: -1px; left: -1px; z-index: 1;',
+      '  font: 600 11px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", sans-serif;',
+      '  color: #fff; background: var(--bcm-code-color);',
+      '  padding: 4px 8px; border-radius: 14px 0 6px 0; white-space: nowrap;',
+      '  max-width: 260px; overflow: hidden; text-overflow: ellipsis;',
+      '  transition: background 0.45s ease;',
+      '}',
+      '.bcm-code-body {',
+      '  margin: 0; padding: 26px 16px 14px;',
+      '  max-height: 40vh; overflow: auto;',
+      '  font: 500 12px/1.5 ui-monospace, "Cascadia Code", Consolas, "Malgun Gothic", monospace;',
+      '  white-space: pre-wrap; word-break: break-all; tab-size: 2;',
+      '  color: color-mix(in srgb, var(--bcm-code-color) 78%, #fff);',
+      '  scrollbar-width: thin;',
+      '  scrollbar-color: color-mix(in srgb, var(--bcm-code-color) 55%, transparent) transparent;',
+      '  transition: color 0.45s ease;',
+      '}',
       '.bcm-region {',
       '  position: absolute; box-sizing: border-box; border-radius: 9px;',
       '  border: 1px solid var(--bcm-region-color);',
@@ -323,8 +346,12 @@ export function overlayRuntime() {
     badge.appendChild(pip);
     badge.appendChild(text);
 
-    panel = document.createElement('pre');
+    panel = document.createElement('div');
     panel.className = 'bcm-code';
+    scriptBlock = buildCodeBlock();
+    resultBlock = buildCodeBlock();
+    panel.appendChild(scriptBlock);
+    panel.appendChild(resultBlock);
 
     dropBox = document.createElement('div');
     dropBox.className = 'bcm-drop';
@@ -338,6 +365,35 @@ export function overlayRuntime() {
     root.appendChild(panel);
     document.documentElement.appendChild(host);
     host.classList.toggle('is-resting', resting);
+  }
+
+  function buildCodeBlock() {
+    var block = document.createElement('div');
+    block.className = 'bcm-code-block is-empty';
+    var tag = document.createElement('span');
+    tag.className = 'bcm-code-tag';
+    var body = document.createElement('pre');
+    body.className = 'bcm-code-body';
+    block.appendChild(tag);
+    block.appendChild(body);
+    return block;
+  }
+
+  function fillCodeBlock(block, label, text, isError) {
+    block.firstChild.textContent = label || '';
+    block.lastChild.textContent = text;
+    block.lastChild.scrollTop = 0;
+    block.classList.toggle('is-error', !!isError);
+    block.classList.remove('is-empty');
+  }
+
+  function showResult(text, label, isError) {
+    if (!host || !host.isConnected || !panel) { return false; }
+    // A result with no script above it would read as the page's own dialog, so it lands
+    // only on a panel a script already opened.
+    if (!panel.classList.contains('is-active')) { return false; }
+    fillCodeBlock(resultBlock, label, text, isError);
+    return true;
   }
 
   function sweepEase(x) {
@@ -510,9 +566,10 @@ export function overlayRuntime() {
     } else {
       badge.classList.remove('is-active');
     }
+    resultBlock.classList.add('is-empty');
+    resultBlock.classList.remove('is-error');
     if (detail) {
-      panel.textContent = detail;
-      panel.scrollTop = 0;
+      fillCodeBlock(scriptBlock, scriptLabel, detail, false);
       panel.classList.add('is-active');
     } else {
       panel.classList.remove('is-active');
@@ -540,6 +597,7 @@ export function overlayRuntime() {
       aurora.classList.remove('is-active');
     }
 
+    scriptLabel = options.scriptLabel || '';
     setStatus(options.showBadge ? options.status : '', options.state, options.showBadge ? options.detail : '');
     setResting(options.resting);
     sweepMs = options.sweepMs > 0 ? Math.round(options.sweepMs) : SWEEP_MS;
@@ -767,6 +825,7 @@ export function overlayRuntime() {
   window.__bcmOverlay = {
     attach: attach,
     setStatus: setStatus,
+    showResult: showResult,
     focus: focus,
     clearFocus: clearFocus,
     showDrag: showDrag,

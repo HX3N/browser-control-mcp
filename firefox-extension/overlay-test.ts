@@ -1,5 +1,6 @@
 import { getOverlayColors, getOverlayTimings } from "./extension-config";
 import type { OverlayState } from "./highlight-overlay";
+import { formatScript } from "./format-script";
 import { localizeDocument, t } from "./i18n";
 import { overlayRuntime } from "./overlay-runtime";
 import { sweepEase } from "./sweep-ease";
@@ -13,6 +14,7 @@ declare global {
       showDrag: (source: Element, drop: Element) => void;
       beginSwipe: () => number;
       showRegions: (list: { el: Element; label: string; level: number }[]) => void;
+      showResult: (text: string, label: string, isError: boolean) => boolean;
       rest: () => void;
       detach: () => void;
     };
@@ -26,8 +28,13 @@ window.__bcmRect = (el) => {
 
 overlayRuntime();
 
-const SAMPLE_SCRIPT = `const rows = [...document.querySelectorAll("section")];
-return rows.map((row) => row.querySelector("h2")?.textContent);`;
+const SAMPLE_SCRIPT =
+  'const rows=[...document.querySelectorAll("section")];return rows.map(function(row){var h=row.querySelector("h2");return h?h.textContent:null;});';
+const SAMPLE_RESULT = `[
+  "Region A",
+  "Region B"
+]`;
+const SAMPLE_ERROR = "TypeError: row.querySelector is not a function";
 
 async function attach(state: OverlayState, status: string, extra: Record<string, unknown> = {}): Promise<void> {
   const colors = await getOverlayColors();
@@ -100,7 +107,22 @@ const actions: Record<string, (button: HTMLButtonElement) => Promise<void> | voi
     window.__bcmOverlay?.focus(el("type-target"), "type");
   },
   read: () => attach("read", t("overlayReadingContent"), { resetAfterMs: 0 }),
-  exec: () => attach("exec", t("overlayExecuteJs"), { detail: SAMPLE_SCRIPT, resetAfterMs: 0 }),
+  exec: async () => {
+    await attach("exec", t("overlayExecuteJs"), {
+      detail: formatScript(SAMPLE_SCRIPT),
+      scriptLabel: t("overlayScriptLabel"),
+      resetAfterMs: 0,
+    });
+    window.__bcmOverlay?.showResult(SAMPLE_RESULT, t("overlayResultLabel"), false);
+  },
+  execError: async () => {
+    await attach("exec", t("overlayExecuteJs"), {
+      detail: formatScript(SAMPLE_SCRIPT),
+      scriptLabel: t("overlayScriptLabel"),
+      resetAfterMs: 0,
+    });
+    window.__bcmOverlay?.showResult(SAMPLE_ERROR, t("overlayErrorLabel"), true);
+  },
   regions: async () => {
     await attach("read", t("overlayReadingContent"), { resetAfterMs: 0 });
     window.__bcmOverlay?.showRegions([
