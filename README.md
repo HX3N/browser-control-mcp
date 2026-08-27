@@ -9,352 +9,134 @@
 
 # Browser Control MCP
 
-[![Firefox Add-on](./.github/addon_badge.svg)](https://addons.mozilla.org/en-US/firefox/addon/browser-control-mcp/)
-
-An MCP server paired with a browser extension. It lets an AI assistant manage tabs, search
-browsing history, read web pages, and **click, type and run scripts on them directly**.
-
-The browser it is built and tested against is **[Zen Browser](https://zen-browser.app/), which is
-based on Firefox**. The extension APIs are Firefox's, so it runs on Firefox too.
+An MCP server paired with a browser extension. An AI assistant can manage tabs, search history,
+read pages, and click, type, drag and run scripts on them. Built and tested against
+[Zen Browser](https://zen-browser.app/); the APIs are Firefox's.
 
 ## What changed from upstream
 
-The upstream reads the browser but never drives it. This fork adds the driving half: clicking,
-typing, pressing keys, picking options, scrolling, and running JavaScript in a page. Elements are
-addressed by a `ref` taken from a page read, or by a CSS selector.
+The upstream reads the browser but never drives it. This fork adds page interaction, a
+permission model, and an on-page overlay that shows what the model is doing. Elements are
+addressed by a `ref` from a page read or by a CSS selector.
 
-## Features
-
-The tools the MCP server exposes.
+## Tools
 
 **Navigate and read**
 
-- Open and close tabs
-- `navigate-browser-tab` — send an open tab to another URL, or back and forward through its
-  history, so one tab is reused instead of piling up. A same-origin address is first handed to
-  the page itself, so an app that routes on its own keeps its state instead of reloading
-- List open tabs, marking the ones this session holds
-- `resize-browser-window` — resize the window a tab is in, to check a layout at a given width
-- `read-network-requests` — list the requests a page made since it loaded: method, URL, status,
-  timing
-- Create tab groups with a name and a colour
-- Reorder tabs
-- Read and search browsing history
-- `read-page` — read the text and the interactive elements of a page together, in the order
-  they sit on it, each element stamped with a `ref`; either the whole page or one element of it.
-  A large page read as a whole comes back as an outline of its regions, each with a `ref` to
-  read it by, so the navigation and the sidebars never cost tokens unless asked for; the
-  regions are boxed and labelled on screen until the next command, down to the group size the
-  popup's `Target regions` setting asks for
-- `find-text-in-page` — find and highlight text inside a page, and get back a `ref` to the
-  block that holds each match
-- Capture a screenshot of a tab, either the visible screen or one element of it; a tall
-  element is split into several images, and every capture reports its pixel size and bytes
-- `list-page-media` — list the images, videos and audio a page shows, with URLs and
-  original sizes, for the whole page or inside one element
-- `fetch-media-file` — fetch an image file a page shows, with the page's own cookies
-  (off by default; only URLs `list-page-media` listed can be fetched, up to the size limit set
-  in the popup, 8MB by default)
+- `open-browser-tab`, `close-browser-tabs`, `list-open-tabs`
+- `navigate-browser-tab` — URL or history; a same-origin address is routed by the page itself
+- `resize-browser-window`
+- `read-network-requests`
+- Tab groups, tab reordering, history search
+- `read-page` — text and interactive elements with refs; a large page comes back as an outline
+  of regions to read by ref
+- `find-text-in-page`
+- `capture-tab-screenshot` — screen or one element
+- `list-page-media`
+- `read-page-image` — original file with the page's cookies (off by default)
 
 **Interact**
 
-- `click-page-element` — click, including double, middle and right button, with modifier keys held
-- `hover-page-element` — move the pointer over an element to reveal a tooltip or a menu
-- `drag-page-element` — drag one element and drop it on another
-- `type-into-page-element` — enter text into a field, with an option to submit the form or to
-  click a send button in the same call
-- `press-key-in-tab` — press Enter, Tab, Escape, and the editing shortcuts: `Ctrl+A`, `Ctrl+C`,
-  `Ctrl+X`, `Ctrl+Z`, `Ctrl+Y`, the caret keys, Backspace and Delete; `repeat` presses a key
-  several times in one call
-- `scroll-browser-tab` — scroll up, down, left, right, to the top, to the bottom, or to an
-  element, either the page or a scrolling element inside it
-- `select-page-option` — pick an option in a `<select>`
-- `upload-files-to-page-element` — attach files from the user's computer to a file input
-  (off by default; the size limit is set in the popup, 8MB by default)
-- `run-browser-actions` — run several of these in one call, stopping at the first failure
-- `wait-for-page` — with a selector, wait for an element to appear or disappear; without one,
-  block until the page's text changes and return only what arrived, picking up where the last
-  call stopped so nothing is lost in between
-- `execute-javascript-in-tab` — run arbitrary JavaScript in the page
+- `click-page-element` — buttons, modifiers, hover
+- `drag-page-element`
+- `type-into-page-element` — with submit or a follow-up click
+- `press-key-in-tab`
+- `scroll-browser-tab` — direction, top, bottom, or to an element
+- `select-page-option`
+- `download-file-from-page` (off by default)
+- `upload-files-to-page-element` (off by default)
+- `run-browser-actions` — several in one call
+- `wait-for-page` — an element, or new text since the last call
+- `execute-javascript-in-tab` (off by default)
 
-## Toolbar popup
+## Popup
 
-Clicking the toolbar icon (or pressing `Alt+Shift+B`) opens the popup.
+`Alt+Shift+B` or the toolbar icon.
 
-- **Connection** — whether an MCP server is connected, per port. Each port can be switched off
-  here, a connected one included, and switched back on later. The base port is set here too, and
-  has to match the server's `EXTENSION_PORT`.
-- **Permission** — the current tab, the access scope, and the list that scope uses. In allowlist
-  mode the list holds allowed sites; in denylist mode it holds blocked sites. `+ Current tab`
-  puts the tab in front onto whichever list is showing, and the list itself is a text box, one
-  entry per line, saved as you type. Allowlist mode also offers a one-off grant for the current
-  tab that expires when it navigates.
-- **New tabs** — whether a new tab inherits the container of the tab in front
-- **Interaction permissions** — separate switches for screenshots, mouse, keyboard, JavaScript and media file fetching, plus
-  whether a read, a find or a media list may include what the page keeps hidden (the count is
-  always reported; the content only with this on, marked hidden), and whether work stays in the
-  background. With that last one on (the default) a new tab opens behind the tab you are on and
-  page search does not jump to it. A screenshot stays in the background too, and only falls back
-  to bringing the tab forward when Firefox refuses to capture it where it sits. Switch it off and
-  every click, keystroke and scroll brings its tab forward first, so you can watch the work happen.
-- **Display** — four switches: tab icon, tab aurora, action highlight, status badge
+- **Connection** — connected servers per port, each switchable
+- **Permission** — access scope and its site list; `+ Current tab` adds the tab in front
+- **New tabs** — inherit the container of the tab in front
+- **Interaction permissions** — one switch per capability, hidden-content reads, background work
+- **Display** — tab icon, aurora, action highlight, badge, region box size, tab hold time
 
-### The two access scopes
+| Scope                   | Behaviour                                                              |
+| ----------------------- | ---------------------------------------------------------------------- |
+| **Allowlist** (default) | Only listed sites and tabs granted one at a time; a grant ends on navigation |
+| **Denylist**            | Everywhere except listed sites                                          |
 
-| Mode                    | Behaviour                                                                                                                                                                      |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Allowlist** (default) | Everything is blocked by default; the extension runs only in the sites on its list, plus tabs granted one at a time. A per-tab grant expires when the tab navigates or closes. |
-| **Denylist**            | Runs in every page except the sites on its list.                                                                                                                               |
-
-### Allowed addresses
-
-The popup also decides which addresses the model may open or navigate to. The three rungs are a
-risk ladder: `HTTPS` is the default and refuses everything else; `DEV` additionally allows
-`http://` on loopback hosts, which is what a local dev server such as `http://localhost:5173/`
-needs; `HTTP` allows plain HTTP anywhere. A `view-source:` URL is judged by the document it shows,
-so `view-source:https://…` is allowed on every rung while `view-source:http://…` follows the same
-rung plain HTTP does.
-
-There is no rung for anything else, because there is nothing for one to unlock. Firefox refuses to
-send an extension-driven tab to a privileged URL at all: `chrome:`, `javascript:`, `data:`,
-`file:` and the privileged `about:` pages (`about:config`, `about:addons`, `about:debugging`,
-`about:newtab`) fail inside `tabs.update` and `tabs.create` with `Illegal URL`, whatever this
-extension allows. `ftp://` stopped existing in Firefox 90.
-
-The setting gates `open-browser-tab` and `navigate-browser-tab`, and it also filters the addresses
-returned by `list-page-media` and `read-network-requests`. Pages you opened by hand are unaffected
-— they go through the access scope above.
-
-Allowlist being the default is deliberate. Rather than opening every page the moment the
-extension loads, it makes you widen the scope **explicitly** in the popup.
-
-The `JavaScript` tool is **off by default** for the same reason. It is the most powerful one,
-so it has to be switched on by hand.
+**Allowed addresses** — `HTTPS` (default), `DEV` (adds `http://` on loopback), `HTTP`. Privileged
+URLs are refused by Firefox regardless. The setting gates opening and navigating and filters the
+URLs `list-page-media` and `read-network-requests` return.
 
 ## On-page effects
 
-An overlay is drawn over the page while an action happens. It lives inside a Shadow DOM so it
-never touches the page's own DOM or CSS, and it does not intercept mouse events. Each part is
-switched on its own in the popup, so the ones you find intrusive can stay off.
+Drawn in a Shadow DOM, never touching the page's DOM or pointer events. Each part has a popup
+switch.
 
-- **Tab aurora** — light bleeding inwards from the edges of the viewport. Two mask layers, one per
-  axis, erase the middle and leave only the edges, so the page content stays readable.
-- **Action highlight** — an outline and a halo around the element being clicked, typed into or
-  scrolled to.
-- **Tab icon** — the favicon is swapped, so a driven tab is recognisable from the tab strip.
-  Sites re-write their own icon on route changes and the browser picks up an icon of its own after
-  the load, so the mark is reclaimed on both for as long as the session holds the tab.
-- **Status badge** — a small tag at the top centre naming the action in progress.
+- **Tab icon** — the favicon is swapped while the session holds the tab
+- **Tab aurora** — light along the viewport edges
+- **Action highlight** — outline on the element being acted on; a drag also boxes the drop
+  target and sends a ring from source to target; a scroll sends the ring across the centre while
+  the page glides for the same time
+- **Status badge** — the current action at the top centre; a read and a script run keep it up
+  until the next command, the script itself shown in a panel
 
-The overlay colour follows the kind of action in progress. Every colour, the aurora's four
-included, can be changed on the options page, and so can how long the overlay lingers.
-A change reaches the tabs the session is already holding right away.
+A held tab that a command leaves fades to grey until a command returns. The hold outlives the
+pauses between commands and ends with the tab, the socket, or the popup's hold time. Native
+dialogs are answered before they open and reported with the result.
 
-The overlay is injected DOM, so a navigation wipes it; it is drawn again once the new page
-finishes loading, for as long as the session still holds the tab.
+Colours and timings are on the options page, along with an **Overlay preview** button that plays
+every effect without a server.
 
-Holding a tab and acting on it are separate clocks. The badge falls back to its resting label
-moments after an action, while the hold survives the long pauses between commands: MCP has no
-notion of a turn ending, so a model that thinks for minutes must not lose the tab underneath it.
-A hold ends with the `release-browser-tab` tool, with the tab closing, with the socket closing,
-or after ninety seconds without a command, a length the options page can change.
+## Security
 
-A read is the exception: its mark stays up until the next command replaces it. Everything else
-leaves a trace on the page you can see afterwards, whereas a read changes nothing, so the mark
-is all there is to tell you it happened.
+Less safe than the upstream, by design.
 
-While a tab is held, the page's own `alert`, `confirm` and `prompt` are replaced. A native dialog
-freezes the page's script, which would leave every later command hanging until it timed out, so
-the dialog is answered before it can open and its text is handed back with the action's result.
-
-Animation stops where `prefers-reduced-motion` is set. The overlay is removed just before a
-screenshot is taken, so the effects never end up in the resulting image.
-
-A screenshot can also be cropped to one element by passing a `ref` or a `selector`. The tab is
-not brought to the front and the page is not scrolled: the crop is taken in page coordinates, so
-the part of the element below the fold is in the shot too, with a small margin around it. Only an
-element taller than 2000 pixels comes back cropped, and it is the scroll position that decides
-which slice - the result says so and reports the element's full size, which is enough to scroll on
-and capture the rest.
-
-## Example prompts
-
-### Tab management
-
-- _"Close every tab that has nothing to do with work."_
-- _"Group the development tabs together under 'Development'."_
-- _"Close every tab I have not looked at in 24 hours."_
-
-### History search
-
-- _"Find the posts about the Milford Track in New Zealand in my history."_
-- _"Open up to 10 distinct AI articles I read last week."_
-
-### Research and interaction
-
-- _"Open Hacker News and read the top post and its comments. Do the comments agree with it?"_
-- _"Find L-theanine papers from the last three years on Google Scholar, then open and summarise
-  the three most cited."_
-- _"Fill in my username on this login form and submit it."_
-- _"Type 'aurora' into the search box and press Enter. When results appear, click the first one."_
-
-## About security
-
-This fork exists to open what the upstream keeps closed, so it is **less safe than the upstream**.
-
-**Unchanged**
-
-- The MCP server and the extension talk over a local connection, authenticated by signing every
-  frame with a shared secret.
-- No telemetry, no tracking.
-- The extension has no runtime third-party dependencies.
-- Every tool call is written to the extension's activity log, the new interaction tools included.
-- Per-tool switches are still there, with the three interaction tools added to them.
-- The block list applies **whatever** the access scope is.
-
-**Changed — this is the part that matters**
-
-- Page interaction and arbitrary script execution are possible. While they are on, the MCP server
-  can click and type anything as your signed-in self.
-- **The host permission `<all_urls>` is a required permission.** The upstream asked per domain; this
-  fork is granted full web access when the extension loads. That means **the per-origin backstop
-  the browser used to provide is gone.** The access scope and the tool switches — this
-  extension's own code — are the only line left.
-- `execute-javascript-in-tab` runs in the extension's content script sandbox. The whole DOM is
-  visible, but the page's own JavaScript globals are reachable only through
+- Page interaction and script execution act as your signed-in self while switched on.
+- `<all_urls>` is a required permission: the browser's per-origin prompt is gone, and the access
+  scope plus the tool switches are the only gate.
+- `execute-javascript-in-tab` runs in the content-script sandbox; page globals need
   `window.wrappedJSObject`.
 
-**Why it was done this way** — a grant prompt per domain made the thing unusable in practice. The
-line was moved inside the extension instead, with the defaults locked down (allowlist, JavaScript
-off) so that opening it up is an explicit act.
+Stay on **allowlist**, grant tabs one at a time, and switch the interaction tools off when in
+doubt. Experimental; use at your own risk.
 
-**Recommended setup** — stay on **allowlist** and allow only the tabs you need from the popup. If
-a session gets busy, switch to denylist and switch back when you are done. If anything looks
-wrong, the three interaction switches in the popup turn it off at once.
+## Zen Browser
 
-**Note**: Browser Control MCP is still experimental. As with any MCP server, watch the tool calls
-as they happen. You use it at your own risk.
-
-## About Zen Browser
-
-- In **compact mode** the toolbar is hidden, so the icon may not be visible. Open the popup with
-  `Alt+Shift+B` instead.
-- In **split view**, `captureVisibleTab` captures the visible area of the whole window, so a
-  screenshot contains both tabs.
-
-- **Workspaces and containers** — Zen can tie a workspace to a container (userContext). Each
-  container has its own cookie jar, so a new tab opened in the default container **looks signed
-  out**. Because of that, `open-browser-tab` **inherits the container of the tab in front** by
-  default, which is what opening a tab by hand would do.
-
-  The **"New tabs → Keep the signed-in session" toggle in the popup** decides the usual behaviour
-  (on by default). The popup's "Current tab" box also shows which container you are in.
-
-  ```
-  open-browser-tab(url, container="auto")     ← default; follows the popup toggle
-  open-browser-tab(url, container="inherit")  ← forces the current container, toggle or not
-  open-browser-tab(url, container="default")  ← the browser default container; usually signed out
-  open-browser-tab(url, container="<cookieStoreId>")  ← a specific container
-  ```
-
-  So **the popup is the usual behaviour and a tool parameter is the exception for one call**.
-  `list-open-tabs` reports `container=` per tab, so a specific container can be picked.
+- Compact mode hides the toolbar: use `Alt+Shift+B`.
+- Split view puts both tabs in a screenshot.
+- Containers: a tab in the default container looks signed out, so new tabs inherit the current
+  container by default; the `container` parameter overrides per call.
 
 ## Installation
 
-> **Note**: the [build on addons.mozilla.org](https://addons.mozilla.org/en-US/firefox/addon/browser-control-mcp/)
-> and the upstream releases (`.xpi`, `.dxt`) are the **upstream**. They carry none of this fork's
-> interaction tools, popup or overlay, so **build from source** as below.
-
-### 1. Build
-
-Clone the repository and run this in the root; it builds both the MCP server and the extension.
+Upstream releases carry none of this fork's tools; build from source.
 
 ```
 npm install
 npm run build
 ```
 
-### 2. Load the extension
-
-1. Type `about:debugging` in the address bar
-2. Click "This Firefox"
-3. Click "Load Temporary Add-on..."
-4. Pick `manifest.json` in this project's `firefox-extension` folder
-5. The settings page opens. Reveal the secret key and copy it — the MCP server config needs it.
-
-The path is the same in Zen Browser. A temporary add-on is dropped when the browser restarts, so
-it has to be loaded again each time.
-
-If running this in your personal browser feels wrong, a separate Firefox instance such as
-[Firefox Developer Edition](https://www.mozilla.org/en-US/firefox/developer/) works too.
-
-#### Packaging it into a zip
-
-Run this in the repository root:
+Load `firefox-extension/manifest.json` from `about:debugging` → "Load Temporary Add-on...", or
+package and install from `about:addons`:
 
 ```
-npm run package
+npm run package     # firefox-extension/web-ext-artifacts/browser_control_mcp-<version>.zip
 ```
 
-It writes `firefox-extension/web-ext-artifacts/browser_control_mcp-<version>.zip`. Open
-`about:addons`, click the gear, pick "Install Add-on From File..." and choose that zip. It stays
-installed across restarts, so step 2 above is not needed.
+The settings page shows the secret key the server needs.
 
-This works in Zen Browser. Whether stock Firefox accepts it has not been tested.
+### Connect the server
 
-### 3. Connect the MCP server
-
-#### The easy way: `setup.ps1`
-
-Run this in the repository root. Every question it asks comes before the Secret Key: the language,
-and whether to install anything it could not find. Then it shows both clients at once, says what is
-about to happen, and asks for the key. After that it runs to the end without stopping - it installs
-the dependencies, builds, registers, writes the Desktop config, and packages the extension zip.
-Run it again whenever you issue a new Secret Key.
+`setup.ps1` does everything: asks its questions before the secret key, then installs, builds,
+registers with Claude Code and Claude Desktop, and packages the zip. It closes Claude Desktop
+before writing its config.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1
 ```
 
-```
-Language / 언어  [1] English  [2] 한국어
-
-  Looking for the clients
-
-============================================================
-  Current state
-============================================================
-
-  Build            ready
-  Claude Code      the MCP server is registered, its Secret Key will be refreshed
-                   running right now (2 process(es))
-  Claude Desktop   the app is there but the MCP server is not registered, it will be added
-                   config: C:\Users\me\AppData\Local\Packages\Claude_…\LocalCache\Roaming\Claude\claude_desktop_config.json
-
-============================================================
-  What happens after the Secret Key
-============================================================
-
-  Claude Desktop is not running, so it only has to be started again afterwards.
-  Claude Code sessions that are already open keep their old settings. Open a new
-  session once this is done.
-
-  Nothing else is asked from here on: the build, the registration, the config file
-  and the extension zip all run in one go.
-
-Secret Key
-```
-
-Nothing is installed without a `y/N` answer. Claude Desktop reads its config only at startup and
-rewrites it on exit, so the script closes it by force before writing - it says so above the key
-prompt rather than asking again half way through.
-
-What follows is for setting the commands up by hand.
-
-#### Using it from Claude Code
-
-Claude Code does not use DXT. One line is enough.
+By hand, for Claude Code:
 
 ```
 claude mcp add browser-control \
@@ -362,7 +144,7 @@ claude mcp add browser-control \
   -- node /path/to/repo/mcp-server/dist/server.js
 ```
 
-To keep it per project, put the same thing in `.mcp.json` in the repository root.
+For Claude Desktop, the same entry in `claude_desktop_config.json`:
 
 ```json
 {
@@ -370,64 +152,22 @@ To keep it per project, put the same thing in `.mcp.json` in the repository root
     "browser-control": {
       "command": "node",
       "args": ["/path/to/repo/mcp-server/dist/server.js"],
-      "env": {
-        "EXTENSION_SECRET": "<SECRET KEY>"
-      }
+      "env": { "EXTENSION_SECRET": "<SECRET KEY>" }
     }
   }
 }
 ```
 
-#### Using it from Claude Desktop
-
-Add the same `mcpServers` entry to `claude_desktop_config.json`.
-
-Replace `/path/to/repo` with the real path, and put the value shown on the extension settings page
-into `EXTENSION_SECRET`. That is the only variable you need: the base port defaults to 8089, and
-`EXTENSION_PORT` only exists to move it somewhere else.
-
-It can take a few seconds for the MCP server to reach the extension. The popup's connection
-section shows when it has.
-
-#### Several sessions at once are fine
-
-Each Claude session starts its own MCP server process, and a TCP port can only be held by one of
-them. So the server **walks up from the base port (8089) until it finds a free one**, and the
-extension **always keeps one spare slot one above the highest connected port**.
-
-```
-session 1 → 8089 ┐
-session 2 → 8090 ├→ extension (an independent handler per port)
-session 3 → 8091 ┘
-          8092  ← the spare slot waiting for the next session
-```
-
-More sessions means more ports, and slots are reclaimed as sessions end.
-
-#### When you need the DXT package
-
-DXT is the packaging format that lets Claude Desktop install an MCP server in one step. **Claude
-Code does not need it.** Build one only if you want the one-click install into Claude Desktop.
-
-```
-cd mcp-server
-npm run pack-dxt
-```
-
-`mcp-server/manifest.json` is the DXT manifest. The `.dxt` released by the upstream has no
-interaction tools, so always use one you built.
+Several sessions can run at once: each server takes the next free port and the extension keeps
+a spare slot. `cd mcp-server && npm run pack-dxt` builds the DXT package for Claude Desktop.
 
 ## Development
 
 ```
-npm install                          # installs the subproject dependencies as well
-npm run build                        # builds everything through nx
-cd firefox-extension; npm test       # extension tests
-cd mcp-server; npm start             # run the MCP server
-npm run package                      # zip the extension for installing
+npm run build                        # nx
+cd firefox-extension; npm test       # jest
+npm run package                      # zip
 ```
 
-The UI strings live in `firefox-extension/_locales/{en,ko}/messages.json`. `default_locale` is
-`en`, so anything a Korean-language browser does not find there falls back to English.
-
-See [CLAUDE.md](./CLAUDE.md) for the structure.
+UI strings live in `firefox-extension/_locales/{en,ko}/messages.json`. Structure:
+[CLAUDE.md](./CLAUDE.md).
