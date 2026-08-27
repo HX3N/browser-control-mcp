@@ -1,4 +1,5 @@
 import type { ElementTarget } from "@browser-control-mcp/common/server-messages";
+import { sweepEase } from "./sweep-ease";
 
 export const REF_ATTRIBUTE = "data-bcm-ref";
 
@@ -182,6 +183,10 @@ function __bcmScroll() {
   var seen = Math.round(doc.clientHeight || window.innerHeight || 0);
   return { scrollY: Math.round(doc.scrollTop), scrollHeight: height, scrollMax: Math.max(0, height - seen) };
 }
+`;
+
+export const SWEEP_EASE_SOURCE = `
+var __bcmSweepEase = ${sweepEase.toString()};
 `;
 
 export const SCROLL_ANCHOR_SOURCE = `

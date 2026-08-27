@@ -20,7 +20,16 @@ jest.mock("../client", () => {
 });
 
 const TAB_ID = 123;
-const SUPPORT_MARKERS = ["__bcmDialogGuard", "__bcmOverlay"];
+const SUPPORT_MARKERS = [
+  "__bcmDialogGuard",
+  "__bcmOverlay.attach",
+  "__bcmOverlay.rest",
+  "__bcmOverlay.conceal",
+  "__bcmOverlay.reveal",
+  "__bcmOverlay.showRegions",
+  "__bcmOverlay.reclaimTabMark",
+  "__bcmOverlay.detach",
+];
 
 const ANY_RESULT = [
   {

@@ -626,6 +626,114 @@ describe("MessageHandler", () => {
       });
     });
 
+    describe("overlay attention", () => {
+      const overlayCallsOn = (tabId: number) =>
+        (browser.tabs.executeScript as jest.Mock).mock.calls
+          .filter(([id, details]) => id === tabId && String(details.code).includes("__bcmOverlay"))
+          .map(([, details]) => String(details.code));
+
+      beforeEach(() => {
+        defaultConfig.toolSettings = {
+          ...defaultConfig.toolSettings,
+          "execute-javascript": true,
+        };
+        (browser.tabs.get as jest.Mock).mockImplementation(async (id: number) => ({
+          id,
+          url: "https://example.com",
+        }));
+        (browser.permissions.contains as jest.Mock).mockResolvedValue(true);
+        (browser.tabs.executeScript as jest.Mock).mockImplementation(
+          async (_tabId: number, details: { code?: string }) => {
+            const code = details.code ?? "";
+            if (code.includes("__bcmOverlay.attach")) {
+              return [null];
+            }
+            if (code.includes("__bcmOverlay.rest")) {
+              return [true];
+            }
+            return [
+              {
+                result: "ok",
+                isTruncated: false,
+                target: "a",
+                detail: "d",
+                url: "https://example.com",
+                scrollY: 0,
+                scrollHeight: 0,
+                scrollMax: 0,
+              },
+            ];
+          }
+        );
+      });
+
+      const runJs = (tabId: number) =>
+        messageHandler.handleDecodedMessage({
+          cmd: "execute-js",
+          correlationId: `js-${tabId}`,
+          tabId,
+          code: "document.title",
+        });
+
+      it("rests the tab it left when a command lands on another tab", async () => {
+        await runJs(123);
+        expect(overlayCallsOn(123).some((code) => code.includes("__bcmOverlay.rest()"))).toBe(false);
+
+        await runJs(456);
+        expect(overlayCallsOn(123).some((code) => code.includes("__bcmOverlay.rest()"))).toBe(true);
+        expect(overlayCallsOn(456).some((code) => code.includes("__bcmOverlay.rest()"))).toBe(false);
+      });
+
+      it("does not rest a tab that is already the one being worked in", async () => {
+        await runJs(123);
+        await runJs(123);
+        expect(overlayCallsOn(123).some((code) => code.includes("__bcmOverlay.rest()"))).toBe(false);
+      });
+
+      it("hands the whole script to the overlay panel", async () => {
+        await messageHandler.handleDecodedMessage({
+          cmd: "execute-js",
+          correlationId: "js",
+          tabId: 123,
+          code: "const a = 1;\nconsole.log('it\\'s \"here\"');",
+        });
+        const attach = overlayCallsOn(123).find((code) => code.includes("__bcmOverlay.attach"));
+        expect(attach).toContain(
+          `detail: ${JSON.stringify("const a = 1;\nconsole.log('it\\'s \"here\"');")}`
+        );
+      });
+
+      it("leaves the script on screen until the next command", async () => {
+        await runJs(123);
+        const attach = overlayCallsOn(123).find((code) => code.includes("__bcmOverlay.attach"));
+        expect(attach).toContain("resetAfterMs: 0");
+      });
+
+      it("hands the scroll direction to the overlay", async () => {
+        await messageHandler.handleDecodedMessage({
+          cmd: "scroll-page",
+          correlationId: "scroll",
+          tabId: 123,
+          direction: "bottom",
+        });
+        const attach = overlayCallsOn(123).find((code) => code.includes("__bcmOverlay.attach"));
+        expect(attach).toContain('swipe: "bottom"');
+      });
+
+      it("draws the drop target of a drag", async () => {
+        await messageHandler.handleDecodedMessage({
+          cmd: "drag-element",
+          correlationId: "drag",
+          tabId: 123,
+          ref: "e1",
+          to: { ref: "e2" },
+        });
+        const attach = overlayCallsOn(123).find((code) => code.includes("__bcmOverlay.attach"));
+        expect(attach).toContain("__bcmOverlay.showDrag(el, __bcmResolve(drop))");
+        expect(attach).toContain('"ref":"e2"');
+      });
+    });
+
     describe("download-file command", () => {
       const allowDownloads = () => {
         defaultConfig.toolSettings = {

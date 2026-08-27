@@ -5,6 +5,7 @@ import {
   buildDetachOverlayCode,
   buildOutlineOverlayCode,
   buildReclaimTabMarkCode,
+  buildRestOverlayCode,
   buildRevealOverlayCode,
 } from "../highlight-overlay";
 import {
@@ -59,6 +60,7 @@ const cases: [string, string][] = [
       showBadge: true,
       idleStatus: "Claude connected",
       resetAfterMs: 0,
+      sweepMs: 2000,
       accents: DEFAULT_OVERLAY_COLORS.accents,
       aurora: DEFAULT_OVERLAY_COLORS.aurora,
     }),
@@ -74,11 +76,66 @@ const cases: [string, string][] = [
       showBadge: true,
       idleStatus: "Claude connected",
       resetAfterMs: 4000,
+      sweepMs: 2000,
       accents: DEFAULT_OVERLAY_COLORS.accents,
       aurora: ["#111111", "#222222", "#333333", "#444444"],
       target,
     }),
   ],
+  [
+    "overlay attach, drag with a drop target",
+    buildAttachOverlayCode({
+      status: "Dragging",
+      state: "click",
+      markTab: true,
+      showAurora: true,
+      showFocus: true,
+      showBadge: true,
+      idleStatus: "Claude connected",
+      resetAfterMs: 4000,
+      sweepMs: 2000,
+      accents: DEFAULT_OVERLAY_COLORS.accents,
+      aurora: DEFAULT_OVERLAY_COLORS.aurora,
+      target,
+      drop: bySelector,
+    }),
+  ],
+  [
+    "overlay attach, resting with a code panel",
+    buildAttachOverlayCode({
+      status: "Running JavaScript",
+      state: "exec",
+      markTab: true,
+      showAurora: true,
+      showFocus: false,
+      showBadge: true,
+      idleStatus: "Claude connected",
+      resetAfterMs: 4000,
+      sweepMs: 2000,
+      accents: DEFAULT_OVERLAY_COLORS.accents,
+      aurora: DEFAULT_OVERLAY_COLORS.aurora,
+      resting: true,
+      detail: "document.title = 'it\\'s \"quoted\"';\n</script>\n${x}",
+    }),
+  ],
+  [
+    "overlay attach, scroll swipe",
+    buildAttachOverlayCode({
+      status: "Scrolling",
+      state: "read",
+      markTab: true,
+      showAurora: true,
+      showFocus: true,
+      showBadge: true,
+      idleStatus: "Claude connected",
+      resetAfterMs: 0,
+      sweepMs: 2000,
+      accents: DEFAULT_OVERLAY_COLORS.accents,
+      aurora: DEFAULT_OVERLAY_COLORS.aurora,
+      swipe: "bottom",
+    }),
+  ],
+  ["overlay rest", buildRestOverlayCode()],
   ["element box by ref", buildElementBoxCode(target)],
   ["element box by selector", buildElementBoxCode(bySelector)],
   ["media list, whole page", buildMediaListCode()],
@@ -357,6 +414,13 @@ describe("injected script builders emit parsable JavaScript", () => {
 });
 
 describe("injected source contracts", () => {
+  it("glides a scroll for as long as the overlay's swipe runs", () => {
+    const code = buildScrollCode({ cmd: "scroll-page", tabId: 1, direction: "down" });
+    expect(code).toContain("__bcmOverlay.beginSwipe()");
+    expect(code).toContain("__bcmGlide(box, fromX, fromY, goalX, goalY, ms || 600)");
+    expect(code).toContain("__bcmSweepEase(p)");
+  });
+
   it("outlines a large page only when the read is neither scoped nor forced full", () => {
     const whole = buildSnapshotCode({ maxElements: 200, includeHidden: false });
     expect(whole).toContain("outline = __bcmOutline(");
@@ -375,6 +439,7 @@ describe("injected source contracts", () => {
       markTab: true,
       idleStatus: "Claude connected",
       resetAfterMs: 0,
+      sweepMs: 2000,
       accents: DEFAULT_OVERLAY_COLORS.accents,
       aurora: DEFAULT_OVERLAY_COLORS.aurora,
       target,
@@ -395,6 +460,7 @@ describe("injected source contracts", () => {
         markTab: true,
         idleStatus: "Claude connected",
         resetAfterMs: 0,
+        sweepMs: 2000,
         accents: DEFAULT_OVERLAY_COLORS.accents,
         aurora: DEFAULT_OVERLAY_COLORS.aurora,
         target,
@@ -436,6 +502,7 @@ describe("injected source contracts", () => {
         showBadge: true,
         idleStatus: "Claude connected",
         resetAfterMs: 0,
+        sweepMs: 2000,
         accents: DEFAULT_OVERLAY_COLORS.accents,
         aurora: DEFAULT_OVERLAY_COLORS.aurora,
         target,

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <title data-i18n="previewTitle">Overlay preview</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --panel: #f6f7f9;
+      --panel-border: #e2e5ea;
+      --text: #1b1d21;
+      --muted: #6b7280;
+      --accent: #7928ca;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #17181c;
+        --panel: #202127;
+        --panel-border: #2e3038;
+        --text: #eceef2;
+        --muted: #9aa1ac;
+        --accent: #a855f7;
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", sans-serif;
+    }
+
+    .bar {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 12px 16px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--panel-border);
+    }
+
+    .bar span {
+      align-self: center;
+      color: var(--muted);
+      margin-right: 4px;
+    }
+
+    button {
+      font: inherit;
+      color: var(--text);
+      background: var(--bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      padding: 6px 12px;
+      cursor: pointer;
+    }
+
+    button:hover { border-color: var(--accent); }
+
+    main {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 32px 16px 120vh;
+    }
+
+    .card {
+      padding: 16px 18px;
+      margin: 18px 0;
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+    }
+
+    .row { display: flex; gap: 18px; }
+    .row .card { flex: 1; }
+
+    input[type="text"] {
+      font: inherit;
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    p.filler { color: var(--muted); }
+  </style>
+</head>
+
+<body>
+  <div class="bar">
+    <span data-i18n="previewScroll"></span>
+    <button data-action="scroll" data-direction="up">↑</button>
+    <button data-action="scroll" data-direction="down">↓</button>
+    <button data-action="scroll" data-direction="left">←</button>
+    <button data-action="scroll" data-direction="right">→</button>
+    <button data-action="scroll" data-direction="top" data-i18n="previewTop"></button>
+    <button data-action="scroll" data-direction="bottom" data-i18n="previewBottom"></button>
+    <span data-i18n="previewActions"></span>
+    <button data-action="drag" data-i18n="previewDrag"></button>
+    <button data-action="click" data-i18n="previewClick"></button>
+    <button data-action="type" data-i18n="previewType"></button>
+    <button data-action="read" data-i18n="previewRead"></button>
+    <button data-action="exec" data-i18n="previewExec"></button>
+    <button data-action="regions" data-i18n="previewRegions"></button>
+    <span data-i18n="previewState"></span>
+    <button data-action="rest" data-i18n="previewRest"></button>
+    <button data-action="wake" data-i18n="previewWake"></button>
+    <button data-action="detach" data-i18n="previewDetach"></button>
+  </div>
+
+  <main>
+    <h1 data-i18n="previewTitle"></h1>
+    <p data-i18n="previewIntro"></p>
+
+    <section id="region-a" class="card">
+      <h2 data-i18n="previewRegionA"></h2>
+      <div class="row">
+        <div id="drag-source" class="card" data-i18n="previewDragSource"></div>
+        <div id="drop-target" class="card" data-i18n="previewDropTarget"></div>
+      </div>
+      <p><label for="type-target" data-i18n="previewTypeTarget"></label><br><input id="type-target" type="text"></p>
+      <p><button id="click-target" data-i18n="previewClickTarget"></button></p>
+    </section>
+
+    <section id="region-b" class="card">
+      <h2 data-i18n="previewRegionB"></h2>
+      <p class="filler" data-i18n="previewFiller"></p>
+      <p class="filler" data-i18n="previewFiller"></p>
+      <p class="filler" data-i18n="previewFiller"></p>
+    </section>
+  </main>
+
+  <script src="dist/overlay-test.js"></script>
+</body>
+
+</html>

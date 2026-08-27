@@ -289,12 +289,14 @@ export interface OverlayTimings {
   statusResetMs: number;
   holdReleaseMs: number;
   leadMs: number;
+  sweepMs: number;
 }
 
 export const DEFAULT_OVERLAY_TIMINGS: OverlayTimings = {
   statusResetMs: 5000,
   holdReleaseMs: 60_000,
   leadMs: 1000,
+  sweepMs: 2000,
 };
 
 export const OVERLAY_TIMING_LIMITS: Record<
@@ -304,6 +306,7 @@ export const OVERLAY_TIMING_LIMITS: Record<
   statusResetMs: { min: 1000, max: 120_000 },
   holdReleaseMs: { min: 10_000, max: 3_600_000 },
   leadMs: { min: 0, max: 5_000 },
+  sweepMs: { min: 300, max: 10_000 },
 };
 
 export type OverlayAccentKey = "idle" | "read" | "click" | "type" | "exec";
@@ -362,6 +365,7 @@ export async function getOverlayTimings(): Promise<OverlayTimings> {
     statusResetMs: readTiming(stored.statusResetMs, "statusResetMs"),
     holdReleaseMs: readTiming(stored.holdReleaseMs, "holdReleaseMs"),
     leadMs: readTiming(stored.leadMs, "leadMs"),
+    sweepMs: readTiming(stored.sweepMs, "sweepMs"),
   };
 }
 

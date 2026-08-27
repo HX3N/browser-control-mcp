@@ -695,6 +695,78 @@
     "optionsAppearanceAuroraNote": {
         "message": "The aurora is a rainbow by default: four colours that flow into one another, not a single tint. Replacing all four is what changes its character, and the strip above shows what the page will look like."
     },
+    "previewTitle": {
+        "message": "Overlay preview"
+    },
+    "previewIntro": {
+        "message": "The buttons above draw the overlay on this page. It shows the on-page effects without an MCP server."
+    },
+    "previewScroll": {
+        "message": "Scroll"
+    },
+    "previewTop": {
+        "message": "Top"
+    },
+    "previewBottom": {
+        "message": "Bottom"
+    },
+    "previewActions": {
+        "message": "Actions"
+    },
+    "previewDrag": {
+        "message": "Drag"
+    },
+    "previewClick": {
+        "message": "Click"
+    },
+    "previewType": {
+        "message": "Type"
+    },
+    "previewRead": {
+        "message": "Read"
+    },
+    "previewExec": {
+        "message": "Run JavaScript"
+    },
+    "previewRegions": {
+        "message": "Region boxes"
+    },
+    "previewState": {
+        "message": "State"
+    },
+    "previewRest": {
+        "message": "Rest"
+    },
+    "previewWake": {
+        "message": "Wake"
+    },
+    "previewDetach": {
+        "message": "Remove"
+    },
+    "previewRegionA": {
+        "message": "Targets"
+    },
+    "previewRegionB": {
+        "message": "Body"
+    },
+    "previewDragSource": {
+        "message": "Drag me"
+    },
+    "previewDropTarget": {
+        "message": "Drop here"
+    },
+    "previewTypeTarget": {
+        "message": "Text field"
+    },
+    "previewClickTarget": {
+        "message": "Click target"
+    },
+    "previewFiller": {
+        "message": "Filler text that makes the page long enough to scroll. The overlay never touches the page's DOM; it is drawn on top."
+    },
+    "optionsAppearancePreview": {
+        "message": "Overlay preview"
+    },
     "optionsAppearanceReset": {
         "message": "Restore the default colours"
     },
@@ -745,5 +817,11 @@
     },
     "optionsTimingHint_leadMs": {
         "message": "The pause between highlighting an element and acting on it, so you can see what is about to be touched."
+    },
+    "optionsTiming_sweepMs": {
+        "message": "Scroll time (s)"
+    },
+    "optionsTimingHint_sweepMs": {
+        "message": "How long one scroll takes. The dot at the centre of the screen crosses in the same time."
     }
 }

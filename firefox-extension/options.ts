@@ -527,6 +527,12 @@ const appearanceStatus = document.getElementById(
 const resetColorsButton = document.getElementById(
   "reset-colors"
 ) as HTMLButtonElement;
+const openPreviewButton = document.getElementById(
+  "open-preview"
+) as HTMLButtonElement;
+openPreviewButton.addEventListener("click", () => {
+  void browser.tabs.create({ url: browser.runtime.getURL("overlay-test.html") });
+});
 const timingRows = document.getElementById("timing-rows") as HTMLDivElement;
 const timingStatus = document.getElementById("timing-status") as HTMLDivElement;
 const resetTimingsButton = document.getElementById(
@@ -548,6 +554,7 @@ const MS_PER_SECOND = 1000;
 const TIMING_FIELDS: { key: keyof OverlayTimings; stepSeconds: number }[] = [
   { key: "statusResetMs", stepSeconds: 0.5 },
   { key: "leadMs", stepSeconds: 0.1 },
+  { key: "sweepMs", stepSeconds: 0.1 },
 ];
 
 const SAVE_DELAY_MS = 250;

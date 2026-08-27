@@ -16,6 +16,7 @@ import {
   PAGE_READ_SOURCE,
   REF_ATTRIBUTE,
   SCROLL_ANCHOR_SOURCE,
+  SWEEP_EASE_SOURCE,
   isElementTargeted,
   jsValue,
   targetLiteral,
@@ -869,6 +870,7 @@ export function buildScrollCode(request: ScrollPageServerMessage): string {
   return `(function () {
 ${ELEMENT_RESOLVER_SOURCE}
 ${SCROLL_ANCHOR_SOURCE}
+${SWEEP_EASE_SOURCE}
   var doc = document.scrollingElement || document.documentElement;
   var direction = ${jsValue(request.direction)};
   var horizontal = direction === 'left' || direction === 'right';
@@ -892,12 +894,33 @@ ${SCROLL_ANCHOR_SOURCE}
     return null;
   }
 
+  function __bcmGlide(target, x0, y0, x1, y1, ms) {
+    var set = function (x, y) { if (target) { target.scrollLeft = x; target.scrollTop = y; } else { window.scrollTo(x, y); } };
+    if (x0 === x1 && y0 === y1) { return; }
+    var started = null;
+    var frame = function (now) {
+      if (started === null) { started = now; }
+      var p = Math.min(1, (now - started) / ms);
+      var e = __bcmSweepEase(p);
+      set(x0 + (x1 - x0) * e, y0 + (y1 - y0) * e);
+      if (p < 1) { requestAnimationFrame(frame); }
+    };
+    requestAnimationFrame(frame);
+  }
+
+  var scroll = __bcmScroll();
+  var goalX = Math.round(window.scrollX);
+  var goalY = scroll.scrollY;
+  var maxX = Math.max(0, Math.round(doc.scrollWidth - doc.clientWidth));
+  var maxY = scroll.scrollMax;
   if (direction === 'element') {
     if (!el) { throw new Error('Scrolling to an element needs a ref or a selector'); }
     if (typeof el.scrollIntoView === 'function') {
       try { el.scrollIntoView({ block: 'nearest', inline: 'center' }); } catch (err) { el.scrollIntoView(); }
     }
-    __bcmScrollToAnchor(el, false);
+    __bcmScrollToAnchor(el, true);
+    scroll = __bcmScroll();
+    goalY = scroll.scrollY;
   } else {
     if (el) {
       box = __bcmScrollBox(el);
@@ -906,40 +929,41 @@ ${SCROLL_ANCHOR_SOURCE}
     var viewport = box ? (horizontal ? box.clientWidth : box.clientHeight) : (horizontal ? window.innerWidth || doc.clientWidth : window.innerHeight || doc.clientHeight);
     var step = ${jsValue(request.amount ?? null)};
     if (step === null) { step = Math.round(viewport * 0.85); }
-    var to = function (x, y) { if (box) { box.scrollLeft = x; box.scrollTop = y; } else { window.scrollTo(x, y); } };
-    var by = function (x, y) { if (box) { box.scrollLeft += x; box.scrollTop += y; } else { window.scrollBy(x, y); } };
-    if (direction === 'top') {
-      to(box ? box.scrollLeft : window.scrollX, 0);
-    } else if (direction === 'bottom') {
-      to(box ? box.scrollLeft : window.scrollX, box ? box.scrollHeight : doc.scrollHeight);
-    } else if (direction === 'up') {
-      by(0, -step);
-    } else if (direction === 'down') {
-      by(0, step);
-    } else if (direction === 'left') {
-      by(-step, 0);
-    } else {
-      by(step, 0);
+    var fromX = box ? Math.round(box.scrollLeft) : goalX;
+    var fromY = box ? Math.round(box.scrollTop) : goalY;
+    if (box) {
+      maxX = Math.max(0, box.scrollWidth - box.clientWidth);
+      maxY = Math.max(0, box.scrollHeight - box.clientHeight);
     }
+    goalX = fromX;
+    goalY = fromY;
+    if (direction === 'top') { goalY = 0; }
+    else if (direction === 'bottom') { goalY = maxY; }
+    else if (direction === 'up') { goalY = fromY - step; }
+    else if (direction === 'down') { goalY = fromY + step; }
+    else if (direction === 'left') { goalX = fromX - step; }
+    else { goalX = fromX + step; }
+    goalX = Math.max(0, Math.min(maxX, goalX));
+    goalY = Math.max(0, Math.min(maxY, goalY));
+    var ms = 0;
+    try { ms = window.__bcmOverlay && window.__bcmOverlay.beginSwipe ? window.__bcmOverlay.beginSwipe() : 0; } catch (err) { ms = 0; }
+    __bcmGlide(box, fromX, fromY, goalX, goalY, ms || 600);
   }
 
-  var scroll = __bcmScroll();
   var detail;
   if (box) {
-    var at = horizontal ? Math.round(box.scrollLeft) : Math.round(box.scrollTop);
-    var max = horizontal ? Math.max(0, box.scrollWidth - box.clientWidth) : Math.max(0, box.scrollHeight - box.clientHeight);
-    detail = 'Scrolled ' + direction + ' inside ' + __bcmLabel(box) + ', now at ' + at + ' of ' + max + (at >= max ? ' (the end)' : '') + '; the page itself did not move';
+    var at = horizontal ? goalX : goalY;
+    detail = 'Scrolled ' + direction + ' inside ' + __bcmLabel(box) + ', now at ' + at + ' of ' + (horizontal ? maxX : maxY) + (at >= (horizontal ? maxX : maxY) ? ' (the end)' : '') + '; the page itself did not move';
   } else if (horizontal) {
-    var maxX = Math.max(0, Math.round(doc.scrollWidth - doc.clientWidth));
-    detail = 'Scrolled ' + direction + ', now at ' + Math.round(window.scrollX) + ' of ' + maxX + ' horizontally';
+    detail = 'Scrolled ' + direction + ', now at ' + goalX + ' of ' + maxX + ' horizontally';
   } else {
-    detail = 'Scrolled ' + direction + ', now at ' + scroll.scrollY + ' of ' + scroll.scrollMax + (scroll.scrollY >= scroll.scrollMax ? ' (the bottom)' : '');
+    detail = 'Scrolled ' + direction + ', now at ' + goalY + ' of ' + maxY + (goalY >= maxY ? ' (the bottom)' : '');
   }
   return {
     target: box ? __bcmLabel(box) : label,
     detail: detail,
     url: location.href,
-    scrollY: scroll.scrollY,
+    scrollY: box ? scroll.scrollY : goalY,
     scrollHeight: scroll.scrollHeight,
     scrollMax: scroll.scrollMax
   };

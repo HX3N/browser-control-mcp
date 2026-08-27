@@ -67,6 +67,7 @@ import {
 } from "./interaction-scripts";
 import {
   buildAttachOverlayCode,
+  buildRestOverlayCode,
   buildConcealOverlayCode,
   buildDetachOverlayCode,
   buildOutlineOverlayCode,
@@ -193,6 +194,13 @@ function sameOrigin(a: string, b: string): boolean {
   }
 }
 
+interface OverlayExtras {
+  drop?: ElementTarget;
+  detail?: string;
+  resting?: boolean;
+  swipe?: string;
+}
+
 function elementTargetOf(target: ElementTarget): ElementTarget | undefined {
   if (!target.ref && !target.selector) {
     return undefined;
@@ -208,6 +216,7 @@ export class MessageHandler {
   private knownMediaUrls: Map<number, Set<string>> = new Map();
   private lastMarkReclaim: Map<number, number> = new Map();
   private shownOutlines: Map<number, PageRegion[]> = new Map();
+  private attendedTabId: number | undefined;
 
   private readonly onTabRemoved = (tabId: number) => {
     this.forgetTab(tabId);
@@ -1506,7 +1515,8 @@ export class MessageHandler {
     tabId: number,
     state: OverlayState,
     status: string,
-    target?: ElementTarget
+    target?: ElementTarget,
+    extras: OverlayExtras = {}
   ): Promise<OverlayResult | null> {
     this.shownOutlines.delete(tabId);
 
@@ -1520,6 +1530,9 @@ export class MessageHandler {
     const colors = await getOverlayColors();
     const timings = await getOverlayTimings();
     this.touchTab(tabId, timings.holdReleaseMs);
+    if (!extras.resting) {
+      await this.attendTab(tabId);
+    }
     try {
       const results = await this.runScript(tabId, {
         code: buildAttachOverlayCode({
@@ -1530,16 +1543,35 @@ export class MessageHandler {
           showFocus,
           showBadge,
           idleStatus: idleStatus(),
-          resetAfterMs: state === "read" ? 0 : timings.statusResetMs,
+          resetAfterMs:
+            state === "read" || state === "exec" ? 0 : timings.statusResetMs,
+          sweepMs: timings.sweepMs,
           accents: colors.accents,
           aurora: colors.aurora,
+          resting: extras.resting === true,
           target,
+          drop: extras.drop,
+          detail: extras.detail,
+          swipe: extras.swipe,
         }),
       });
       return (results?.[0] as OverlayResult) ?? null;
     } catch (error) {
       console.error("Failed to draw the interaction overlay:", error);
       return null;
+    }
+  }
+
+  private async attendTab(tabId: number): Promise<void> {
+    const previous = this.attendedTabId;
+    this.attendedTabId = tabId;
+    if (previous === undefined || previous === tabId || !this.claimedTabs.has(previous)) {
+      return;
+    }
+    try {
+      await this.runScript(previous, { code: buildRestOverlayCode() });
+    } catch (error) {
+      console.error("Could not rest the overlay on tab", previous, error);
     }
   }
 
@@ -1575,7 +1607,9 @@ export class MessageHandler {
     for (const tabId of [...this.claimedTabs.keys()]) {
       try {
         if (anyPart) {
-          await this.attachOverlay(tabId, "idle", idleStatus());
+          await this.attachOverlay(tabId, "idle", idleStatus(), undefined, {
+            resting: tabId !== this.attendedTabId,
+          });
         } else {
           await this.runScript(tabId, {
             code: buildDetachOverlayCode(),
@@ -1597,6 +1631,9 @@ export class MessageHandler {
     this.textBaselines.delete(tabId);
     this.lastMarkReclaim.delete(tabId);
     this.shownOutlines.delete(tabId);
+    if (this.attendedTabId === tabId) {
+      this.attendedTabId = undefined;
+    }
     forgetPageEvents(tabId);
     forgetNetworkLog(tabId);
     const timer = this.claimedTabs.get(tabId);
@@ -1636,7 +1673,8 @@ export class MessageHandler {
     label: string,
     action: InteractionResultExtensionMessage["action"],
     code: string,
-    stallMs?: number
+    stallMs?: number,
+    extras?: OverlayExtras
   ): Promise<void> {
     await this.prepareTabAccess(req.tabId);
 
@@ -1648,7 +1686,8 @@ export class MessageHandler {
       req.tabId,
       state,
       label,
-      elementTargetOf(req)
+      elementTargetOf(req),
+      extras
     );
     if (shown) {
       await delay((await getOverlayTimings()).leadMs);
@@ -1714,7 +1753,9 @@ export class MessageHandler {
       "click",
       t("overlayDrag"),
       "drag",
-      buildDragCode(req)
+      buildDragCode(req),
+      undefined,
+      { drop: elementTargetOf(req.to) }
     );
   }
 
@@ -1875,7 +1916,9 @@ export class MessageHandler {
       "read",
       t("overlayScroll"),
       "scroll",
-      buildScrollCode(req)
+      buildScrollCode(req),
+      undefined,
+      { swipe: req.direction }
     );
   }
 
@@ -1896,7 +1939,9 @@ export class MessageHandler {
   ): Promise<void> {
     await this.prepareTabAccess(req.tabId);
 
-    await this.attachOverlay(req.tabId, "exec", t("overlayExecuteJs"));
+    await this.attachOverlay(req.tabId, "exec", t("overlayExecuteJs"), undefined, {
+      detail: req.code,
+    });
 
     const results = await this.runScript(
       req.tabId,
