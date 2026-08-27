@@ -161,10 +161,7 @@ const MAX_WAIT_TIMEOUT_MS = 60_000;
 const MAX_CAPTURE_SLICES = 8;
 const SLICE_OVERLAP_PX = 80;
 // A fetch spends real network time, so it gets a longer leash than an in-page script.
-const MEDIA_FETCH_STALL_MS = 20_000;
-// Claude Code compares each image's base64 against 5 MiB before the request and fails the turn
-// over it; 3.5 MiB of bytes stays under that.
-const MAX_MEDIA_BYTES = 3.5 * 1024 * 1024;
+const MEDIA_FETCH_STALL_MS = 60_000;
 const MEDIA_IMAGE_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -1253,7 +1250,7 @@ export class MessageHandler {
 
     const results = await this.runScript(
       tabId,
-      { code: buildMediaFetchCode(url, MAX_MEDIA_BYTES) },
+      { code: buildMediaFetchCode(url, await getUploadLimitBytes()) },
       MEDIA_FETCH_STALL_MS
     );
     const fetched = results[0] as MediaFetchResult;

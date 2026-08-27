@@ -228,10 +228,10 @@
         "message": "이 컴퓨터 파일 접근"
     },
     "popupUploadLimitLabel": {
-        "message": "업로드 크기 한도"
+        "message": "파일 전송 한도"
     },
     "popupUploadLimitHint": {
-        "message": "한 번에 첨부하는 파일의 합계 (1~256MB)"
+        "message": "업로드는 합계·다운로드는 한 건 (1~64MB)"
     },
     "popupOutlineDepthLabel": {
         "message": "대상 구역 표시"

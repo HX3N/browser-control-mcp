@@ -246,7 +246,7 @@ export interface ExtensionConfig {
 }
 
 export const DEFAULT_UPLOAD_LIMIT_BYTES = 8 * 1024 * 1024;
-export const UPLOAD_LIMIT_MB_RANGE = { min: 1, max: 256 };
+export const UPLOAD_LIMIT_MB_RANGE = { min: 1, max: 64 };
 
 export async function getUploadLimitBytes(): Promise<number> {
   const stored = (await getConfig()).uploadLimitBytes;

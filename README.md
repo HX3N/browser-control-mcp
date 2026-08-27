@@ -53,8 +53,8 @@ The tools the MCP server exposes.
 - `list-page-media` — list the images, videos and audio a page shows, with URLs and
   original sizes, for the whole page or inside one element
 - `fetch-media-file` — fetch an image file a page shows, with the page's own cookies
-  (off by default; only URLs `list-page-media` listed can be fetched, up to 3.5MB, the most
-  Claude Code will pass on to the model)
+  (off by default; only URLs `list-page-media` listed can be fetched, up to the size limit set
+  in the popup, 8MB by default)
 
 **Interact**
 

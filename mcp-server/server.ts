@@ -894,7 +894,8 @@ defineTool(
     Fetch one image from a page by URL as the original file, with the page's own cookies. Prefer
     it over a screenshot when the original is larger than displayed or the exact file matters.
     The URL must be one list-page-media listed for this tab on the page it is showing now. Only
-    jpeg, png, gif and webp are returned, capped at 3.5MB, the most Claude Code will pass on.
+    jpeg, png, gif and webp are returned, capped by "File transfer limit" in the extension popup,
+    8MB by default.
   `,
   {
     tabId: z.number(),
@@ -1033,7 +1034,7 @@ defineTool(
     "Choose file" button: that opens a native picker nobody can drive. Find the input with
     read-page and pass its ref, or a selector such as input[type=file] when it is hidden.
     Use paths the user gave you or files you produced for them, never a path you guessed. The
-    total size is capped by "Upload size limit" in the extension popup, 8MB by default.
+    total size is capped by "File transfer limit" in the extension popup, 8MB by default.
   `,
   {
     tabId: z.number(),
@@ -1055,7 +1056,7 @@ defineTool(
         content: [
           {
             type: "text",
-            text: `The files add up to ${formatBytes(bytes)}, over the ${formatBytes(limits.uploadBytes)} upload limit set in the extension popup; the user can raise it there.`,
+            text: `The files add up to ${formatBytes(bytes)}, over the ${formatBytes(limits.uploadBytes)} file transfer limit set in the extension popup; the user can raise it there.`,
           },
         ],
         isError: true,

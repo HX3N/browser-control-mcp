@@ -228,10 +228,10 @@
         "message": "Local file access"
     },
     "popupUploadLimitLabel": {
-        "message": "Upload size limit"
+        "message": "File transfer limit"
     },
     "popupUploadLimitHint": {
-        "message": "Files attached in one call, added together (1~256MB)"
+        "message": "Uploads added together, downloads one at a time (1~64MB)"
     },
     "popupOutlineDepthLabel": {
         "message": "Target regions"

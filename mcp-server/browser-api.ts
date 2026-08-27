@@ -36,8 +36,9 @@ const EXTENSION_RESPONSE_TIMEOUT_MS = 5000;
 // Room for a sliced capture: up to eight captureTab calls plus a decode for measuring.
 const SCREENSHOT_RESPONSE_TIMEOUT_MS = 20000;
 
-// A media fetch spends real network time inside the page before the answer starts back.
-const MEDIA_RESPONSE_TIMEOUT_MS = 30000;
+// A media fetch spends real network time inside the page before the answer starts back, and
+// the extension gives it a minute before calling it stalled.
+const MEDIA_RESPONSE_TIMEOUT_MS = 90000;
 // Interactions draw the overlay, hold it long enough to be seen, and only then act on the
 // page, so they never fit inside the default response budget.
 const INTERACTION_RESPONSE_TIMEOUT_MS = 15000;

@@ -549,6 +549,65 @@ describe("MessageHandler", () => {
       });
     });
 
+    describe("fetch-media command", () => {
+      it("caps the fetch at the stored file size limit", async () => {
+        defaultConfig.toolSettings = {
+          ...defaultConfig.toolSettings,
+          "get-media-content": true,
+        };
+        defaultConfig.uploadLimitBytes = 20 * 1024 * 1024;
+        (browser.tabs.get as jest.Mock).mockResolvedValue({
+          id: 123,
+          url: "https://example.com",
+        });
+        (browser.permissions.contains as jest.Mock).mockResolvedValue(true);
+        (browser.tabs.executeScript as jest.Mock).mockImplementation(
+          async (_tabId: number, details: { code?: string }) => {
+            const code = details.code ?? "";
+            if (code.includes("credentials: 'include'")) {
+              return [{ base64: "AA==", mimeType: "image/png", byteLength: 1 }];
+            }
+            if (code.includes("totalItems")) {
+              return [
+                {
+                  items: [{ url: "https://example.com/a.png", kind: "image" }],
+                  totalItems: 1,
+                  hiddenItems: 0,
+                  isTruncated: false,
+                  unreachableFrames: [],
+                },
+              ];
+            }
+            return [true];
+          }
+        );
+
+        await messageHandler.handleDecodedMessage({
+          cmd: "get-media",
+          tabId: 123,
+          correlationId: "list-correlation-id",
+        });
+        await messageHandler.handleDecodedMessage({
+          cmd: "fetch-media",
+          tabId: 123,
+          url: "https://example.com/a.png",
+          correlationId: "fetch-correlation-id",
+        });
+
+        const fetchCall = (browser.tabs.executeScript as jest.Mock).mock.calls.find(
+          ([, details]) => details.code?.includes("credentials: 'include'")
+        );
+        expect(fetchCall?.[1].code).toContain(`var maxBytes = ${20 * 1024 * 1024};`);
+        expect(mockClient.sendResourceToServer).toHaveBeenCalledWith(
+          expect.objectContaining({
+            resource: "media-content",
+            correlationId: "fetch-correlation-id",
+            byteLength: 1,
+          })
+        );
+      });
+    });
+
     describe("get-browser-recent-history command", () => {
       it("should get history items and send them to the server", async () => {
         // Arrange
