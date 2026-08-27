@@ -52,14 +52,6 @@ export interface FindHighlightServerMessage extends ServerMessageBase {
   maxMatches?: number;
 }
 
-export interface GroupTabsServerMessage extends ServerMessageBase {
-  cmd: "group-tabs";
-  tabIds: number[];
-  isCollapsed: boolean;
-  groupColor: string;
-  groupTitle: string;
-}
-
 export interface CaptureScreenshotServerMessage
   extends ServerMessageBase,
     ElementTarget {
@@ -128,7 +120,9 @@ export interface DragElementServerMessage
 export interface UploadFile {
   name: string;
   mimeType: string;
-  base64: string;
+  // The whole file when it fits in one chunk; otherwise the chunks were staged under uploadId
+  base64?: string;
+  uploadId?: string;
 }
 
 export interface UploadFilesServerMessage
@@ -137,6 +131,22 @@ export interface UploadFilesServerMessage
   cmd: "upload-files";
   tabId: number;
   files: UploadFile[];
+}
+
+export interface UploadChunkServerMessage extends ServerMessageBase {
+  cmd: "upload-chunk";
+  tabId: number;
+  uploadId: string;
+  base64: string;
+}
+
+export interface DownloadFileServerMessage
+  extends ServerMessageBase,
+    ElementTarget {
+  cmd: "download-file";
+  tabId: number;
+  url?: string;
+  filename?: string;
 }
 
 export interface ResizeWindowServerMessage extends ServerMessageBase {
@@ -211,15 +221,6 @@ export interface WaitForPageServerMessage extends ServerMessageBase {
   within?: ElementTarget;
 }
 
-export interface ReleaseTabsServerMessage extends ServerMessageBase {
-  cmd: "release-tabs";
-  tabIds?: number[];
-}
-
-export interface GetLimitsServerMessage extends ServerMessageBase {
-  cmd: "get-limits";
-}
-
 export type ServerMessage =
   | OpenTabServerMessage
   | NavigateTabServerMessage
@@ -229,7 +230,6 @@ export type ServerMessage =
   | ReadPageServerMessage
   | ReorderTabsServerMessage
   | FindHighlightServerMessage
-  | GroupTabsServerMessage
   | CaptureScreenshotServerMessage
   | GetPageMediaServerMessage
   | FetchMediaServerMessage
@@ -237,6 +237,8 @@ export type ServerMessage =
   | HoverElementServerMessage
   | DragElementServerMessage
   | UploadFilesServerMessage
+  | UploadChunkServerMessage
+  | DownloadFileServerMessage
   | ResizeWindowServerMessage
   | GetNetworkRequestsServerMessage
   | TypeTextServerMessage
@@ -244,8 +246,6 @@ export type ServerMessage =
   | ScrollPageServerMessage
   | PressKeyServerMessage
   | SelectOptionServerMessage
-  | WaitForPageServerMessage
-  | ReleaseTabsServerMessage
-  | GetLimitsServerMessage;
+  | WaitForPageServerMessage;
 
 export type ServerMessageRequest = ServerMessage & { correlationId: string };

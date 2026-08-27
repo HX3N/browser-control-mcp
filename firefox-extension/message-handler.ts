@@ -11,9 +11,10 @@ import type {
   GetPageMediaServerMessage,
   HoverElementServerMessage,
   DragElementServerMessage,
+  DownloadFileServerMessage,
+  UploadChunkServerMessage,
   ReadPageServerMessage,
   PressKeyServerMessage,
-  ReleaseTabsServerMessage,
   ResizeWindowServerMessage,
   ScrollPageServerMessage,
   SelectOptionServerMessage,
@@ -50,13 +51,15 @@ import {
   describeUrlScope,
   isConsoleCaptureEnabled,
   getConsoleCaptureLevel,
-  getUploadLimitBytes,
+  getImageLimitBytes,
 } from "./extension-config";
 import { ensureTabAccess } from "./tab-access";
 import { diffText } from "./text-diff";
 import { buildSnapshotCode, formatPageItems, PageReadResult } from "./page-snapshot";
 import { ELEMENT_RESOLVER_SOURCE, isElementTargeted } from "./injected-common";
 import {
+  buildDownloadUrlCode,
+  buildUploadChunkCode,
   buildInPageNavigateCode,
   buildInPageNavigationCheckCode,
   InPageNavigationCheck,
@@ -162,6 +165,9 @@ const MAX_CAPTURE_SLICES = 8;
 const SLICE_OVERLAP_PX = 80;
 // A fetch spends real network time, so it gets a longer leash than an in-page script.
 const MEDIA_FETCH_STALL_MS = 60_000;
+const DOWNLOAD_WAIT_MS = 60_000;
+// Decoding a chunk is real work, not a frozen page, so the deadlock timer has to clear it.
+const UPLOAD_SCRIPT_STALL_MS = 30_000;
 const MEDIA_IMAGE_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -350,15 +356,6 @@ export class MessageHandler {
       case "find-highlight":
         await this.findAndHighlightText(req);
         break;
-      case "group-tabs":
-        await this.groupTabs(
-          req.correlationId,
-          req.tabIds,
-          req.isCollapsed,
-          req.groupColor as browser.tabGroups.Color,
-          req.groupTitle
-        );
-        break;
       case "capture-screenshot":
         await this.captureScreenshot(req);
         break;
@@ -379,6 +376,12 @@ export class MessageHandler {
         break;
       case "upload-files":
         await this.uploadFiles(req);
+        break;
+      case "upload-chunk":
+        await this.stageUploadChunk(req);
+        break;
+      case "download-file":
+        await this.downloadFile(req);
         break;
       case "resize-window":
         await this.resizeWindow(req);
@@ -403,16 +406,6 @@ export class MessageHandler {
         break;
       case "wait-for-page":
         await this.waitForPage(req);
-        break;
-      case "release-tabs":
-        await this.releaseTabs(req);
-        break;
-      case "get-limits":
-        await this.client.sendResourceToServer({
-          resource: "limits",
-          correlationId: req.correlationId,
-          uploadBytes: await getUploadLimitBytes(),
-        });
         break;
       default:
         const _exhaustiveCheck: never = req;
@@ -1250,7 +1243,7 @@ export class MessageHandler {
 
     const results = await this.runScript(
       tabId,
-      { code: buildMediaFetchCode(url, await getUploadLimitBytes()) },
+      { code: buildMediaFetchCode(url, await getImageLimitBytes()) },
       MEDIA_FETCH_STALL_MS
     );
     const fetched = results[0] as MediaFetchResult;
@@ -1277,6 +1270,109 @@ export class MessageHandler {
       },
       tabId
     );
+  }
+
+  private async downloadFile(
+    req: DownloadFileServerMessage & { correlationId: string }
+  ): Promise<void> {
+    const { correlationId, tabId } = req;
+    const tab = await this.prepareTabAccess(tabId);
+
+    let url: string;
+    if (isElementTargeted(req)) {
+      await this.attachOverlay(tabId, "click", t("overlayDownload"), req);
+      const results = await this.runScript(tabId, {
+        code: buildDownloadUrlCode(req),
+      });
+      url = results[0] as string;
+    } else if (req.url) {
+      const known = this.knownMediaUrls.get(tabId);
+      if (!known || !known.has(req.url)) {
+        throw new Error(
+          `This URL was not listed by list-page-media on tab ${tabId}. Pass the ref of a link ` +
+            `or media element from read-page, or a URL from list-page-media's answer for this page.`
+        );
+      }
+      url = req.url;
+      await this.attachOverlay(tabId, "click", t("overlayDownload"));
+    } else {
+      throw new Error(
+        "A download needs the ref or selector of a link or media element, or a URL from list-page-media."
+      );
+    }
+
+    const finished = this.waitForDownload();
+    const id = await browser.downloads.download({
+      url,
+      cookieStoreId: tab.cookieStoreId,
+      saveAs: false,
+      conflictAction: "uniquify",
+      ...(req.filename ? { filename: req.filename } : {}),
+    });
+    const state = await finished(id);
+    const [item] = await browser.downloads.search({ id });
+    if (state === "interrupted") {
+      throw new Error(
+        `The browser could not download ${url}: ${item?.error ?? "the download was interrupted"}.`
+      );
+    }
+    await this.sendResource(
+      {
+        resource: "download-result",
+        correlationId,
+        tabId,
+        url,
+        path: item?.filename ?? "",
+        state,
+        ...(state === "complete" && item
+          ? { bytes: item.fileSize, ...(item.mime ? { mimeType: item.mime } : {}) }
+          : {}),
+      },
+      tabId
+    );
+  }
+
+  // Registered before download() is called: a small file can reach "complete" before the id
+  // resolves, and a listener added after that would never hear it.
+  private waitForDownload(): (
+    id: number
+  ) => Promise<"complete" | "interrupted" | "in_progress"> {
+    const settled = new Map<number, "complete" | "interrupted">();
+    let waiting: { id: number; resolve: (state: "complete" | "interrupted") => void } | null =
+      null;
+    const listener = (delta: browser.downloads._OnChangedDownloadDelta) => {
+      const state = delta.state?.current;
+      if (state !== "complete" && state !== "interrupted") {
+        return;
+      }
+      if (waiting && waiting.id === delta.id) {
+        waiting.resolve(state);
+      } else {
+        settled.set(delta.id, state);
+      }
+    };
+    browser.downloads.onChanged.addListener(listener);
+    return (id) =>
+      new Promise((resolve) => {
+        const done = settled.get(id);
+        if (done) {
+          browser.downloads.onChanged.removeListener(listener);
+          resolve(done);
+          return;
+        }
+        const timer = setTimeout(() => {
+          browser.downloads.onChanged.removeListener(listener);
+          resolve("in_progress");
+        }, DOWNLOAD_WAIT_MS);
+        waiting = {
+          id,
+          resolve: (state) => {
+            clearTimeout(timer);
+            browser.downloads.onChanged.removeListener(listener);
+            resolve(state);
+          },
+        };
+      });
   }
 
   private async measureElement(
@@ -1534,34 +1630,13 @@ export class MessageHandler {
     return tabIds;
   }
 
-  private async releaseTabs(
-    req: ReleaseTabsServerMessage & { correlationId: string }
-  ): Promise<void> {
-    let releasedTabIds: number[];
-    if (req.tabIds && req.tabIds.length > 0) {
-      releasedTabIds = [];
-      for (const tabId of req.tabIds) {
-        if (await this.releaseTab(tabId)) {
-          releasedTabIds.push(tabId);
-        }
-      }
-    } else {
-      releasedTabIds = await this.releaseAllTabs();
-    }
-
-    await this.client.sendResourceToServer({
-      resource: "tabs-released",
-      correlationId: req.correlationId,
-      releasedTabIds,
-    });
-  }
-
   private async performInteraction(
     req: ServerMessageRequest & ElementTarget & { tabId: number },
     state: OverlayState,
     label: string,
     action: InteractionResultExtensionMessage["action"],
-    code: string
+    code: string,
+    stallMs?: number
   ): Promise<void> {
     await this.prepareTabAccess(req.tabId);
 
@@ -1579,7 +1654,7 @@ export class MessageHandler {
       await delay((await getOverlayTimings()).leadMs);
     }
 
-    const results = await this.runScript(req.tabId, { code });
+    const results = await this.runScript(req.tabId, { code }, stallMs);
     const result = results[0] as InteractionScriptResult;
 
     const detail =
@@ -1646,22 +1721,39 @@ export class MessageHandler {
   private async uploadFiles(
     req: UploadFilesServerMessage & { correlationId: string }
   ): Promise<void> {
-    const bytes = req.files.reduce(
-      (sum, file) => sum + base64ByteLength(file.base64),
-      0
-    );
-    const limit = await getUploadLimitBytes();
-    if (req.files.length === 0 || bytes > limit) {
-      throw new Error(
-        `An upload carries between one file and ${limit} bytes in total, the limit set in the extension popup; this one is ${req.files.length} file(s) and ${bytes} bytes.`
-      );
+    if (req.files.length === 0) {
+      throw new Error("An upload needs at least one file.");
     }
     await this.performInteraction(
       req,
       "type",
       t("overlayUpload"),
       "upload",
-      buildUploadFilesCode(req)
+      buildUploadFilesCode(req),
+      UPLOAD_SCRIPT_STALL_MS
+    );
+  }
+
+  private async stageUploadChunk(
+    req: UploadChunkServerMessage & { correlationId: string }
+  ): Promise<void> {
+    await this.prepareTabAccess(req.tabId);
+    await this.attachOverlay(req.tabId, "type", t("overlayUpload"));
+    const results = await this.runScript(
+      req.tabId,
+      { code: buildUploadChunkCode(req.uploadId, req.base64) },
+      UPLOAD_SCRIPT_STALL_MS
+    );
+    const staged = results[0] as { stagedBytes: number };
+    await this.sendResource(
+      {
+        resource: "upload-chunk-ack",
+        correlationId: req.correlationId,
+        tabId: req.tabId,
+        uploadId: req.uploadId,
+        stagedBytes: staged.stagedBytes,
+      },
+      req.tabId
     );
   }
 
@@ -1997,29 +2089,6 @@ export class MessageHandler {
   }
 
 
-  private async groupTabs(
-    correlationId: string,
-    tabIds: number[],
-    isCollapsed: boolean,
-    groupColor: browser.tabGroups.Color,
-    groupTitle: string
-  ): Promise<void> {
-    const groupId = await browser.tabs.group({
-      tabIds,
-    });
-
-    let tabGroup = await browser.tabGroups.update(groupId, {
-      collapsed: isCollapsed,
-      color: groupColor,
-      title: groupTitle,
-    });
-
-    await this.client.sendResourceToServer({
-      resource: "new-tab-group",
-      correlationId,
-      groupId: tabGroup.id,
-    });
-  }
 }
 
 function sliceRects(

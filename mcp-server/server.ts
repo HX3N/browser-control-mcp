@@ -1,7 +1,10 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ToolCallback } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import type {
+  CallToolResult,
+  ToolAnnotations,
+} from "@modelcontextprotocol/sdk/types.js";
 import type {
   ShapeOutput,
   ZodRawShapeCompat,
@@ -9,6 +12,7 @@ import type {
 import { z } from "zod";
 import * as fs from "fs/promises";
 import * as path from "path";
+import { randomUUID } from "crypto";
 import { BrowserAPI } from "./browser-api";
 import type {
   CollapsedSection,
@@ -69,16 +73,28 @@ interface RegisteredTool {
 
 const toolRegistry = new Map<string, RegisteredTool>();
 
+type ToolMeta = { title: string } & Omit<
+  ToolAnnotations,
+  "title" | "openWorldHint"
+>;
+
 function defineTool<Shape extends ZodRawShapeCompat>(
   name: string,
   description: string,
+  meta: ToolMeta,
   shape: Shape,
   handler: (input: ShapeOutput<Shape>) => Promise<CallToolResult>
 ): void {
-  mcpServer.tool(
+  const { title, ...hints } = meta;
+  mcpServer.registerTool(
     name,
-    description,
-    shape,
+    {
+      title,
+      description,
+      inputSchema: shape,
+      // Every tool here drives the user's own browser against the live web.
+      annotations: { ...hints, openWorldHint: true },
+    },
     handler as unknown as ToolCallback<Shape>
   );
   const schema = z.object(shape as unknown as z.ZodRawShape);
@@ -109,16 +125,50 @@ const MIME_BY_EXTENSION: Record<string, string> = {
   ".mp3": "audio/mpeg",
 };
 
-async function readUpload(filePath: string): Promise<UploadFile> {
-  const resolved = path.resolve(filePath);
+// Divisible by three, so every chunk base64-encodes on its own and the page can decode each
+// one as it arrives instead of waiting for the whole file.
+const UPLOAD_CHUNK_BYTES = 30 * 1024 * 1024;
+
+function uploadMimeType(resolved: string): string {
+  return (
+    MIME_BY_EXTENSION[path.extname(resolved).toLowerCase()] ??
+    "application/octet-stream"
+  );
+}
+
+async function readUpload(resolved: string): Promise<UploadFile> {
   const data = await fs.readFile(resolved);
   return {
     name: path.basename(resolved),
-    mimeType:
-      MIME_BY_EXTENSION[path.extname(resolved).toLowerCase()] ??
-      "application/octet-stream",
+    mimeType: uploadMimeType(resolved),
     base64: data.toString("base64"),
   };
+}
+
+async function stageUpload(
+  tabId: number,
+  resolved: string,
+  size: number
+): Promise<UploadFile> {
+  if (size === 0) {
+    return { name: path.basename(resolved), mimeType: uploadMimeType(resolved), base64: "" };
+  }
+  const uploadId = randomUUID();
+  const handle = await fs.open(resolved, "r");
+  try {
+    const buffer = Buffer.allocUnsafe(UPLOAD_CHUNK_BYTES);
+    for (let offset = 0; offset < size; offset += UPLOAD_CHUNK_BYTES) {
+      const { bytesRead } = await handle.read(buffer, 0, UPLOAD_CHUNK_BYTES, offset);
+      await browserApi.uploadChunk(
+        tabId,
+        uploadId,
+        buffer.subarray(0, bytesRead).toString("base64")
+      );
+    }
+  } finally {
+    await handle.close();
+  }
+  return { name: path.basename(resolved), mimeType: uploadMimeType(resolved), uploadId };
 }
 
 function formatBytes(bytes: number): string {
@@ -246,6 +296,7 @@ defineTool(
     Open a new tab. By default it reuses the container of the tab in front, unless the user turned
     that off in the extension popup; a tab in another Firefox container appears signed out.
   `,
+  { title: "Open a new tab", readOnlyHint: false, destructiveHint: false, idempotentHint: false },
   {
     url: z.string(),
     container: z
@@ -290,6 +341,7 @@ defineTool(
     first handed to the page itself, so an app that routes on its own keeps its state; the answer
     says when that happened. Answers once the page loads; unsaved input and refs are gone.
   `,
+  { title: "Go to a URL", readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   {
     tabId: z.number(),
     url: z
@@ -322,6 +374,7 @@ defineTool(
     Close tabs. Only tabs this session opened, never one holding unsent input; a closed tab is
     released as well.
   `,
+  { title: "Close tabs", readOnlyHint: false, destructiveHint: true, idempotentHint: true },
   {
     tabIds: z
       .array(z.number())
@@ -342,6 +395,7 @@ defineTool(
     List the open tabs, paged. "held" marks a tab this session opened or is driving; the others
     are the user's.
   `,
+  { title: "List open tabs", readOnlyHint: true },
   {
     offset: z.number().int().min(0).default(0).describe("Starting index, zero based"),
     limit: z.number().int().min(1).max(500).default(100).describe("Maximum number of tabs to return"),
@@ -385,31 +439,44 @@ defineTool(
 defineTool(
   "get-recent-browser-history",
   `
-    List recently visited pages with titles and how long ago. Use it to find a page the user
-    mentioned without an address, then open it with open-browser-tab.
+    List recently visited pages with titles and how long ago, paged. Use it to find a page the
+    user mentioned without an address, then open it with open-browser-tab.
   `,
+  { title: "Recent history", readOnlyHint: true },
   {
     searchQuery: z
       .string()
       .optional()
       .describe("Text the URL or title must contain; omit for the latest visits"),
+    offset: z.number().int().min(0).default(0).describe("Starting index, zero based"),
+    limit: z.number().int().min(1).max(200).default(25).describe("Maximum number of visits to return"),
   },
-  async ({ searchQuery }) => {
+  async ({ searchQuery, offset, limit }) => {
     const browserHistory = await browserApi.getBrowserRecentHistory(
       searchQuery
     );
     if (browserHistory.length > 0) {
+      const total = browserHistory.length;
+      const page = browserHistory.slice(offset, offset + limit);
+      const hasMore = offset + limit < total;
+      const paginationInfo = {
+        type: "text" as const,
+        text: `Showing visits ${offset + 1}-${offset + page.length} of ${total}${hasMore ? ` (use offset=${offset + limit} to see more)` : ""}`,
+      };
       return {
-        content: browserHistory.map((item) => {
-          let lastVisited = "unknown";
-          if (item.lastVisitTime) {
-            lastVisited = dayjs(item.lastVisitTime).fromNow(); // LLM-friendly time ago
-          }
-          return {
-            type: "text",
-            text: `url=${item.url}, title="${item.title}", lastVisitTime=${lastVisited}`,
-          };
-        }),
+        content: [
+          paginationInfo,
+          ...page.map((item) => {
+            let lastVisited = "unknown";
+            if (item.lastVisitTime) {
+              lastVisited = dayjs(item.lastVisitTime).fromNow(); // LLM-friendly time ago
+            }
+            return {
+              type: "text" as const,
+              text: `url=${item.url}, title="${item.title}", lastVisitTime=${lastVisited}`,
+            };
+          }),
+        ],
       };
     } else {
       // If nothing was found for the search query, hint the AI to list
@@ -433,6 +500,7 @@ defineTool(
     Links show their text alone; includeHrefs adds where each points, needed to navigate by URL.
     Use "offset" only to continue a truncated answer.
   `,
+  { title: "Read a page", readOnlyHint: true },
   {
     tabId: z.number(),
     full: z
@@ -540,6 +608,7 @@ defineTool(
     Move tabs to the front of the tab bar, in the order given; the tabs not named shift after
     them and keep their relative order.
   `,
+  { title: "Reorder tabs", readOnlyHint: false, destructiveHint: true, idempotentHint: true },
   {
     tabOrder: z
       .array(z.number())
@@ -566,6 +635,7 @@ defineTool(
     Use this to locate one item on a long page; do not walk the page one element at a time. The
     phrase has to be rendered text, not a URL or an attribute; the match is case-sensitive.
   `,
+  { title: "Find text on a page", readOnlyHint: true },
   {
     tabId: z.number(),
     queryPhrase: z.string().describe("The exact text to look for"),
@@ -635,57 +705,6 @@ defineTool(
 );
 
 defineTool(
-  "group-browser-tabs",
-  `
-    Gather tabs into a new tab group with a title and a colour.
-  `,
-  {
-    tabIds: z
-      .array(z.number())
-      .min(1)
-      .describe("Tab ids to put in the group"),
-    isCollapsed: z
-      .boolean()
-      .default(false)
-      .describe("Start the group folded up in the tab bar"),
-    groupColor: z
-      .enum([
-        "grey",
-        "blue",
-        "red",
-        "yellow",
-        "green",
-        "pink",
-        "purple",
-        "cyan",
-        "orange",
-      ])
-      .default("grey")
-      .describe("Colour of the group label"),
-    groupTitle: z
-      .string()
-      .default("New Group")
-      .describe("Title shown on the group"),
-  },
-  async ({ tabIds, isCollapsed, groupColor, groupTitle }) => {
-    const groupId = await browserApi.groupTabs(
-      tabIds,
-      isCollapsed,
-      groupColor,
-      groupTitle
-    );
-    return {
-      content: [
-        {
-          type: "text",
-          text: `Created tab group "${groupTitle}" with ${tabIds.length} tabs (group ID: ${groupId})`,
-        },
-      ],
-    };
-  }
-);
-
-defineTool(
   "capture-tab-screenshot",
   `
     Screenshot a tab. A full-screen capture shows what is on screen and may foreground the tab
@@ -696,6 +715,7 @@ defineTool(
     An element taller than 2000 pixels comes back as up to maxSlices images, top to bottom with a
     small overlap; maxSlices 1 crops to the slice near the scroll position.
   `,
+  { title: "Screenshot a tab", readOnlyHint: true },
   {
     tabId: z.number(),
     format: z
@@ -822,10 +842,11 @@ defineTool(
   `
     List the images, videos and audio a page shows, with URLs and original pixel sizes, across
     same-origin frames and shadow roots; "ref" or "selector" limits it to one region. Use it to
-    choose between a screenshot and fetch-media-file: the original size tells whether a screenshot
+    choose between a screenshot and read-page-image: the original size tells whether a screenshot
     would lose resolution. Only listed URLs can be fetched, and the list is forgotten when the tab
     navigates.
   `,
+  { title: "List media on a page", readOnlyHint: true },
   {
     tabId: z.number(),
     ...elementTargetShape,
@@ -889,14 +910,15 @@ defineTool(
 );
 
 defineTool(
-  "fetch-media-file",
+  "read-page-image",
   `
-    Fetch one image from a page by URL as the original file, with the page's own cookies. Prefer
+    Read one image from a page by URL as the original file, with the page's own cookies. Prefer
     it over a screenshot when the original is larger than displayed or the exact file matters.
     The URL must be one list-page-media listed for this tab on the page it is showing now. Only
-    jpeg, png, gif and webp are returned, capped by "File transfer limit" in the extension popup,
-    8MB by default.
+    jpeg, png, gif and webp are returned, capped by the limit next to "Read images" in the
+    extension popup, 8MB by default.
   `,
+  { title: "View an image", readOnlyHint: true },
   {
     tabId: z.number(),
     url: z.string().describe("A URL from this tab's latest list-page-media answer"),
@@ -911,7 +933,7 @@ defineTool(
       content: [
         {
           type: "text",
-          text: `Fetched ${formatBytes(media.byteLength)} of ${media.mimeType}${size}.`,
+          text: `Read ${formatBytes(media.byteLength)} of ${media.mimeType}${size}.`,
         },
         {
           type: "image",
@@ -927,13 +949,21 @@ defineTool(
 defineTool(
   "click-page-element",
   `
-    Click an element by ref or CSS selector; it is scrolled into view and highlighted first.
+    Click an element by ref or CSS selector, or with action "hover" only move the pointer over it;
+    either way it is scrolled into view and highlighted first.
     Middle and right clicks, and clicks with modifiers, dispatch the events but not the browser's
     default action: no new tab opens and no selection extends - use open-browser-tab for a new tab.
   `,
+  { title: "Click an element", readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   {
     tabId: z.number(),
     ...elementTargetShape,
+    action: z
+      .enum(["click", "hover"])
+      .default("click")
+      .describe(
+        '"hover" moves the pointer over the element without clicking, so the page opens what it keeps for a hover: a tooltip, a dropdown, the hidden buttons of a row. Take a read-page afterwards to reach it. The events are synthetic: a menu the page opens from its own mouse handlers appears, one that relies on CSS :hover alone stays closed. button, clickCount and modifiers are unused'
+      ),
     button: z.enum(["left", "middle", "right"]).default("left"),
     clickCount: z
       .number()
@@ -947,33 +977,17 @@ defineTool(
       .default([])
       .describe("Modifier keys held during the click"),
   },
-  async ({ tabId, button, clickCount, modifiers, ...target }) => {
-    const result = await browserApi.clickElement(
-      tabId,
-      elementTarget(target),
-      button,
-      clickCount,
-      modifiers
-    );
-    return { content: [{ type: "text", text: formatInteraction(result) }] };
-  }
-);
-
-defineTool(
-  "hover-page-element",
-  `
-    Move the pointer over an element without clicking, so the page opens what it keeps for a
-    hover: a tooltip, a dropdown, a row's hidden buttons. Take a read-page afterwards to reach it.
-    The events are synthetic: a menu the page opens from its own mouse handlers appears, one that
-    relies on CSS :hover alone stays closed. When nothing appears, read-page lists the hidden
-    elements once the user turns "Read hidden elements" on, and they can be clicked by ref.
-  `,
-  {
-    tabId: z.number(),
-    ...elementTargetShape,
-  },
-  async ({ tabId, ...target }) => {
-    const result = await browserApi.hoverElement(tabId, elementTarget(target));
+  async ({ tabId, action, button, clickCount, modifiers, ...target }) => {
+    const result =
+      action === "hover"
+        ? await browserApi.hoverElement(tabId, elementTarget(target))
+        : await browserApi.clickElement(
+            tabId,
+            elementTarget(target),
+            button,
+            clickCount,
+            modifiers
+          );
     return { content: [{ type: "text", text: formatInteraction(result) }] };
   }
 );
@@ -988,6 +1002,7 @@ defineTool(
     real pointer will not move. A list that also moves items by keyboard may be easier through
     press-key-in-tab.
   `,
+  { title: "Drag an element", readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   {
     tabId: z.number(),
     ...elementTargetShape,
@@ -1033,9 +1048,11 @@ defineTool(
     Attach files from the user's computer to a file input, by path. Do not click the input or its
     "Choose file" button: that opens a native picker nobody can drive. Find the input with
     read-page and pass its ref, or a selector such as input[type=file] when it is hidden.
-    Use paths the user gave you or files you produced for them, never a path you guessed. The
-    total size is capped by "File transfer limit" in the extension popup, 8MB by default.
+    Use paths the user gave you or files you produced for them, never a path you guessed. There
+    is no size limit: a large file is sent to the page in pieces, which takes proportionally
+    longer.
   `,
+  { title: "Attach files", readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   {
     tabId: z.number(),
     ...elementTargetShape,
@@ -1046,25 +1063,21 @@ defineTool(
       .describe("Absolute paths of the files to attach"),
   },
   async ({ tabId, paths, ...target }) => {
-    const limits = await browserApi.getLimits();
-    let bytes = 0;
-    for (const filePath of paths) {
-      bytes += (await fs.stat(path.resolve(filePath))).size;
-    }
-    if (bytes > limits.uploadBytes) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `The files add up to ${formatBytes(bytes)}, over the ${formatBytes(limits.uploadBytes)} file transfer limit set in the extension popup; the user can raise it there.`,
-          },
-        ],
-        isError: true,
-      };
+    const resolved = paths.map((filePath) => path.resolve(filePath));
+    const sizes: number[] = [];
+    let total = 0;
+    for (const filePath of resolved) {
+      const size = (await fs.stat(filePath)).size;
+      sizes.push(size);
+      total += size;
     }
     const files: UploadFile[] = [];
-    for (const filePath of paths) {
-      files.push(await readUpload(filePath));
+    for (let i = 0; i < resolved.length; i++) {
+      files.push(
+        total <= UPLOAD_CHUNK_BYTES
+          ? await readUpload(resolved[i])
+          : await stageUpload(tabId, resolved[i], sizes[i])
+      );
     }
     const result = await browserApi.uploadFiles(
       tabId,
@@ -1076,6 +1089,46 @@ defineTool(
 );
 
 defineTool(
+  "download-file-from-page",
+  `
+    Save a file a page shows into the browser's downloads folder, with the page's own cookies:
+    the pair of upload-files-to-page-element. Pass the ref of a link or media element from the
+    latest read-page, or a URL from this tab's latest list-page-media answer. The file goes
+    straight from the browser to disk and never enters this conversation; use read-page-image
+    to look at an image. The browser chooses the folder; "filename" only names the file inside
+    it. A download still running after a minute is reported as in progress and carries on.
+  `,
+  { title: "Download a file", readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+  {
+    tabId: z.number(),
+    ...elementTargetShape,
+    url: z
+      .string()
+      .optional()
+      .describe("A URL from this tab's latest list-page-media answer, instead of a ref"),
+    filename: z
+      .string()
+      .optional()
+      .describe("Name for the saved file, inside the downloads folder"),
+  },
+  async ({ tabId, url, filename, ...target }) => {
+    const result = await browserApi.downloadFile(
+      tabId,
+      elementTarget(target),
+      url,
+      filename
+    );
+    const text =
+      result.state === "complete"
+        ? `Saved ${formatBytes(result.bytes ?? 0)}${
+            result.mimeType ? ` of ${result.mimeType}` : ""
+          } to ${result.path}.`
+        : `The browser is still downloading ${result.url} to ${result.path}; it carries on after this answer.`;
+    return { content: [{ type: "text", text }, ...dialogNotice(result)] };
+  }
+);
+
+defineTool(
   "resize-browser-window",
   `
     Resize the window holding a tab, to check a layout at a given width or give a page more
@@ -1083,6 +1136,7 @@ defineTool(
     the exact viewport from the next screenshot. A maximized or full-screen window is put back to
     a normal window first, and the browser may clamp the size to the screen.
   `,
+  { title: "Resize the window", readOnlyHint: false, destructiveHint: false, idempotentHint: true },
   {
     tabId: z.number(),
     width: z.number().int().min(200).max(10000),
@@ -1110,6 +1164,7 @@ defineTool(
     own. urlPattern keeps the list short - "/api/", or a host name; clear drops what was listed so
     the next call shows only new requests. The list is emptied when the tab navigates.
   `,
+  { title: "Read network requests", readOnlyHint: true },
   {
     tabId: z.number(),
     urlPattern: z
@@ -1169,6 +1224,7 @@ defineTool(
     composer, a framework's search box - has no form to submit: pass clickAfterRef or
     clickAfterSelector to press the page's own send button in the same call.
   `,
+  { title: "Type into an element", readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   {
     tabId: z.number(),
     ...elementTargetShape,
@@ -1242,6 +1298,7 @@ defineTool(
     repeat presses the key several times in one call; the presses stop early once one submits a
     form or the page cancels one.
   `,
+  { title: "Press a key", readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   {
     tabId: z.number(),
     key: z.string().describe("A KeyboardEvent.key value such as Enter or Tab"),
@@ -1278,6 +1335,7 @@ defineTool(
     chat log, a wide table, a sidebar with its own scrollbar: the element or its nearest scrolling
     ancestor moves and the page does not.
   `,
+  { title: "Scroll a tab", readOnlyHint: false, destructiveHint: false, idempotentHint: false },
   {
     tabId: z.number(),
     direction: z
@@ -1311,6 +1369,7 @@ defineTool(
     Choose one or more options of a select element, matched by value attribute first and visible
     text second. read-page lists the options of every select.
   `,
+  { title: "Select an option", readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   {
     tabId: z.number(),
     ...elementTargetShape,
@@ -1337,6 +1396,7 @@ defineTool(
     own globals are not - reach those through window.wrappedJSObject. The result is serialised to
     text, and DOM nodes are summarised rather than dumped.
   `,
+  { title: "Run JavaScript", readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   {
     tabId: z.number(),
     code: z
@@ -1377,6 +1437,7 @@ defineTool(
     same selector matches elsewhere, or keeping a clock elsewhere on the page from ending a text
     wait. The watched element is outlined on screen.
   `,
+  { title: "Wait for a page", readOnlyHint: true },
   {
     tabId: z.number(),
     selector: z
@@ -1534,31 +1595,6 @@ defineTool(
 );
 
 defineTool(
-  "release-browser-tab",
-  `
-    Let go of the tabs this session was driving: the overlay is removed and the tab's own icon
-    restored. Call it once you are done with the browser for now. Nothing is closed or navigated,
-    and a later tool call simply takes the tab again. Tabs are also released on their own after
-    ninety seconds without a command, but do call this: an overlay left on a finished tab shows the
-    user something that is no longer true.
-  `,
-  {
-    tabIds: z
-      .array(z.number())
-      .optional()
-      .describe("Tabs to let go of; omit for every tab this session holds"),
-  },
-  async ({ tabIds }) => {
-    const released = await browserApi.releaseTabs(tabIds);
-    const text =
-      released.releasedTabIds.length === 0
-        ? "No tab was being held, so there was nothing to release."
-        : `Released tab(s) ${released.releasedTabIds.join(", ")}.`;
-    return { content: [{ type: "text", text }] };
-  }
-);
-
-defineTool(
   BATCH_TOOL_NAME,
   `
     Run several browser tools in one call, in order, and get every answer back together. Use it
@@ -1569,6 +1605,7 @@ defineTool(
     batch produced: read before the batch, and use the refs of a read taken inside it only in the
     next call.
   `,
+  { title: "Run several actions", readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   {
     actions: z
       .array(

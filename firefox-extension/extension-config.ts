@@ -3,6 +3,8 @@
  */
 
 import { ServerMessageRequest } from "@browser-control-mcp/common/server-messages";
+import { IMAGE_LIMIT_MB_RANGE } from "@browser-control-mcp/common/limits";
+export { IMAGE_LIMIT_MB_RANGE };
 import { t } from "./i18n";
 
 const DEFAULT_WS_PORT = 8089;
@@ -77,6 +79,11 @@ export const AVAILABLE_TOOLS: ToolInfo[] = [
     descriptionKey: "toolGetMediaContentDescription"
   },
   {
+    id: "download-file",
+    nameKey: "toolDownloadFileName",
+    descriptionKey: "toolDownloadFileDescription"
+  },
+  {
     id: "upload-files",
     nameKey: "toolUploadFilesName",
     descriptionKey: "toolUploadFilesDescription"
@@ -94,6 +101,7 @@ export const INTERACTION_TOOL_IDS = [
   "interact-type",
   "execute-javascript",
   "get-media-content",
+  "download-file",
   "upload-files",
 ] as const;
 
@@ -102,6 +110,7 @@ export const INTERACTION_TOOL_IDS = [
 export const DISABLED_BY_DEFAULT_TOOL_IDS: readonly string[] = [
   "execute-javascript",
   "get-media-content",
+  "download-file",
   "upload-files",
 ];
 
@@ -115,7 +124,6 @@ export const COMMAND_TO_TOOL_ID: Record<ServerMessageRequest["cmd"], string> = {
   "read-page": "get-tab-web-content",
   "reorder-tabs": "reorder-browser-tabs",
   "find-highlight": "find-highlight-in-browser-tab",
-  "group-tabs": "reorder-browser-tabs",
   "capture-screenshot": "capture-tab-screenshot",
   "get-media": "get-tab-web-content",
   "fetch-media": "get-media-content",
@@ -128,13 +136,11 @@ export const COMMAND_TO_TOOL_ID: Record<ServerMessageRequest["cmd"], string> = {
   "type-text": "interact-type",
   "press-key": "interact-type",
   "upload-files": "upload-files",
-  "get-limits": "upload-files",
+  "upload-chunk": "upload-files",
+  "download-file": "download-file",
   "get-network-requests": "get-network-requests",
   "resize-window": "reorder-browser-tabs",
   "execute-js": "execute-javascript",
-  // Deliberately not one of AVAILABLE_TOOLS: releasing only removes this extension's own
-  // overlay, so a disabled switch must never be able to strand it on the page.
-  "release-tabs": "release-tab-overlay",
 };
 
 export const PAGE_ACCESS_COMMANDS: ReadonlySet<ServerMessageRequest["cmd"]> =
@@ -154,6 +160,8 @@ export const PAGE_ACCESS_COMMANDS: ReadonlySet<ServerMessageRequest["cmd"]> =
     "type-text",
     "press-key",
     "upload-files",
+    "upload-chunk",
+    "download-file",
     "get-network-requests",
     "execute-js",
   ]);
@@ -242,28 +250,38 @@ export interface ExtensionConfig {
   consoleLevel?: ConsoleCaptureLevel;
   overlayTimings?: Partial<OverlayTimings>;
   overlayColors?: StoredOverlayColors;
-  uploadLimitBytes?: number;
+  imageLimitBytes?: number;
 }
 
-export const DEFAULT_UPLOAD_LIMIT_BYTES = 8 * 1024 * 1024;
-export const UPLOAD_LIMIT_MB_RANGE = { min: 1, max: 64 };
+export const DEFAULT_IMAGE_LIMIT_BYTES = 8 * 1024 * 1024;
 
-export async function getUploadLimitBytes(): Promise<number> {
-  const stored = (await getConfig()).uploadLimitBytes;
-  if (typeof stored !== "number" || !Number.isFinite(stored)) {
-    return DEFAULT_UPLOAD_LIMIT_BYTES;
-  }
-  const mb = Math.round(stored / (1024 * 1024));
-  return (
-    Math.min(UPLOAD_LIMIT_MB_RANGE.max, Math.max(UPLOAD_LIMIT_MB_RANGE.min, mb)) *
-    1024 *
-    1024
+export function clampImageLimitMb(megabytes: number): number {
+  return Math.min(
+    IMAGE_LIMIT_MB_RANGE.max,
+    Math.max(IMAGE_LIMIT_MB_RANGE.min, Math.round(megabytes))
   );
 }
 
-export async function setUploadLimitMb(megabytes: number): Promise<void> {
+export async function getStoredImageLimitMb(): Promise<number | null> {
+  const stored = (await getConfig()).imageLimitBytes;
+  if (typeof stored !== "number" || !Number.isFinite(stored)) {
+    return null;
+  }
+  return clampImageLimitMb(stored / (1024 * 1024));
+}
+
+export async function getImageLimitBytes(): Promise<number> {
+  const mb = await getStoredImageLimitMb();
+  return mb === null ? DEFAULT_IMAGE_LIMIT_BYTES : mb * 1024 * 1024;
+}
+
+export async function setImageLimitMb(megabytes: number | null): Promise<void> {
   const config = await getConfig();
-  config.uploadLimitBytes = megabytes * 1024 * 1024;
+  if (megabytes === null) {
+    delete config.imageLimitBytes;
+  } else {
+    config.imageLimitBytes = clampImageLimitMb(megabytes) * 1024 * 1024;
+  }
   await saveConfig(config);
 }
 
@@ -415,10 +433,7 @@ export async function getConfig(): Promise<ExtensionConfig> {
   const configObj = await browser.storage.local.get("config");
   const config: ExtensionConfig = configObj.config || { secret: "" };
   
-  // Initialize toolSettings if it doesn't exist
-  if (!config.toolSettings) {
-    config.toolSettings = getDefaultToolSettings();
-  }
+  config.toolSettings = { ...getDefaultToolSettings(), ...config.toolSettings };
 
   if (!config.ports) {
     config.ports = [DEFAULT_WS_PORT];
@@ -476,11 +491,6 @@ export async function isToolEnabled(toolId: string): Promise<boolean> {
  * @returns A Promise that resolves with true if the command is allowed, false otherwise
  */
 export async function isCommandAllowed(command: ServerMessageRequest["cmd"]): Promise<boolean> {
-  // The upload asks for the limit before it reads the files, and a switched-off upload has to
-  // refuse under its own name, so the question itself is never refused.
-  if (command === "get-limits") {
-    return true;
-  }
   const toolId = COMMAND_TO_TOOL_ID[command];
   if (!toolId) {
     console.error(`Unknown command: ${command}`);

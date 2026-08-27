@@ -43,8 +43,8 @@ import {
   getConsoleCaptureLevel,
   setConsoleCapture,
   setConsoleCaptureLevel,
-  getUploadLimitBytes,
-  setUploadLimitMb,
+  getStoredImageLimitMb,
+  setImageLimitMb,
 } from "./extension-config";
 import {
   grantTabAuthorization,
@@ -333,7 +333,7 @@ async function buildStatus(): Promise<PopupStatus> {
     clipboardRead: await isClipboardReadAllowed(),
     consoleCapture: await isConsoleCaptureEnabled(),
     consoleLevel: await getConsoleCaptureLevel(),
-    uploadLimitMb: Math.round((await getUploadLimitBytes()) / (1024 * 1024)),
+    imageLimitMb: await getStoredImageLimitMb(),
     urlScope: await getUrlScope(),
     allUrlsGranted: await hasAllUrlsPermission(),
     activeTab: await describeActiveTab(),
@@ -412,8 +412,8 @@ async function handlePopupRequest(request: PopupRequest): Promise<PopupStatus> {
     case "set-console-level":
       await setConsoleCaptureLevel(request.level);
       break;
-    case "set-upload-limit":
-      await setUploadLimitMb(request.megabytes);
+    case "set-image-limit":
+      await setImageLimitMb(request.megabytes);
       break;
     case "set-domain-deny-list":
       await setDomainDenyList(request.domains);

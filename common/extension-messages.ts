@@ -155,11 +155,6 @@ export interface TabsClosedExtensionMessage extends ExtensionMessageBase {
   resource: "tabs-closed";
 }
 
-export interface TabGroupCreatedExtensionMessage extends ExtensionMessageBase {
-  resource: "new-tab-group";
-  groupId: number;
-}
-
 export interface ScreenshotExtensionMessage extends ExtensionMessageBase {
   resource: "screenshot";
   tabId: number;
@@ -265,14 +260,21 @@ export interface PageWaitExtensionMessage extends ExtensionMessageBase {
   removedChars?: number;
 }
 
-export interface TabsReleasedExtensionMessage extends ExtensionMessageBase {
-  resource: "tabs-released";
-  releasedTabIds: number[];
+export interface UploadChunkAckExtensionMessage extends ExtensionMessageBase {
+  resource: "upload-chunk-ack";
+  tabId: number;
+  uploadId: string;
+  stagedBytes: number;
 }
 
-export interface LimitsExtensionMessage extends ExtensionMessageBase {
-  resource: "limits";
-  uploadBytes: number;
+export interface DownloadResultExtensionMessage extends ExtensionMessageBase {
+  resource: "download-result";
+  tabId: number;
+  url: string;
+  path: string;
+  state: "complete" | "in_progress";
+  bytes?: number;
+  mimeType?: string;
 }
 
 export type ExtensionMessage =
@@ -284,7 +286,6 @@ export type ExtensionMessage =
   | ReorderedTabsExtensionMessage
   | FindHighlightExtensionMessage
   | TabsClosedExtensionMessage
-  | TabGroupCreatedExtensionMessage
   | ScreenshotExtensionMessage
   | PageMediaExtensionMessage
   | MediaContentExtensionMessage
@@ -293,8 +294,8 @@ export type ExtensionMessage =
   | PageWaitExtensionMessage
   | WindowResizedExtensionMessage
   | NetworkRequestsExtensionMessage
-  | TabsReleasedExtensionMessage
-  | LimitsExtensionMessage;
+  | UploadChunkAckExtensionMessage
+  | DownloadResultExtensionMessage;
 
 export interface ExtensionError {
   correlationId: string;

@@ -75,16 +75,22 @@
         "message": "MCP 서버가 페이지에서 임의 스크립트를 실행할 수 있게 합니다"
     },
     "toolGetMediaContentName": {
-        "message": "미디어 파일 가져오기"
+        "message": "이미지 읽기"
     },
     "toolGetMediaContentDescription": {
-        "message": "MCP 서버가 페이지에 보이는 이미지 파일을 받아 올 수 있게 합니다"
+        "message": "MCP 서버가 페이지 이미지를 파일 그대로 읽을 수 있게 합니다"
+    },
+    "toolDownloadFileName": {
+        "message": "파일 다운로드"
+    },
+    "toolDownloadFileDescription": {
+        "message": "MCP 서버가 파일을 다운로드 폴더에 저장할 수 있게 합니다"
     },
     "toolUploadFilesName": {
-        "message": "로컬 파일 첨부"
+        "message": "파일 업로드"
     },
     "toolUploadFilesDescription": {
-        "message": "MCP 서버가 이 컴퓨터의 파일을 페이지의 파일 입력란에 첨부할 수 있게 합니다"
+        "message": "MCP 서버가 로컬 파일을 파일 입력란에 올릴 수 있게 합니다"
     },
     "toolGetNetworkRequestsName": {
         "message": "네트워크 요청 읽기"
@@ -111,7 +117,10 @@
         "message": "이 부분 미디어 보는 중"
     },
     "overlayFetchMedia": {
-        "message": "미디어 파일 받는 중"
+        "message": "이미지 읽는 중"
+    },
+    "overlayDownload": {
+        "message": "파일 다운로드 중"
     },
     "overlayNetwork": {
         "message": "네트워크 요청 읽는 중"
@@ -135,7 +144,7 @@
         "message": "끌어 놓는 중"
     },
     "overlayUpload": {
-        "message": "파일 첨부 중"
+        "message": "파일 업로드 중"
     },
     "overlayPressKey": {
         "message": "키 입력: $1"
@@ -216,22 +225,22 @@
         "message": "임의 스크립트 실행"
     },
     "popupToggleMediaFetchName": {
-        "message": "미디어 파일 가져오기"
+        "message": "이미지 읽기"
     },
     "popupToggleMediaFetchHint": {
-        "message": "페이지 이미지 파일 접근"
+        "message": "페이지 이미지를 파일 그대로 읽기"
+    },
+    "popupToggleDownloadFileName": {
+        "message": "파일 다운로드"
+    },
+    "popupToggleDownloadFileHint": {
+        "message": "다운로드 폴더에 파일 저장"
     },
     "popupToggleUploadFilesName": {
-        "message": "로컬 파일 첨부"
+        "message": "파일 업로드"
     },
     "popupToggleUploadFilesHint": {
-        "message": "이 컴퓨터 파일 접근"
-    },
-    "popupUploadLimitLabel": {
-        "message": "파일 전송 한도"
-    },
-    "popupUploadLimitHint": {
-        "message": "업로드는 합계·다운로드는 한 건 (1~64MB)"
+        "message": "페이지에 로컬 파일 올리기"
     },
     "popupOutlineDepthLabel": {
         "message": "대상 구역 표시"

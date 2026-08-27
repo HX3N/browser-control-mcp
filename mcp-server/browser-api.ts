@@ -14,12 +14,12 @@ import type {
   PageExtensionMessage,
   PageWaitExtensionMessage,
   ScriptResultExtensionMessage,
-  TabsReleasedExtensionMessage,
   ServerMessage,
   FindHighlightExtensionMessage,
   ServerMessageRequest,
   ExtensionError,
-  LimitsExtensionMessage,
+  DownloadResultExtensionMessage,
+  UploadChunkAckExtensionMessage,
   MediaContentExtensionMessage,
   PageMediaExtensionMessage,
   ScreenshotExtensionMessage,
@@ -49,10 +49,16 @@ const WAIT_RESPONSE_GRACE_MS = 5000;
 // The extension grows its probe range on the same base port, so both sides converge without
 // any discovery protocol.
 const PORT_SCAN_RANGE = 16;
+// Matches IMAGE_LIMIT_MB_RANGE.max in common/limits.ts; a value import would need the package at
+// runtime, and the server only resolves common at compile time.
+const MAX_LIMIT_MB = 256;
+// The largest file the popup lets an image read carry, as base64, plus room for the frame
+// around it. ws would otherwise cut the socket at its own 100MiB default.
+const MAX_FRAME_BYTES = Math.ceil((MAX_LIMIT_MB * 1024 * 1024 * 4) / 3) + 1024 * 1024;
 
 function listen(host: string, port: number): Promise<WebSocket.Server> {
   return new Promise((resolve, reject) => {
-    const server = new WebSocket.Server({ host, port });
+    const server = new WebSocket.Server({ host, port, maxPayload: MAX_FRAME_BYTES });
     const onError = (error: Error) => {
       server.off("listening", onListening);
       reject(error);
@@ -153,21 +159,22 @@ export class BrowserAPI {
     }
   }
 
-  async releaseTabs(tabIds?: number[]): Promise<TabsReleasedExtensionMessage> {
+  async uploadChunk(
+    tabId: number,
+    uploadId: string,
+    base64: string
+  ): Promise<UploadChunkAckExtensionMessage> {
     const correlationId = this.sendMessageToExtension({
-      cmd: "release-tabs",
-      tabIds,
+      cmd: "upload-chunk",
+      tabId,
+      uploadId,
+      base64,
     });
     return await this.waitForResponse(
       correlationId,
-      "tabs-released",
-      INTERACTION_RESPONSE_TIMEOUT_MS
+      "upload-chunk-ack",
+      MEDIA_RESPONSE_TIMEOUT_MS
     );
-  }
-
-  async getLimits(): Promise<LimitsExtensionMessage> {
-    const correlationId = this.sendMessageToExtension({ cmd: "get-limits" });
-    return await this.waitForResponse(correlationId, "limits");
   }
 
   // Two sessions can see the same port as free at the same moment, so a successful bind is
@@ -330,23 +337,6 @@ export class BrowserAPI {
     );
   }
 
-  async groupTabs(
-    tabIds: number[],
-    isCollapsed: boolean,
-    groupColor: string,
-    groupTitle: string
-  ): Promise<number> {
-    const correlationId = this.sendMessageToExtension({
-      cmd: "group-tabs",
-      tabIds,
-      isCollapsed,
-      groupColor,
-      groupTitle,
-    });
-    const message = await this.waitForResponse(correlationId, "new-tab-group");
-    return message.groupId;
-  }
-
   async captureScreenshot(
     tabId: number,
     format: "jpeg" | "png",
@@ -475,6 +465,26 @@ export class BrowserAPI {
     return await this.waitForResponse(
       correlationId,
       "interaction-result",
+      MEDIA_RESPONSE_TIMEOUT_MS
+    );
+  }
+
+  async downloadFile(
+    tabId: number,
+    target: ElementTarget,
+    url: string | undefined,
+    filename: string | undefined
+  ): Promise<DownloadResultExtensionMessage> {
+    const correlationId = this.sendMessageToExtension({
+      cmd: "download-file",
+      tabId,
+      ...target,
+      ...(url ? { url } : {}),
+      ...(filename ? { filename } : {}),
+    });
+    return await this.waitForResponse(
+      correlationId,
+      "download-result",
       MEDIA_RESPONSE_TIMEOUT_MS
     );
   }

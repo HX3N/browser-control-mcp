@@ -505,57 +505,75 @@ describe("MessageHandler", () => {
       });
     });
 
-    describe("get-limits command", () => {
-      it("answers with the default upload limit when none is stored", async () => {
-        defaultConfig.toolSettings = { ...defaultConfig.toolSettings, "upload-files": true };
+    describe("upload-chunk command", () => {
+      const allowUploads = () => {
+        defaultConfig.toolSettings = {
+          ...defaultConfig.toolSettings,
+          "upload-files": true,
+        };
+        (browser.tabs.get as jest.Mock).mockResolvedValue({
+          id: 123,
+          url: "https://example.com",
+        });
+        (browser.permissions.contains as jest.Mock).mockResolvedValue(true);
+      };
+
+      it("stages a chunk in the page and answers with the bytes held so far", async () => {
+        allowUploads();
+        (browser.tabs.executeScript as jest.Mock).mockImplementation(
+          async (_tabId: number, details: { code?: string }) =>
+            (details.code ?? "").includes("__bcmUploadParts")
+              ? [{ stagedBytes: 3 }]
+              : [null]
+        );
 
         await messageHandler.handleDecodedMessage({
-          cmd: "get-limits",
+          cmd: "upload-chunk",
           correlationId: "test-correlation-id",
+          tabId: 123,
+          uploadId: "u1",
+          base64: "AAAA",
         });
 
-        expect(mockClient.sendResourceToServer).toHaveBeenCalledWith({
-          resource: "limits",
-          correlationId: "test-correlation-id",
-          uploadBytes: 8 * 1024 * 1024,
-        });
-      });
-
-      it("answers with the stored upload limit", async () => {
-        defaultConfig.toolSettings = { ...defaultConfig.toolSettings, "upload-files": true };
-        defaultConfig.uploadLimitBytes = 20 * 1024 * 1024;
-
-        await messageHandler.handleDecodedMessage({
-          cmd: "get-limits",
-          correlationId: "test-correlation-id",
-        });
-
+        const staged = (browser.tabs.executeScript as jest.Mock).mock.calls.find(
+          ([, details]) => details.code?.includes("__bcmUploadParts")
+        );
+        expect(staged?.[1].code).toContain('"u1"');
+        expect(staged?.[1].code).toContain('"AAAA"');
         expect(mockClient.sendResourceToServer).toHaveBeenCalledWith(
-          expect.objectContaining({ uploadBytes: 20 * 1024 * 1024 })
+          expect.objectContaining({
+            resource: "upload-chunk-ack",
+            uploadId: "u1",
+            stagedBytes: 3,
+          })
         );
       });
 
-      it("answers even when the upload tool is switched off", async () => {
-        defaultConfig.toolSettings = { ...defaultConfig.toolSettings, "upload-files": false };
+      it("is rejected while the upload switch is off", async () => {
+        defaultConfig.toolSettings = {
+          ...defaultConfig.toolSettings,
+          "upload-files": false,
+        };
 
-        await messageHandler.handleDecodedMessage({
-          cmd: "get-limits",
-          correlationId: "test-correlation-id",
-        });
-
-        expect(mockClient.sendResourceToServer).toHaveBeenCalledWith(
-          expect.objectContaining({ resource: "limits" })
-        );
+        await expect(
+          messageHandler.handleDecodedMessage({
+            cmd: "upload-chunk",
+            correlationId: "test-correlation-id",
+            tabId: 123,
+            uploadId: "u1",
+            base64: "AAAA",
+          })
+        ).rejects.toThrow();
       });
     });
 
     describe("fetch-media command", () => {
-      it("caps the fetch at the stored file size limit", async () => {
+      it("caps the read at the stored image limit", async () => {
         defaultConfig.toolSettings = {
           ...defaultConfig.toolSettings,
           "get-media-content": true,
         };
-        defaultConfig.uploadLimitBytes = 20 * 1024 * 1024;
+        defaultConfig.imageLimitBytes = 20 * 1024 * 1024;
         (browser.tabs.get as jest.Mock).mockResolvedValue({
           id: 123,
           url: "https://example.com",
@@ -605,6 +623,100 @@ describe("MessageHandler", () => {
             byteLength: 1,
           })
         );
+      });
+    });
+
+    describe("download-file command", () => {
+      const allowDownloads = () => {
+        defaultConfig.toolSettings = {
+          ...defaultConfig.toolSettings,
+          "download-file": true,
+        };
+        (browser.tabs.get as jest.Mock).mockResolvedValue({
+          id: 123,
+          url: "https://example.com",
+          cookieStoreId: "firefox-container-2",
+        });
+        (browser.permissions.contains as jest.Mock).mockResolvedValue(true);
+      };
+
+      const completeOnChange = (id: number) => {
+        (browser.downloads.download as jest.Mock).mockImplementation(async () => {
+          const listener = (browser.downloads.onChanged.addListener as jest.Mock).mock
+            .calls[0][0];
+          listener({ id, state: { current: "complete" } });
+          return id;
+        });
+        (browser.downloads.search as jest.Mock).mockResolvedValue([
+          { id, filename: "C:\Users\me\Downloads\a.png", fileSize: 1234, mime: "image/png", state: "complete" },
+        ]);
+      };
+
+      it("downloads the address of a link ref with the tab's container cookies", async () => {
+        allowDownloads();
+        (browser.tabs.executeScript as jest.Mock).mockImplementation(
+          async (_tabId: number, details: { code?: string }) =>
+            (details.code ?? "").includes("__bcmResolve")
+              ? ["https://example.com/files/a.png"]
+              : [null]
+        );
+        completeOnChange(7);
+
+        await messageHandler.handleDecodedMessage({
+          cmd: "download-file",
+          correlationId: "test-correlation-id",
+          tabId: 123,
+          ref: "e3",
+        });
+
+        expect(browser.downloads.download).toHaveBeenCalledWith(
+          expect.objectContaining({
+            url: "https://example.com/files/a.png",
+            cookieStoreId: "firefox-container-2",
+            saveAs: false,
+          })
+        );
+        expect(mockClient.sendResourceToServer).toHaveBeenCalledWith(
+          expect.objectContaining({
+            resource: "download-result",
+            state: "complete",
+            path: "C:\Users\me\Downloads\a.png",
+            bytes: 1234,
+            mimeType: "image/png",
+          })
+        );
+        expect(browser.downloads.onChanged.removeListener).toHaveBeenCalled();
+      });
+
+      it("refuses a URL that list-page-media did not list", async () => {
+        allowDownloads();
+
+        await expect(
+          messageHandler.handleDecodedMessage({
+            cmd: "download-file",
+            correlationId: "test-correlation-id",
+            tabId: 123,
+            url: "https://example.com/never-listed.png",
+          })
+        ).rejects.toThrow("was not listed by list-page-media");
+        expect(browser.downloads.download).not.toHaveBeenCalled();
+      });
+
+      it("is rejected while the download switch is off", async () => {
+        defaultConfig.toolSettings = {
+          ...defaultConfig.toolSettings,
+          "download-file": false,
+        };
+
+        await expect(
+          messageHandler.handleDecodedMessage({
+            cmd: "download-file",
+            correlationId: "test-correlation-id",
+            tabId: 123,
+            ref: "e3",
+          })
+        ).rejects.toThrow();
+        expect(browser.downloads.download).not.toHaveBeenCalled();
       });
     });
 

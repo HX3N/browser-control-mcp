@@ -20,6 +20,11 @@ const mockBrowser = {
   contentScripts: {
     register: jest.fn(),
   },
+  downloads: {
+    download: jest.fn(),
+    search: jest.fn(),
+    onChanged: { addListener: jest.fn(), removeListener: jest.fn() },
+  },
   webNavigation: {
     onCommitted: { addListener: jest.fn() },
   },

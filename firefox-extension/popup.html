@@ -244,12 +244,52 @@
       flex: 0 0 auto;
     }
 
-    .limit-row {
-      margin-top: 0;
+    .toggle.is-field {
+      padding-left: 24px;
     }
 
-    .limit-row + .mode-hint + .toggle {
-      border-top: 1px solid var(--panel-border);
+    .toggle-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .toggle-head + .toggle-hint {
+      display: block;
+    }
+
+    .toggle-limit {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      color: var(--muted);
+      font-size: 11.5px;
+      line-height: 1.4;
+      white-space: nowrap;
+    }
+
+    .toggle .toggle-limit input {
+      font: inherit;
+      -moz-appearance: textfield;
+      appearance: textfield;
+      box-sizing: border-box;
+      text-align: right;
+      width: 56px;
+      height: auto;
+      margin: 0;
+      padding: 2px 7px;
+      line-height: 1.4;
+      border-radius: 7px;
+      border: 1px solid var(--panel-border);
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .toggle .toggle-limit input::placeholder {
+      color: var(--muted);
+      opacity: 0.7;
     }
 
     .tab-title {
@@ -422,6 +462,7 @@
     }
 
     .toggle-body {
+      flex: 1 1 auto;
       min-width: 0;
     }
 
@@ -693,6 +734,16 @@
         <span class="toggle-hint" data-i18n="popupToggleScreenshotHint"></span>
       </span>
     </label>
+    <label class="toggle" for="toggle-get-media-content">
+      <input type="checkbox" id="toggle-get-media-content" data-tool-id="get-media-content">
+      <span class="toggle-body">
+        <span class="toggle-head">
+          <span class="toggle-name" data-i18n="popupToggleMediaFetchName"></span>
+          <span class="toggle-limit"><input type="number" id="image-limit" placeholder="8" min="1" step="1"> MB</span>
+        </span>
+        <span class="toggle-hint" data-i18n="popupToggleMediaFetchHint"></span>
+      </span>
+    </label>
     <label class="toggle" for="toggle-interact-click">
       <input type="checkbox" id="toggle-interact-click" data-tool-id="interact-click">
       <span class="toggle-body">
@@ -714,26 +765,22 @@
         <span class="toggle-hint" data-i18n="popupToggleJavascriptHint"></span>
       </span>
     </label>
-    <label class="toggle" for="toggle-get-media-content">
-      <input type="checkbox" id="toggle-get-media-content" data-tool-id="get-media-content">
+    <label class="toggle" for="toggle-download-file">
+      <input type="checkbox" id="toggle-download-file" data-tool-id="download-file">
       <span class="toggle-body">
-        <span class="toggle-name" data-i18n="popupToggleMediaFetchName"></span><br>
-        <span class="toggle-hint" data-i18n="popupToggleMediaFetchHint"></span>
+        <span class="toggle-name" data-i18n="popupToggleDownloadFileName"></span><br>
+        <span class="toggle-hint" data-i18n="popupToggleDownloadFileHint"></span>
       </span>
     </label>
     <label class="toggle" for="toggle-upload-files">
       <input type="checkbox" id="toggle-upload-files" data-tool-id="upload-files">
       <span class="toggle-body">
-        <span class="toggle-name" data-i18n="popupToggleUploadFilesName"></span><br>
+        <span class="toggle-head">
+          <span class="toggle-name" data-i18n="popupToggleUploadFilesName"></span>
+            </span>
         <span class="toggle-hint" data-i18n="popupToggleUploadFilesHint"></span>
       </span>
     </label>
-    <div class="port-row limit-row">
-      <label for="upload-limit" class="port-label" data-i18n="popupUploadLimitLabel"></label>
-      <input type="number" id="upload-limit" min="1" max="64" step="1">
-      <span class="port-label">MB</span>
-    </div>
-    <div class="mode-hint" data-i18n="popupUploadLimitHint"></div>
     <label class="toggle" for="toggle-include-hidden">
       <input type="checkbox" id="toggle-include-hidden">
       <span class="toggle-body">
@@ -812,11 +859,15 @@
         <span class="toggle-hint" data-i18n="popupToggleFocusHint"></span>
       </span>
     </label>
-    <div class="port-row limit-row">
-      <label for="outline-depth" class="port-label" data-i18n="popupOutlineDepthLabel"></label>
-      <input type="number" id="outline-depth" min="0" max="3" step="1">
-    </div>
-    <div class="mode-hint" data-i18n="popupOutlineDepthHint"></div>
+    <label class="toggle is-field" for="outline-depth">
+      <span class="toggle-body">
+        <span class="toggle-head">
+          <span class="toggle-name" data-i18n="popupOutlineDepthLabel"></span>
+          <span class="toggle-limit"><input type="number" id="outline-depth" min="0" max="3" step="1"></span>
+        </span>
+        <span class="toggle-hint" data-i18n="popupOutlineDepthHint"></span>
+      </span>
+    </label>
     <label class="toggle" for="toggle-badge">
       <input type="checkbox" id="toggle-badge">
       <span class="toggle-body">

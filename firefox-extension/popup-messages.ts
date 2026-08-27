@@ -44,7 +44,7 @@ export interface PopupStatus {
   clipboardRead: boolean;
   consoleCapture: boolean;
   consoleLevel: ConsoleCaptureLevel;
-  uploadLimitMb: number;
+  imageLimitMb: number | null;
   allUrlsGranted: boolean;
   activeTab: ActiveTabStatus;
 }
@@ -68,7 +68,7 @@ export type PopupRequest =
   | { kind: "set-clipboard-read"; enabled: boolean }
   | { kind: "set-console-capture"; enabled: boolean }
   | { kind: "set-console-level"; level: ConsoleCaptureLevel }
-  | { kind: "set-upload-limit"; megabytes: number }
+  | { kind: "set-image-limit"; megabytes: number | null }
   | { kind: "set-domain-deny-list"; domains: string[] }
   | { kind: "set-allowed-origins"; origins: string[] }
   | { kind: "authorize-tab"; tabId: number }

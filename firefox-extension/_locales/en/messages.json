@@ -75,16 +75,22 @@
         "message": "Lets the MCP server run arbitrary scripts in a page"
     },
     "toolGetMediaContentName": {
-        "message": "Fetch media files"
+        "message": "Read images"
     },
     "toolGetMediaContentDescription": {
-        "message": "Lets the MCP server fetch the image files a page shows"
+        "message": "Lets the MCP server read page images as files"
+    },
+    "toolDownloadFileName": {
+        "message": "Download files"
+    },
+    "toolDownloadFileDescription": {
+        "message": "Lets the MCP server save files to the downloads folder"
     },
     "toolUploadFilesName": {
-        "message": "Attach local files"
+        "message": "Upload files"
     },
     "toolUploadFilesDescription": {
-        "message": "Lets the MCP server read files from this computer by path and attach them to a page's file input"
+        "message": "Lets the MCP server put local files into a file input"
     },
     "toolGetNetworkRequestsName": {
         "message": "Read network requests"
@@ -111,7 +117,10 @@
         "message": "Listing media in one element"
     },
     "overlayFetchMedia": {
-        "message": "Fetching a media file"
+        "message": "Reading an image"
+    },
+    "overlayDownload": {
+        "message": "Downloading a file"
     },
     "overlayNetwork": {
         "message": "Reading network requests"
@@ -135,7 +144,7 @@
         "message": "Dragging"
     },
     "overlayUpload": {
-        "message": "Attaching files"
+        "message": "Uploading files"
     },
     "overlayPressKey": {
         "message": "Key press: $1"
@@ -216,22 +225,22 @@
         "message": "Arbitrary script execution"
     },
     "popupToggleMediaFetchName": {
-        "message": "Fetch media files"
+        "message": "Read images"
     },
     "popupToggleMediaFetchHint": {
-        "message": "Page image file access"
+        "message": "Page images read as files"
+    },
+    "popupToggleDownloadFileName": {
+        "message": "Download files"
+    },
+    "popupToggleDownloadFileHint": {
+        "message": "Files into the downloads folder"
     },
     "popupToggleUploadFilesName": {
-        "message": "Attach local files"
+        "message": "Upload files"
     },
     "popupToggleUploadFilesHint": {
-        "message": "Local file access"
-    },
-    "popupUploadLimitLabel": {
-        "message": "File transfer limit"
-    },
-    "popupUploadLimitHint": {
-        "message": "Uploads added together, downloads one at a time (1~64MB)"
+        "message": "Local files into the page"
     },
     "popupOutlineDepthLabel": {
         "message": "Target regions"

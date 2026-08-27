@@ -80,10 +80,6 @@
             "description": "Change the order of open browser tabs"
         },
         {
-            "name": "group-browser-tabs",
-            "description": "Group browser tabs into a new tab group"
-        },
-        {
             "name": "find-text-in-page",
             "description": "Find and highlight text in a browser tab, returning a ref and the surrounding text for each match"
         },
@@ -96,12 +92,12 @@
             "description": "List the images, videos and audio a page shows, with URLs and original sizes"
         },
         {
-            "name": "fetch-media-file",
-            "description": "Fetch an image file a page shows, with the page's cookies (off by default)"
+            "name": "read-page-image",
+            "description": "Read an image a page shows as the original file, with the page's cookies (off by default)"
         },
         {
             "name": "click-page-element",
-            "description": "Click an element in a browser tab, by snapshot ref or CSS selector"
+            "description": "Click an element in a browser tab, or with action hover only move the pointer over it, by snapshot ref or CSS selector"
         },
         {
             "name": "type-into-page-element",
@@ -128,20 +124,16 @@
             "description": "Run JavaScript in a browser tab and return the value of its last expression"
         },
         {
-            "name": "release-browser-tab",
-            "description": "Let go of the tabs this session was driving, removing the overlay and restoring the tab's icon"
-        },
-        {
-            "name": "hover-page-element",
-            "description": "Move the pointer over an element without clicking, to reveal a tooltip or a menu"
-        },
-        {
             "name": "drag-page-element",
             "description": "Drag one element and drop it on another, addressed by ref or selector"
         },
         {
             "name": "upload-files-to-page-element",
             "description": "Attach files from the user's computer to a file input, by path (off by default)"
+        },
+        {
+            "name": "download-file-from-page",
+            "description": "Save a file a page shows into the browser's downloads folder, by ref or listed URL (off by default)"
         },
         {
             "name": "resize-browser-window",

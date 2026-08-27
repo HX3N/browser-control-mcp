@@ -3,7 +3,7 @@ import type {
   PermissionMode,
   UrlScope,
 } from "./extension-config";
-import { OUTLINE_BOX_DEPTH_RANGE, UPLOAD_LIMIT_MB_RANGE } from "./extension-config";
+import { OUTLINE_BOX_DEPTH_RANGE, clampImageLimitMb } from "./extension-config";
 import { localizeDocument, t } from "./i18n";
 import type {
   ConnectionStatus,
@@ -83,8 +83,8 @@ const basePortInput = document.getElementById("base-port") as HTMLInputElement;
 const saveBasePortButton = document.getElementById(
   "save-base-port"
 ) as HTMLButtonElement;
-const uploadLimitInput = document.getElementById(
-  "upload-limit"
+const imageLimitInput = document.getElementById(
+  "image-limit"
 ) as HTMLInputElement;
 const outlineDepthInput = document.getElementById(
   "outline-depth"
@@ -467,8 +467,8 @@ function render(status: PopupStatus): void {
   if (document.activeElement !== basePortInput) {
     basePortInput.value = status.basePort === null ? "" : String(status.basePort);
   }
-  if (document.activeElement !== uploadLimitInput) {
-    uploadLimitInput.value = String(status.uploadLimitMb);
+  if (document.activeElement !== imageLimitInput) {
+    imageLimitInput.value = status.imageLimitMb === null ? "" : String(status.imageLimitMb);
   }
   if (document.activeElement !== outlineDepthInput) {
     outlineDepthInput.value = String(status.outlineBoxDepth);
@@ -604,28 +604,21 @@ saveBasePortButton.addEventListener("click", async () => {
   showFeedback(t("popupFeedbackSaved"));
 });
 
-uploadLimitInput.addEventListener("change", async () => {
-  if (!uploadLimitInput.value.trim()) {
-    return;
+imageLimitInput.addEventListener("change", async () => {
+  let megabytes: number | null = null;
+  if (imageLimitInput.value.trim()) {
+    const entered = Number(imageLimitInput.value);
+    if (!Number.isFinite(entered)) {
+      await refresh({ kind: "get-status" });
+      return;
+    }
+    megabytes = clampImageLimitMb(entered);
+    if (String(megabytes) !== imageLimitInput.value) {
+      imageLimitInput.value = String(megabytes);
+    }
   }
-  const megabytes = Math.min(
-    UPLOAD_LIMIT_MB_RANGE.max,
-    Math.max(UPLOAD_LIMIT_MB_RANGE.min, Math.round(Number(uploadLimitInput.value)))
-  );
-  if (!Number.isFinite(megabytes)) {
-    return;
-  }
-  if (String(megabytes) !== uploadLimitInput.value) {
-    uploadLimitInput.value = String(megabytes);
-  }
-  await refresh({ kind: "set-upload-limit", megabytes });
+  await refresh({ kind: "set-image-limit", megabytes });
   showFeedback(t("popupFeedbackSaved"));
-});
-
-uploadLimitInput.addEventListener("blur", async () => {
-  if (!uploadLimitInput.value.trim()) {
-    await refresh({ kind: "get-status" });
-  }
 });
 
 outlineDepthInput.addEventListener("change", async () => {

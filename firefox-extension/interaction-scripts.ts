@@ -650,10 +650,34 @@ ${CLICK_DISPATCH_SOURCE}
 })();`;
 }
 
+const UPLOAD_DECODE_SOURCE = `
+function __bcmUploadBytes(b64) {
+  var raw = atob(b64);
+  var bytes = new Uint8Array(raw.length);
+  for (var i = 0; i < raw.length; i++) { bytes[i] = raw.charCodeAt(i); }
+  return bytes;
+}
+`;
+
+export function buildUploadChunkCode(uploadId: string, base64: string): string {
+  return `(function () {
+${UPLOAD_DECODE_SOURCE}
+  if (!window.__bcmUploadParts) { window.__bcmUploadParts = {}; }
+  var id = ${jsValue(uploadId)};
+  var parts = window.__bcmUploadParts[id];
+  if (!parts) { parts = []; window.__bcmUploadParts[id] = parts; }
+  parts.push(__bcmUploadBytes(${jsValue(base64)}));
+  var staged = 0;
+  for (var i = 0; i < parts.length; i++) { staged += parts[i].length; }
+  return { stagedBytes: staged };
+})();`;
+}
+
 export function buildUploadFilesCode(request: UploadFilesServerMessage): string {
   return `(function () {
 ${ELEMENT_RESOLVER_SOURCE}
 ${SCROLL_ANCHOR_SOURCE}
+${UPLOAD_DECODE_SOURCE}
   var el = __bcmResolve(${targetLiteral(request)});
   var label = __bcmLabel(el);
   if (!(el.tagName && el.tagName.toLowerCase() === 'input' && el.type === 'file')) {
@@ -667,12 +691,20 @@ ${SCROLL_ANCHOR_SOURCE}
     throw new Error('The file input accepts one file, but ' + files.length + ' were given');
   }
   __bcmScrollToAnchor(el, false);
+  var staged = window.__bcmUploadParts || {};
   var transfer = new DataTransfer();
   for (var i = 0; i < files.length; i++) {
-    var raw = atob(files[i].base64);
-    var bytes = new Uint8Array(raw.length);
-    for (var j = 0; j < raw.length; j++) { bytes[j] = raw.charCodeAt(j); }
-    transfer.items.add(new File([bytes], files[i].name, { type: files[i].mimeType }));
+    var parts = [];
+    if (files[i].uploadId) {
+      var held = staged[files[i].uploadId];
+      if (!held || held.length === 0) {
+        throw new Error('The staged pieces of ' + files[i].name + ' are gone: the page navigated or reloaded while it was being sent. Upload the file again.');
+      }
+      parts = held.slice();
+    }
+    if (files[i].base64) { parts.push(__bcmUploadBytes(files[i].base64)); }
+    transfer.items.add(new File(parts, files[i].name, { type: files[i].mimeType }));
+    if (files[i].uploadId) { delete staged[files[i].uploadId]; }
   }
   el.files = transfer.files;
   el.dispatchEvent(new Event('input', { bubbles: true }));
@@ -792,7 +824,7 @@ ${KEY_DEFAULT_ACTION_SOURCE}
   var repeat = ${jsValue(Math.max(1, Math.min(100, request.repeat ?? 1)))};
   var allowed = true;
   var submitted = false;
-  var performed = '';
+  var performed = [];
   var pressed = 0;
   for (; pressed < repeat && !submitted; pressed++) {
     allowed = __bcmKeyEvents(el, key, modifiers);
@@ -801,15 +833,21 @@ ${KEY_DEFAULT_ACTION_SOURCE}
       submitted = __bcmSubmitOwner(el);
     }
     if (!submitted) {
-      performed = __bcmDefaultAction(el, key, modifiers, pasteText) || performed;
+      var did = __bcmDefaultAction(el, key, modifiers, pasteText);
+      if (did) {
+        var last = performed[performed.length - 1];
+        if (last && last.text === did) { last.count++; } else { performed.push({ text: did, count: 1 }); }
+      }
     }
   }
 
   var outcome = '';
   if (submitted) {
     outcome = ' and submitted the owning form';
-  } else if (performed) {
-    outcome = ' and ' + performed;
+  } else if (performed.length) {
+    outcome = ' and ' + performed.map(function (part) {
+      return part.text + (part.count > 1 ? ' x' + part.count : '');
+    }).join(', then ');
   } else if (!allowed) {
     outcome = '; the page handled it and cancelled the default action';
   }
@@ -1542,6 +1580,26 @@ export function buildMediaFetchCode(url: string, maxBytes: number): string {
       return { base64: btoa(chunks.join('')), mimeType: type, byteLength: buffer.byteLength };
     });
   });
+})();`;
+}
+
+export function buildDownloadUrlCode(target: ElementTarget): string {
+  return `(function () {
+${ELEMENT_RESOLVER_SOURCE}
+  var el = __bcmResolve(${targetLiteral(target)});
+  var tag = el.tagName.toLowerCase();
+  var url = '';
+  if (tag === 'a' || tag === 'area') {
+    url = el.href;
+  } else if (tag === 'img' || tag === 'video' || tag === 'audio' || tag === 'source') {
+    url = el.currentSrc || el.src;
+  } else {
+    throw new Error('The element ' + __bcmLabel(el) + ' is a ' + tag + ', not a link or a media element, so there is nothing to download.');
+  }
+  if (!url) {
+    throw new Error('The element ' + __bcmLabel(el) + ' has no address to download.');
+  }
+  return url;
 })();`;
 }
 
