@@ -111,6 +111,8 @@ import {
   MediaFetchResult,
   MediaListResult,
   buildPressKeyCode,
+  buildQuietProbeCode,
+  QuietProbeResult,
   buildRegionBoxCode,
   buildScrollCode,
   buildSelectOptionCode,
@@ -146,16 +148,18 @@ const BLANK_URL = "about:blank";
 
 const idleStatus = () => t("overlayIdle");
 
-const NAVIGATION_SETTLE_MS = 15_000;
+const NAVIGATION_COMMIT_CAP_MS = 10_000;
+const NAVIGATION_QUIET_MS = 800;
+const NAVIGATION_QUIET_CAP_MS = 3_000;
 const HISTORY_MOVE_GRACE_MS = 1_000;
 const IN_PAGE_ROUTE_POLL_MS = 250;
 const IN_PAGE_ROUTE_WAIT_MS = 1_500;
 const MARK_RECLAIM_GAP_MS = 2_000;
 const MARK_ICON_PREFIX = "data:image/svg+xml";
 
-interface SettleWatch {
+interface CommitWatch {
   done: Promise<boolean>;
-  started: () => boolean;
+  committed: () => boolean;
   cancel: () => void;
 }
 
@@ -227,6 +231,7 @@ export class MessageHandler {
   private knownMediaUrls: Map<number, Set<string>> = new Map();
   private lastMarkReclaim: Map<number, number> = new Map();
   private shownOutlines: Map<number, PageRegion[]> = new Map();
+  private commitWaits: Map<number, (committed: boolean) => void> = new Map();
   private attendedTabId: number | undefined;
 
   private readonly onTabRemoved = (tabId: number) => {
@@ -246,6 +251,10 @@ export class MessageHandler {
     this.knownMediaUrls.delete(details.tabId);
     this.textBaselines.delete(details.tabId);
     resolveTextWait(details.tabId, "navigated");
+    // A tab opened by openUrl parks on about:blank first; that commit is the parking, not the page.
+    if (details.url !== BLANK_URL) {
+      this.commitWaits.get(details.tabId)?.(true);
+    }
     if (!this.isGuarded(details.tabId)) {
       return;
     }
@@ -505,14 +514,22 @@ export class MessageHandler {
 
     try {
       if (tab.id !== undefined) {
-        const settling = this.waitForTabToSettle(tab.id);
-        await browser.tabs.update(tab.id, { url });
-        if (!registration) {
-          this.guardDialogs(tab.id, "document_start").catch(() => undefined);
+        const committing = this.waitForCommit(tab.id);
+        let settled: boolean;
+        try {
+          await browser.tabs.update(tab.id, { url });
+          if (!registration) {
+            this.guardDialogs(tab.id, "document_start").catch(() => undefined);
+          }
+          settled = await committing.done;
+        } finally {
+          committing.cancel();
         }
-        await settling.done;
         await unregisterDialogGuard(registration);
         registration = null;
+        if (settled) {
+          await this.awaitDomQuiet(tab.id);
+        }
         await this.verifyGuard(tab.id);
         await this.attachOverlay(tab.id, "read", t("overlayOpen"));
       }
@@ -580,8 +597,8 @@ export class MessageHandler {
         );
     let settled: boolean;
     let inPage = false;
+    const committing = this.waitForCommit(req.tabId);
     try {
-      const settling = this.waitForTabToSettle(req.tabId);
       let outcome: boolean | null;
       if (inHistory) {
         if (req.url === "back") {
@@ -590,7 +607,7 @@ export class MessageHandler {
           await browser.tabs.goForward(req.tabId);
         }
         outcome = await Promise.race([
-          settling.done,
+          committing.done,
           this.historyEnd(req.tabId, current.url),
         ]);
       } else {
@@ -598,17 +615,16 @@ export class MessageHandler {
           req.tabId,
           req.url,
           current.url,
-          settling
+          committing
         );
         if (route === "routed") {
-          settling.cancel();
           inPage = true;
           outcome = true;
         } else {
           if (route === "none") {
             await browser.tabs.update(req.tabId, { url: req.url });
           }
-          outcome = await settling.done;
+          outcome = await committing.done;
         }
       }
       if (outcome === null) {
@@ -618,8 +634,16 @@ export class MessageHandler {
       }
       settled = outcome;
     } finally {
+      committing.cancel();
       await unregisterDialogGuard(registration);
     }
+    // The commit only says the new document arrived; frameworks keep re-rendering after it, and
+    // refs taken then die. No commit means nothing new to watch, and the budget is mostly spent.
+    if (settled) {
+      await this.awaitDomQuiet(req.tabId);
+    }
+    // The guard announces itself from the document it loaded in, which lands after the commit
+    // that released this command: verifying any earlier names documents that were guarded.
     if (inHistory) {
       // A document restored from the back-forward cache commits without loading, so no guard
       // announces itself in it; the one it had is still there, and re-injecting covers the rest.
@@ -658,7 +682,7 @@ export class MessageHandler {
     tabId: number,
     url: string,
     currentUrl: string | undefined,
-    settling: SettleWatch
+    commit: CommitWatch
   ): Promise<"routed" | "loading" | "none"> {
     if (!currentUrl || !sameOrigin(currentUrl, url)) {
       return "none";
@@ -679,7 +703,9 @@ export class MessageHandler {
     const deadline = Date.now() + IN_PAGE_ROUTE_WAIT_MS;
     for (;;) {
       await delay(IN_PAGE_ROUTE_POLL_MS);
-      if (settling.started()) {
+      // The tab also reports loading while the document being left finishes, and acting on that
+      // skips both the address restore and the load; only a commit proves a new document arrived.
+      if (commit.committed()) {
         return "loading";
       }
       const final = Date.now() >= deadline;
@@ -690,7 +716,7 @@ export class MessageHandler {
         });
         check = results[0] as InPageNavigationCheck;
       } catch (error) {
-        return settling.started() ? "loading" : "none";
+        return commit.committed() ? "loading" : "none";
       }
       if (check.moved) {
         return "routed";
@@ -701,8 +727,8 @@ export class MessageHandler {
     }
   }
 
-  // goBack and goForward resolve without moving when the history ends there, and the settle
-  // wait would only run to its timeout. Resolves only when the tab visibly never left.
+  // goBack and goForward resolve without moving when the history ends there, and the commit
+  // wait would only run to its cap. Resolves only when the tab visibly never left.
   private historyEnd(
     tabId: number,
     urlBefore: string | undefined
@@ -721,35 +747,55 @@ export class MessageHandler {
     });
   }
 
-  // The tab the command lands on is still showing the old page for a moment, so a "complete"
-  // that arrives before the first "loading" belongs to the page being left behind.
-  private waitForTabToSettle(tabId: number): SettleWatch {
-    let started = false;
-    let resolve: (settled: boolean) => void = () => undefined;
+  private async awaitDomQuiet(tabId: number): Promise<void> {
+    const startedAt = Date.now();
+    for (;;) {
+      try {
+        const results = await this.runScript(tabId, {
+          code: buildQuietProbeCode(false),
+          runAt: "document_start",
+        });
+        const probe = results[0] as QuietProbeResult;
+        if (probe.sinceMs >= NAVIGATION_QUIET_MS) {
+          break;
+        }
+      } catch (error) {
+        // A document still parsing stalls the first probes; one bad probe must not end the watch.
+        console.error("Could not probe tab", tabId, "for quiet:", error);
+      }
+      if (Date.now() - startedAt >= NAVIGATION_QUIET_CAP_MS) {
+        break;
+      }
+      await delay(WAIT_POLL_INTERVAL_MS);
+    }
+    try {
+      await this.runScript(tabId, {
+        code: buildQuietProbeCode(true),
+        runAt: "document_start",
+      });
+    } catch (error) {
+      console.error("Could not detach the quiet watch on tab", tabId, error);
+    }
+  }
+
+  private waitForCommit(tabId: number): CommitWatch {
+    let seen = false;
+    let resolve: (committed: boolean) => void = () => undefined;
     const done = new Promise<boolean>((r) => {
       resolve = r;
     });
-    const finish = (settled: boolean) => {
+    const finish = (committed: boolean) => {
       clearTimeout(timer);
-      browser.tabs.onUpdated.removeListener(onUpdated);
-      resolve(settled);
-    };
-    const onUpdated = (
-      updatedTabId: number,
-      changeInfo: browser.tabs._OnUpdatedChangeInfo
-    ) => {
-      if (updatedTabId !== tabId) {
-        return;
+      seen = seen || committed;
+      // A newer wait for the same tab may have replaced this entry; only remove our own.
+      if (this.commitWaits.get(tabId) === finish) {
+        this.commitWaits.delete(tabId);
       }
-      if (changeInfo.status === "loading") {
-        started = true;
-      } else if (changeInfo.status === "complete" && started) {
-        finish(true);
-      }
+      resolve(committed);
     };
-    const timer = setTimeout(() => finish(false), NAVIGATION_SETTLE_MS);
-    browser.tabs.onUpdated.addListener(onUpdated, { properties: ["status"] });
-    return { done, started: () => started, cancel: () => finish(false) };
+    const timer = setTimeout(() => finish(false), NAVIGATION_COMMIT_CAP_MS);
+    this.commitWaits.set(tabId, finish);
+    return { done, committed: () => seen, cancel: () => finish(false) };
   }
 
   // Container tabs each keep their own cookie jar, and Zen ties workspaces to containers. A

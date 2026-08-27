@@ -33,6 +33,7 @@ import {
   buildDownloadUrlCode,
   buildUploadChunkCode,
   buildUploadFilesCode,
+  buildQuietProbeCode,
   buildWaitProbeCode,
 } from "../interaction-scripts";
 import { PAGE_READ_SOURCE } from "../injected-common";
@@ -411,6 +412,8 @@ const cases: [string, string][] = [
       within: target,
     }),
   ],
+  ["quiet probe", buildQuietProbeCode(false)],
+  ["quiet probe, final", buildQuietProbeCode(true)],
   ["page read helpers", PAGE_READ_SOURCE],
 ];
 

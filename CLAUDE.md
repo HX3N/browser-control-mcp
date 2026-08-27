@@ -52,8 +52,14 @@ the next free port and the extension keeps one spare slot.
 **Pages and refs**
 - Every injection goes through `runScript`, never `browser.tabs.executeScript` directly: a frozen
   page never settles, so the stall timer is the only way out.
+- `openUrl` and `navigateTab` settle alike: `waitForCommit` then `awaitDomQuiet`. `complete` fires
+  on subresources, not on render, so refs taken then die; no commit means no quiet. `verifyGuard`
+  runs after it, since the guard's report lands after the commit that released the command.
 - `navigateTab` hands a same-origin address to the page first (`routeWithinPage`); `tabs.update`
-  only when the page did nothing.
+  only when the page did nothing. A commit, not the tab's `loading` status, says the hand-over
+  started a load: the tab reads loading while the document being left finishes too.
+- Quiet probes inject `runAt: "document_start"`; the default waits for a load event that a page
+  holding an unfinished subresource never fires.
 - Refs die on re-render; `window.__bcmRefs` is trusted over the attribute because markup copies
   carry the attribute.
 - Roots are walked with `__bcmRoots()`, never `document` alone; cross-origin frames are reported
@@ -76,6 +82,8 @@ the next free port and the extension keeps one spare slot.
   scope: every value it needs arrives through `attach` options or is defined inside it. The
   preview page calls it directly and shims `__bcmRect`.
 - Attach applies the palette and timings every call; `background.ts` reapplies on storage change.
+- The host lands in the page, so the quiet wait skips records that only add or remove it; counting
+  our own drawing as page activity restarts the wait on every redraw.
 - Holding and acting are separate clocks: `holdReleaseMs` (popup) vs `statusResetMs`. A read
   and an `execute-js` are sent with `resetAfterMs: 0`.
 - `attendedTabId` is the tab being worked in; the tab a command leaves is drawn `resting`.

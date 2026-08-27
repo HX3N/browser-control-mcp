@@ -1122,6 +1122,49 @@ ${ELEMENT_RESOLVER_SOURCE}
 })();`;
 }
 
+export interface QuietProbeResult {
+  sinceMs: number;
+}
+
+export function buildQuietProbeCode(final: boolean): string {
+  return `(function () {
+  var w = window.__bcmQuietWatch;
+  if (${jsValue(final)}) {
+    if (w) {
+      try { w.ob.disconnect(); } catch (err) { /* already gone */ }
+      window.__bcmQuietWatch = null;
+    }
+    return { sinceMs: w ? Date.now() - w.at : 0 };
+  }
+  if (!w) {
+    w = { at: Date.now(), ob: null };
+    // The overlay host is added to the page like any other node, and counting our own drawing
+    // as page activity restarts the wait every time a command redraws it.
+    var allOurs = function (nodes) {
+      for (var i = 0; i < nodes.length; i++) {
+        if (nodes[i].id !== 'bcm-overlay-host') { return false; }
+      }
+      return true;
+    };
+    w.ob = new MutationObserver(function (records) {
+      for (var i = 0; i < records.length; i++) {
+        var touched = records[i].addedNodes.length + records[i].removedNodes.length;
+        if (touched > 0 && allOurs(records[i].addedNodes) && allOurs(records[i].removedNodes)) {
+          continue;
+        }
+        w.at = Date.now();
+        return;
+      }
+    });
+    // Attributes are left out on purpose: a page that toggles classes forever would never read as quiet.
+    w.ob.observe(document.documentElement, { childList: true, characterData: true, subtree: true });
+    window.__bcmQuietWatch = w;
+    return { sinceMs: 0 };
+  }
+  return { sinceMs: Date.now() - w.at };
+})();`;
+}
+
 export interface TextWatchResult {
   baseline: string;
   current: string;

@@ -195,16 +195,22 @@ describe("MessageHandler", () => {
         request: ServerMessageRequest,
         tabId = 123
       ): Promise<void> => {
-        (browser.tabs.executeScript as jest.Mock).mockResolvedValue([true]);
+        (browser.tabs.executeScript as jest.Mock).mockImplementation(
+          (_tabId, details) =>
+            String(details.code).includes("__bcmQuietWatch")
+              ? Promise.resolve([{ sinceMs: 60_000 }])
+              : Promise.resolve([true])
+        );
+        const url = (request as { url: string }).url;
         const pending = messageHandler.handleDecodedMessage(request);
         await new Promise((resolve) => setTimeout(resolve, 0));
         await new Promise((resolve) => setTimeout(resolve, 0));
         for (const [listener] of (
-          browser.tabs.onUpdated.addListener as jest.Mock
+          browser.webNavigation.onCommitted.addListener as jest.Mock
         ).mock.calls) {
-          listener(tabId, { status: "loading" });
-          listener(tabId, { status: "complete" });
+          listener({ tabId, frameId: 0, url });
         }
+        recordPageEvent(tabId, "guard", url);
         await pending;
       };
 
@@ -928,12 +934,23 @@ describe("MessageHandler", () => {
         },
       ];
 
-      const settleTab = (tabId: number): void => {
-        for (const [listener] of (
-          browser.tabs.onUpdated.addListener as jest.Mock
-        ).mock.calls) {
-          listener(tabId, { status: "loading" });
-          listener(tabId, { status: "complete" });
+      const quietProbeAware = (): void => {
+        (browser.tabs.executeScript as jest.Mock).mockImplementation(
+          (_tabId, details) =>
+            String(details.code).includes("__bcmQuietWatch")
+              ? Promise.resolve([{ sinceMs: 60_000 }])
+              : Promise.resolve([true])
+        );
+      };
+
+      const commitTab = (tabId: number, announced = true): void => {
+        committedListener()({
+          tabId,
+          frameId: 0,
+          url: "https://example.com/board?id=1",
+        });
+        if (announced) {
+          recordPageEvent(tabId, "guard", "https://example.com/board?id=1");
         }
       };
 
@@ -948,10 +965,11 @@ describe("MessageHandler", () => {
         } as ServerMessageRequest);
 
       const openExample = async (): Promise<void> => {
+        quietProbeAware();
         const pending = startOpen();
         await flush();
         await flush();
-        settleTab(77);
+        commitTab(77);
         await pending;
       };
 
@@ -1032,7 +1050,7 @@ describe("MessageHandler", () => {
           registration()
         );
         (browser.tabs.create as jest.Mock).mockResolvedValue({ id: 77 });
-        (browser.tabs.executeScript as jest.Mock).mockResolvedValue([true]);
+        quietProbeAware();
 
         const pending = startOpen();
         await flush();
@@ -1045,7 +1063,6 @@ describe("MessageHandler", () => {
         if (announced) {
           recordPageEvent(77, "guard", "https://example.com/board?id=1");
         }
-        settleTab(77);
         await pending;
       };
 
@@ -1072,19 +1089,20 @@ describe("MessageHandler", () => {
         });
       });
 
-      it("keeps the registration only until the tab has loaded", async () => {
+      it("keeps the registration only until the document has committed", async () => {
         const handle = registration();
         (browser.contentScripts.register as jest.Mock).mockResolvedValue(
           handle
         );
         (browser.tabs.create as jest.Mock).mockResolvedValue({ id: 77 });
+        quietProbeAware();
 
         const pending = startOpen();
         await flush();
         await flush();
         expect(handle.unregister).not.toHaveBeenCalled();
 
-        settleTab(77);
+        commitTab(77);
         await pending;
 
         expect(handle.unregister).toHaveBeenCalledTimes(1);
@@ -1095,13 +1113,13 @@ describe("MessageHandler", () => {
           registration()
         );
         (browser.tabs.create as jest.Mock).mockResolvedValue({ id: 77 });
-        (browser.tabs.executeScript as jest.Mock).mockResolvedValue([true]);
+        quietProbeAware();
 
         const pending = startOpen();
         await flush();
         recordPageEvent(77, "dialog", "alert: closed for maintenance");
         recordPageEvent(77, "console", "console.error: boom");
-        settleTab(77);
+        commitTab(77);
         await pending;
 
         expect(mockClient.sendResourceToServer).toHaveBeenCalledWith(
@@ -1123,7 +1141,7 @@ describe("MessageHandler", () => {
         await openExample();
 
         const injected = guardInjections();
-        expect(injected).toHaveLength(1);
+        expect(injected).toHaveLength(2);
         expect(injected[0][0]).toBe(77);
         expect(injected[0][1].runAt).toBe("document_start");
       });
