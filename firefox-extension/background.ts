@@ -45,6 +45,9 @@ import {
   setConsoleCaptureLevel,
   getStoredImageLimitMb,
   setImageLimitMb,
+  getOverlayTimings,
+  setOverlayTimings,
+  OVERLAY_TIMING_LIMITS,
 } from "./extension-config";
 import {
   grantTabAuthorization,
@@ -330,6 +333,7 @@ async function buildStatus(): Promise<PopupStatus> {
     backgroundMode: await isBackgroundMode(),
     includeHidden: await isHiddenElementsIncluded(),
     outlineBoxDepth: await getOutlineBoxDepth(),
+    holdSeconds: (await getOverlayTimings()).holdReleaseMs / 1000,
     clipboardRead: await isClipboardReadAllowed(),
     consoleCapture: await isConsoleCaptureEnabled(),
     consoleLevel: await getConsoleCaptureLevel(),
@@ -406,6 +410,15 @@ async function handlePopupRequest(request: PopupRequest): Promise<PopupStatus> {
     case "set-outline-depth":
       await setOutlineBoxDepth(request.depth);
       break;
+    case "set-hold-seconds": {
+      const limits = OVERLAY_TIMING_LIMITS.holdReleaseMs;
+      const holdReleaseMs = Math.min(
+        limits.max,
+        Math.max(limits.min, Math.round(request.seconds * 1000))
+      );
+      await setOverlayTimings({ holdReleaseMs });
+      break;
+    }
     case "set-console-capture":
       await setConsoleCapture(request.enabled);
       break;

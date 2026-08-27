@@ -293,7 +293,7 @@ export interface OverlayTimings {
 
 export const DEFAULT_OVERLAY_TIMINGS: OverlayTimings = {
   statusResetMs: 5000,
-  holdReleaseMs: 90_000,
+  holdReleaseMs: 60_000,
   leadMs: 1000,
 };
 

@@ -3,7 +3,11 @@ import type {
   PermissionMode,
   UrlScope,
 } from "./extension-config";
-import { OUTLINE_BOX_DEPTH_RANGE, clampImageLimitMb } from "./extension-config";
+import {
+  OUTLINE_BOX_DEPTH_RANGE,
+  OVERLAY_TIMING_LIMITS,
+  clampImageLimitMb,
+} from "./extension-config";
 import { localizeDocument, t } from "./i18n";
 import type {
   ConnectionStatus,
@@ -88,6 +92,9 @@ const imageLimitInput = document.getElementById(
 ) as HTMLInputElement;
 const outlineDepthInput = document.getElementById(
   "outline-depth"
+) as HTMLInputElement;
+const holdSecondsInput = document.getElementById(
+  "hold-seconds"
 ) as HTMLInputElement;
 const backgroundModeToggle = document.getElementById(
   "toggle-background-mode"
@@ -473,6 +480,9 @@ function render(status: PopupStatus): void {
   if (document.activeElement !== outlineDepthInput) {
     outlineDepthInput.value = String(status.outlineBoxDepth);
   }
+  if (document.activeElement !== holdSecondsInput) {
+    holdSecondsInput.value = String(status.holdSeconds);
+  }
 
   // Without the blanket host permission nothing can run, so the mode picker would only be
   // offering choices between things that all fail.
@@ -636,6 +646,25 @@ outlineDepthInput.addEventListener("change", async () => {
     outlineDepthInput.value = String(depth);
   }
   await refresh({ kind: "set-outline-depth", depth });
+  showFeedback(t("popupFeedbackSaved"));
+});
+
+holdSecondsInput.addEventListener("change", async () => {
+  if (!holdSecondsInput.value.trim()) {
+    return;
+  }
+  const limits = OVERLAY_TIMING_LIMITS.holdReleaseMs;
+  const seconds = Math.min(
+    limits.max / 1000,
+    Math.max(limits.min / 1000, Math.round(Number(holdSecondsInput.value)))
+  );
+  if (!Number.isFinite(seconds)) {
+    return;
+  }
+  if (String(seconds) !== holdSecondsInput.value) {
+    holdSecondsInput.value = String(seconds);
+  }
+  await refresh({ kind: "set-hold-seconds", seconds });
   showFeedback(t("popupFeedbackSaved"));
 });
 

@@ -41,6 +41,7 @@ export interface PopupStatus {
   backgroundMode: boolean;
   includeHidden: boolean;
   outlineBoxDepth: number;
+  holdSeconds: number;
   clipboardRead: boolean;
   consoleCapture: boolean;
   consoleLevel: ConsoleCaptureLevel;
@@ -65,6 +66,7 @@ export type PopupRequest =
   | { kind: "set-background-mode"; enabled: boolean }
   | { kind: "set-include-hidden"; enabled: boolean }
   | { kind: "set-outline-depth"; depth: number }
+  | { kind: "set-hold-seconds"; seconds: number }
   | { kind: "set-clipboard-read"; enabled: boolean }
   | { kind: "set-console-capture"; enabled: boolean }
   | { kind: "set-console-level"; level: ConsoleCaptureLevel }

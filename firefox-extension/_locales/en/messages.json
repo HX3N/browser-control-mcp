@@ -248,6 +248,12 @@
     "popupOutlineDepthHint": {
         "message": "Fewest levels a region must hold to be highlighted (0~3)"
     },
+    "popupHoldSecondsLabel": {
+        "message": "Command wait"
+    },
+    "popupHoldSecondsHint": {
+        "message": "How long the tab is held until the next command"
+    },
     "popupToggleHiddenName": {
         "message": "Read hidden elements"
     },
@@ -733,12 +739,6 @@
     },
     "optionsTimingHint_statusResetMs": {
         "message": "After an action, how long its label stays before the badge falls back to the resting one. Reads ignore this."
-    },
-    "optionsTiming_holdReleaseMs": {
-        "message": "Tab hold (s)"
-    },
-    "optionsTimingHint_holdReleaseMs": {
-        "message": "How long a tab stays claimed with no command arriving. It has to outlast the pauses between commands: a model can think for minutes between two clicks."
     },
     "optionsTiming_leadMs": {
         "message": "Lead before acting (s)"

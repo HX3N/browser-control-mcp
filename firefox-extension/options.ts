@@ -547,7 +547,6 @@ const MS_PER_SECOND = 1000;
 // Fields are stored and clamped in ms; the UI shows and steps in seconds.
 const TIMING_FIELDS: { key: keyof OverlayTimings; stepSeconds: number }[] = [
   { key: "statusResetMs", stepSeconds: 0.5 },
-  { key: "holdReleaseMs", stepSeconds: 30 },
   { key: "leadMs", stepSeconds: 0.1 },
 ];
 

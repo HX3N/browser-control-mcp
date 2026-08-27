@@ -248,6 +248,12 @@
     "popupOutlineDepthHint": {
         "message": "강조 대상이 되는 구역의 하위 계층 하한 (0~3)"
     },
+    "popupHoldSecondsLabel": {
+        "message": "명령 대기 시간"
+    },
+    "popupHoldSecondsHint": {
+        "message": "다음 명령이 오기 전까지 탭 유지 시간"
+    },
     "popupToggleHiddenName": {
         "message": "숨은 내용 읽기"
     },
@@ -733,12 +739,6 @@
     },
     "optionsTimingHint_statusResetMs": {
         "message": "동작 뒤 그 문구가 얼마나 남아 있다가 대기 문구로 돌아가는지입니다. 읽기에는 적용되지 않습니다."
-    },
-    "optionsTiming_holdReleaseMs": {
-        "message": "탭 유지 (초)"
-    },
-    "optionsTimingHint_holdReleaseMs": {
-        "message": "명령이 오지 않아도 탭을 잡고 있는 시간입니다. 명령 사이의 공백보다 길어야 합니다. 모델이 두 클릭 사이에 몇 분을 생각할 수 있습니다."
     },
     "optionsTiming_leadMs": {
         "message": "동작 전 여유 (초)"
