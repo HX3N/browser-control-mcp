@@ -128,5 +128,7 @@ option.
 - Target is Zen Browser (Gecko). Compact mode hides the toolbar (`Alt+Shift+B` opens the popup);
   split view puts both tabs in `captureVisibleTab`.
 - `default_popup` means `browserAction.onClicked` never fires.
-- `setup.ps1` asks everything before the secret key, then runs to the end; it closes Claude
-  Desktop before writing its config, resolving the MSIX path first.
+- `setup.ps1` installs, builds and packages the zip, then stops: the secret key does not exist
+  until the extension is installed. `sync-secret.ps1` takes that key and registers both clients,
+  closing Claude Desktop before writing its config, resolving the MSIX path first. Shared
+  helpers, paths and strings live in `setup-common.ps1`, dot-sourced by both.

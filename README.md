@@ -128,12 +128,19 @@ The settings page shows the secret key the server needs.
 
 ### Connect the server
 
-`setup.ps1` does everything: asks its questions before the secret key, then installs, builds,
-registers with Claude Code and Claude Desktop, and packages the zip. It closes Claude Desktop
-before writing its config.
+Two scripts, one per job. `setup.ps1` installs what is missing, builds, and packages the zip;
+it stops there, since the secret key does not exist until the extension is installed.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1
+```
+
+Install that zip from `about:addons`, copy the Secret Key from its preferences, then hand it to
+the clients. `sync-secret.ps1` registers with Claude Code and Claude Desktop, closing Claude
+Desktop before writing its config. Run it again whenever the key changes.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\sync-secret.ps1
 ```
 
 By hand, for Claude Code:

@@ -125,11 +125,19 @@ npm run package     # firefox-extension/web-ext-artifacts/browser_control_mcp-<v
 
 ### 서버 연결
 
-`setup.ps1`이 전부 합니다. 질문은 비밀 키 앞에서 끝나고, 이후 설치·빌드·Claude Code와 Claude
-Desktop 등록·zip 패키징까지 이어집니다. Desktop 설정을 쓰기 전에 앱을 닫습니다.
+하는 일마다 스크립트가 하나씩 있습니다. `setup.ps1`은 빠진 것을 설치하고 빌드한 뒤 zip까지
+만들고 끝납니다. 확장을 설치하기 전에는 비밀 키가 존재하지 않기 때문입니다.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1
+```
+
+그 zip을 `about:addons`에서 설치하고 설정에서 비밀 키를 복사한 뒤 클라이언트에 넘깁니다.
+`sync-secret.ps1`이 Claude Code와 Claude Desktop에 등록하며, Desktop 설정을 쓰기 전에 앱을
+닫습니다. 키가 바뀔 때마다 이것만 다시 실행하면 됩니다.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\sync-secret.ps1
 ```
 
 직접 등록, Claude Code:
