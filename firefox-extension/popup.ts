@@ -5,6 +5,8 @@ import type {
 } from "./extension-config";
 import {
   OUTLINE_BOX_DEPTH_RANGE,
+  OUTLINE_CHAR_THRESHOLD_RANGE,
+  OUTLINE_ELEMENT_THRESHOLD_RANGE,
   OVERLAY_TIMING_LIMITS,
   clampImageLimitMb,
 } from "./extension-config";
@@ -92,6 +94,12 @@ const imageLimitInput = document.getElementById(
 ) as HTMLInputElement;
 const outlineDepthInput = document.getElementById(
   "outline-depth"
+) as HTMLInputElement;
+const outlineCharsInput = document.getElementById(
+  "outline-chars"
+) as HTMLInputElement;
+const outlineElementsInput = document.getElementById(
+  "outline-elements"
 ) as HTMLInputElement;
 const holdSecondsInput = document.getElementById(
   "hold-seconds"
@@ -480,6 +488,12 @@ function render(status: PopupStatus): void {
   if (document.activeElement !== outlineDepthInput) {
     outlineDepthInput.value = String(status.outlineBoxDepth);
   }
+  if (document.activeElement !== outlineCharsInput) {
+    outlineCharsInput.value = String(status.outlineCharThreshold);
+  }
+  if (document.activeElement !== outlineElementsInput) {
+    outlineElementsInput.value = String(status.outlineElementThreshold);
+  }
   if (document.activeElement !== holdSecondsInput) {
     holdSecondsInput.value = String(status.holdSeconds);
   }
@@ -668,8 +682,59 @@ holdSecondsInput.addEventListener("change", async () => {
   showFeedback(t("popupFeedbackSaved"));
 });
 
+outlineCharsInput.addEventListener("change", async () => {
+  if (!outlineCharsInput.value.trim()) {
+    return;
+  }
+  const chars = Math.min(
+    OUTLINE_CHAR_THRESHOLD_RANGE.max,
+    Math.max(OUTLINE_CHAR_THRESHOLD_RANGE.min, Math.round(Number(outlineCharsInput.value)))
+  );
+  if (!Number.isFinite(chars)) {
+    return;
+  }
+  if (String(chars) !== outlineCharsInput.value) {
+    outlineCharsInput.value = String(chars);
+  }
+  await refresh({ kind: "set-outline-chars", chars });
+  showFeedback(t("popupFeedbackSaved"));
+});
+
+outlineElementsInput.addEventListener("change", async () => {
+  if (!outlineElementsInput.value.trim()) {
+    return;
+  }
+  const elements = Math.min(
+    OUTLINE_ELEMENT_THRESHOLD_RANGE.max,
+    Math.max(
+      OUTLINE_ELEMENT_THRESHOLD_RANGE.min,
+      Math.round(Number(outlineElementsInput.value))
+    )
+  );
+  if (!Number.isFinite(elements)) {
+    return;
+  }
+  if (String(elements) !== outlineElementsInput.value) {
+    outlineElementsInput.value = String(elements);
+  }
+  await refresh({ kind: "set-outline-elements", elements });
+  showFeedback(t("popupFeedbackSaved"));
+});
+
 outlineDepthInput.addEventListener("blur", async () => {
   if (!outlineDepthInput.value.trim()) {
+    await refresh({ kind: "get-status" });
+  }
+});
+
+outlineCharsInput.addEventListener("blur", async () => {
+  if (!outlineCharsInput.value.trim()) {
+    await refresh({ kind: "get-status" });
+  }
+});
+
+outlineElementsInput.addEventListener("blur", async () => {
+  if (!outlineElementsInput.value.trim()) {
     await refresh({ kind: "get-status" });
   }
 });

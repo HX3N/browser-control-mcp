@@ -260,6 +260,18 @@
     "popupOutlineDepthHint": {
         "message": "Fewest levels a region must hold to be highlighted (0~3)"
     },
+    "popupOutlineThresholdLabel": {
+        "message": "Read mode switch"
+    },
+    "popupOutlineThresholdHint": {
+        "message": "Largest page a read returns as text before it switches to an outline"
+    },
+    "popupOutlineThresholdChars": {
+        "message": "chars"
+    },
+    "popupOutlineThresholdElements": {
+        "message": "items"
+    },
     "popupHoldSecondsLabel": {
         "message": "Command wait"
     },
@@ -757,6 +769,18 @@
     },
     "previewRegionA": {
         "message": "Targets"
+    },
+    "previewRegionA1": {
+        "message": "Outer wrapper, flush"
+    },
+    "previewRegionA2": {
+        "message": "Inner wrapper, same corner"
+    },
+    "previewRegionA3": {
+        "message": "Innermost region"
+    },
+    "previewRegionB1": {
+        "message": "Nested body group"
     },
     "previewRegionB": {
         "message": "Body"

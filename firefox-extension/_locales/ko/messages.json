@@ -260,6 +260,18 @@
     "popupOutlineDepthHint": {
         "message": "강조 대상이 되는 구역의 하위 계층 하한 (0~3)"
     },
+    "popupOutlineThresholdLabel": {
+        "message": "읽기 모드 전환"
+    },
+    "popupOutlineThresholdHint": {
+        "message": "본문 대신 계층 목록으로 전환하는 상한"
+    },
+    "popupOutlineThresholdChars": {
+        "message": "자"
+    },
+    "popupOutlineThresholdElements": {
+        "message": "개"
+    },
     "popupHoldSecondsLabel": {
         "message": "명령 대기 시간"
     },
@@ -758,8 +770,20 @@
     "previewRegionA": {
         "message": "조작 대상"
     },
+    "previewRegionA1": {
+        "message": "겹쳐 놓인 바깥 묶음"
+    },
+    "previewRegionA2": {
+        "message": "같은 모서리의 안쪽 묶음"
+    },
+    "previewRegionA3": {
+        "message": "가장 안쪽 구역"
+    },
     "previewRegionB": {
         "message": "본문"
+    },
+    "previewRegionB1": {
+        "message": "본문 안쪽 묶음"
     },
     "previewDragSource": {
         "message": "끌 요소"

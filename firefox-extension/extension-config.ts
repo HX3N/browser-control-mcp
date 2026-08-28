@@ -6,6 +6,10 @@ import { ServerMessageRequest } from "@browser-control-mcp/common/server-message
 import { IMAGE_LIMIT_MB_RANGE } from "@browser-control-mcp/common/limits";
 export { IMAGE_LIMIT_MB_RANGE };
 import { t } from "./i18n";
+import {
+  DEFAULT_OUTLINE_CHAR_THRESHOLD,
+  DEFAULT_OUTLINE_ELEMENT_THRESHOLD,
+} from "./page-snapshot";
 
 const DEFAULT_WS_PORT = 8089;
 const AUDIT_LOG_SIZE_LIMIT = 100; // Maximum number of audit log entries to keep
@@ -244,6 +248,8 @@ export interface ExtensionConfig {
   backgroundMode?: boolean;
   includeHiddenElements?: boolean;
   outlineBoxDepth?: number;
+  outlineCharThreshold?: number;
+  outlineElementThreshold?: number;
   allowClipboardRead?: boolean;
   urlScope?: UrlScope;
   consoleCapture?: boolean;
@@ -670,6 +676,52 @@ export async function getOutlineBoxDepth(): Promise<number> {
 export async function setOutlineBoxDepth(depth: number): Promise<void> {
   const config = await getConfig();
   config.outlineBoxDepth = depth;
+  await saveConfig(config);
+}
+
+export const OUTLINE_CHAR_THRESHOLD_RANGE = { min: 0, max: 50_000 };
+export const OUTLINE_ELEMENT_THRESHOLD_RANGE = { min: 0, max: 2_000 };
+
+function clampThreshold(
+  value: unknown,
+  range: { min: number; max: number },
+  fallback: number
+): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return fallback;
+  }
+  return Math.min(range.max, Math.max(range.min, Math.round(value)));
+}
+
+export async function getOutlineCharThreshold(): Promise<number> {
+  const config = await getConfig();
+  return clampThreshold(
+    config.outlineCharThreshold,
+    OUTLINE_CHAR_THRESHOLD_RANGE,
+    DEFAULT_OUTLINE_CHAR_THRESHOLD
+  );
+}
+
+export async function setOutlineCharThreshold(chars: number): Promise<void> {
+  const config = await getConfig();
+  config.outlineCharThreshold = chars;
+  await saveConfig(config);
+}
+
+export async function getOutlineElementThreshold(): Promise<number> {
+  const config = await getConfig();
+  return clampThreshold(
+    config.outlineElementThreshold,
+    OUTLINE_ELEMENT_THRESHOLD_RANGE,
+    DEFAULT_OUTLINE_ELEMENT_THRESHOLD
+  );
+}
+
+export async function setOutlineElementThreshold(
+  elements: number
+): Promise<void> {
+  const config = await getConfig();
+  config.outlineElementThreshold = elements;
   await saveConfig(config);
 }
 

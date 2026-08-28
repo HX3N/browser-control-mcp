@@ -30,6 +30,10 @@ import {
   setHiddenElementsIncluded,
   getOutlineBoxDepth,
   setOutlineBoxDepth,
+  getOutlineCharThreshold,
+  setOutlineCharThreshold,
+  getOutlineElementThreshold,
+  setOutlineElementThreshold,
   setUrlScope,
   setAllowedOrigins,
   setDomainDenyList,
@@ -333,6 +337,8 @@ async function buildStatus(): Promise<PopupStatus> {
     backgroundMode: await isBackgroundMode(),
     includeHidden: await isHiddenElementsIncluded(),
     outlineBoxDepth: await getOutlineBoxDepth(),
+    outlineCharThreshold: await getOutlineCharThreshold(),
+    outlineElementThreshold: await getOutlineElementThreshold(),
     holdSeconds: (await getOverlayTimings()).holdReleaseMs / 1000,
     clipboardRead: await isClipboardReadAllowed(),
     consoleCapture: await isConsoleCaptureEnabled(),
@@ -409,6 +415,12 @@ async function handlePopupRequest(request: PopupRequest): Promise<PopupStatus> {
       break;
     case "set-outline-depth":
       await setOutlineBoxDepth(request.depth);
+      break;
+    case "set-outline-chars":
+      await setOutlineCharThreshold(request.chars);
+      break;
+    case "set-outline-elements":
+      await setOutlineElementThreshold(request.elements);
       break;
     case "set-hold-seconds": {
       const limits = OVERLAY_TIMING_LIMITS.holdReleaseMs;

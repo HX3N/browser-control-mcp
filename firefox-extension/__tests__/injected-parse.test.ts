@@ -1,4 +1,8 @@
-import { buildSnapshotCode } from "../page-snapshot";
+import {
+  DEFAULT_OUTLINE_CHAR_THRESHOLD,
+  DEFAULT_OUTLINE_ELEMENT_THRESHOLD,
+  buildSnapshotCode,
+} from "../page-snapshot";
 import {
   buildAttachOverlayCode,
   buildConcealOverlayCode,
@@ -160,9 +164,9 @@ const cases: [string, string][] = [
   ["overlay conceal", buildConcealOverlayCode()],
   ["overlay reveal", buildRevealOverlayCode()],
   ["overlay reclaim tab mark", buildReclaimTabMarkCode()],
-  ["overlay outline regions", buildOutlineOverlayCode([{ ref: "e41", label: "e41 It's \"quoted\"", level: 1 }])],
+  ["overlay outline regions", buildOutlineOverlayCode([{ ref: "e41", label: "e41 It's \"quoted\"", level: 1, depth: 0 }])],
   ["in-page navigation, start", buildInPageNavigateCode("https://example.com/a?b='c'")],
-  ["in-page navigation, check", buildInPageNavigationCheckCode({ via: "history", before: "https://example.com/" }, true)],
+  ["in-page navigation, check", buildInPageNavigationCheckCode({ via: "link", before: "https://example.com/" }, true)],
   ["dialog guard, console off", buildDialogGuardCode()],
   ["dialog guard, errors only", buildDialogGuardCode("error")],
   ["dialog guard, errors and warnings", buildDialogGuardCode("warn")],
@@ -439,6 +443,20 @@ describe("injected source contracts", () => {
     expect(whole).toContain("var full = false");
     expect(buildSnapshotCode({ maxElements: 200, includeHidden: false, full: true })).toContain("var full = true");
     expect(buildSnapshotCode({ maxElements: 200, includeHidden: false, target })).toContain("if (!scopeRoot && !full");
+  });
+
+  it("takes the outline thresholds from the settings, and falls back to the defaults", () => {
+    const fallback = buildSnapshotCode({ maxElements: 200, includeHidden: false });
+    expect(fallback).toContain(
+      `chars > ${DEFAULT_OUTLINE_CHAR_THRESHOLD} || totalElements > ${DEFAULT_OUTLINE_ELEMENT_THRESHOLD}`
+    );
+    const configured = buildSnapshotCode({
+      maxElements: 200,
+      includeHidden: false,
+      outlineChars: 900,
+      outlineElements: 7,
+    });
+    expect(configured).toContain("chars > 900 || totalElements > 7");
   });
 
   it("hands the overlay the element itself, not a frozen rectangle", () => {

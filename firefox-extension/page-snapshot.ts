@@ -287,8 +287,8 @@ export interface PageReadResult {
 
 export const MAX_READ_TEXT_CHARS = 400_000;
 const MAX_COLLAPSED_SECTIONS = 30;
-export const OUTLINE_CHAR_THRESHOLD = 12_000;
-export const OUTLINE_ELEMENT_THRESHOLD = 200;
+export const DEFAULT_OUTLINE_CHAR_THRESHOLD = 6_000;
+export const DEFAULT_OUTLINE_ELEMENT_THRESHOLD = 100;
 const MAX_OUTLINE_REGIONS = 40;
 const OUTLINE_MIN_SHARE = 0.05;
 const OUTLINE_MIN_CONTROLS = 10;
@@ -478,6 +478,8 @@ export function buildSnapshotCode(options: {
   includeHidden: boolean;
   full?: boolean;
   target?: ElementTarget;
+  outlineChars?: number;
+  outlineElements?: number;
 }): string {
   const scopeExpression = isElementTargeted(options.target)
     ? `__bcmResolve(${targetLiteral(options.target!)})`
@@ -663,7 +665,7 @@ ${OUTLINE_SOURCE}
 
   var outline;
   if (!scopeRoot && !full && document.body &&
-      (chars > ${jsValue(OUTLINE_CHAR_THRESHOLD)} || totalElements > ${jsValue(OUTLINE_ELEMENT_THRESHOLD)})) {
+      (chars > ${jsValue(options.outlineChars ?? DEFAULT_OUTLINE_CHAR_THRESHOLD)} || totalElements > ${jsValue(options.outlineElements ?? DEFAULT_OUTLINE_ELEMENT_THRESHOLD)})) {
     outline = __bcmOutline(document.body, interactive);
   }
 

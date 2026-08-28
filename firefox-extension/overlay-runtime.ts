@@ -25,6 +25,7 @@ export function overlayRuntime() {
   var host = null;
   var aurora = null;
   var GLIDE_MS = 340;
+  var REGION_TAG_GAP = 1;
   var focusBox = null;
   var tracked = null;
   var trackFrame = 0;
@@ -297,6 +298,7 @@ export function overlayRuntime() {
       '  padding: 3px 7px; border-radius: 6px 0 6px 0; white-space: nowrap;',
       '  max-width: 260px; overflow: hidden; text-overflow: ellipsis;',
       '}',
+      '.bcm-region-tag.is-stacked { border-radius: 0 0 6px 6px; }',
 
       '@media (prefers-reduced-motion: reduce) {',
       '  .bcm-flow, .bcm-focus.is-active, .bcm-pip { animation: none; }',
@@ -364,6 +366,9 @@ export function overlayRuntime() {
     root.appendChild(badge);
     root.appendChild(panel);
     document.documentElement.appendChild(host);
+    // Settles the initial opacity before attach adds is-active in the same task; without a
+    // computed value to start from the fade-in transition never runs.
+    getComputedStyle(aurora).opacity;
     host.classList.toggle('is-resting', resting);
   }
 
@@ -731,10 +736,13 @@ export function overlayRuntime() {
     host.style.setProperty('--bcm-region-color', ACCENTS.read);
     var top = -Infinity;
     var bottom = Infinity;
+    var shallowest = Infinity;
     for (var k = 0; k < list.length; k++) {
       var lv = list[k].level || 0;
       if (lv > top) { top = lv; }
       if (lv < bottom) { bottom = lv; }
+      var dp = list[k].depth || 0;
+      if (dp < shallowest) { shallowest = dp; }
     }
     for (var i = 0; i < list.length; i++) {
       var el = list[i].el;
@@ -744,15 +752,43 @@ export function overlayRuntime() {
       var box = document.createElement('div');
       box.className = 'bcm-region' + (t === 0 ? ' is-top' : t === 1 ? ' is-bottom' : '');
       if (t > 0 && t < 1) { box.style.borderWidth = (2 - t) + 'px'; }
+      var step = Math.max(0, (list[i].depth || 0) - shallowest);
       var tag = document.createElement('span');
       tag.className = 'bcm-region-tag';
       tag.textContent = list[i].label;
+      tag.style.zIndex = String(step + 1);
+      if (step > 0) { tag.style.opacity = String(Math.max(0.62, 1 - step * 0.13)); }
       box.appendChild(tag);
       regionLayer.appendChild(box);
-      regions.push({ el: el, box: box });
+      regions.push({ el: el, box: box, tag: tag });
       placeRegion(regions[regions.length - 1]);
     }
+    stackRegionTags();
     if (regions.length && !trackFrame) { trackFrame = requestAnimationFrame(track); }
+  }
+
+  function stackRegionTags() {
+    var placed = [];
+    for (var i = 0; i < regions.length; i++) {
+      var tag = regions[i].tag;
+      var boxLeft = parseFloat(regions[i].box.style.left) || 0;
+      var boxTop = parseFloat(regions[i].box.style.top) || 0;
+      var width = tag.offsetWidth;
+      var height = tag.offsetHeight;
+      var top = boxTop - 1;
+      var left = boxLeft - 1;
+      placed.sort(function (a, b) { return a.left - b.left; });
+      for (var p = 0; p < placed.length; p++) {
+        var other = placed[p];
+        if (Math.abs(other.top - top) >= Math.min(other.height, height)) { continue; }
+        if (left < other.left + other.width + REGION_TAG_GAP && left + width > other.left) {
+          left = other.left + other.width + REGION_TAG_GAP;
+        }
+      }
+      tag.style.left = (left - boxLeft) + 'px';
+      if (left !== boxLeft - 1) { tag.classList.add('is-stacked'); }
+      placed.push({ top: top, left: left, width: width, height: height });
+    }
   }
 
   function clearRegions() {

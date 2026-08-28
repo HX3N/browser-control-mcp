@@ -81,6 +81,8 @@
     .row { display: flex; gap: 18px; }
     .row .card { flex: 1; }
 
+    .flush { padding: 0; margin: 0; border: 0; }
+
     input[type="text"] {
       font: inherit;
       width: 100%;
@@ -123,20 +125,28 @@
     <p data-i18n="previewIntro"></p>
 
     <section id="region-a" class="card">
-      <h2 data-i18n="previewRegionA"></h2>
-      <div class="row">
-        <div id="drag-source" class="card" data-i18n="previewDragSource"></div>
-        <div id="drop-target" class="card" data-i18n="previewDropTarget"></div>
+      <div id="region-a1" class="flush">
+        <div id="region-a2" class="flush">
+          <h2 data-i18n="previewRegionA"></h2>
+          <div class="row">
+            <div id="drag-source" class="card" data-i18n="previewDragSource"></div>
+            <div id="drop-target" class="card" data-i18n="previewDropTarget"></div>
+          </div>
+          <p><label for="type-target" data-i18n="previewTypeTarget"></label><br><input id="type-target" type="text"></p>
+          <div id="region-a3" class="card">
+            <p><button id="click-target" data-i18n="previewClickTarget"></button></p>
+          </div>
+        </div>
       </div>
-      <p><label for="type-target" data-i18n="previewTypeTarget"></label><br><input id="type-target" type="text"></p>
-      <p><button id="click-target" data-i18n="previewClickTarget"></button></p>
     </section>
 
     <section id="region-b" class="card">
       <h2 data-i18n="previewRegionB"></h2>
-      <p class="filler" data-i18n="previewFiller"></p>
-      <p class="filler" data-i18n="previewFiller"></p>
-      <p class="filler" data-i18n="previewFiller"></p>
+      <div id="region-b1" class="flush">
+        <p class="filler" data-i18n="previewFiller"></p>
+        <p class="filler" data-i18n="previewFiller"></p>
+        <p class="filler" data-i18n="previewFiller"></p>
+      </div>
     </section>
   </main>
 

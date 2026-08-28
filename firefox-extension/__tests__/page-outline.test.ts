@@ -1,6 +1,6 @@
 import {
   buildSnapshotCode,
-  OUTLINE_ELEMENT_THRESHOLD,
+  DEFAULT_OUTLINE_ELEMENT_THRESHOLD,
   PageElementItem,
   PageReadResult,
 } from "../page-snapshot";
@@ -57,7 +57,7 @@ describe("outline of a large page", () => {
     largePage();
     const result = runSnapshot({});
 
-    expect(result.totalElements).toBeGreaterThan(OUTLINE_ELEMENT_THRESHOLD);
+    expect(result.totalElements).toBeGreaterThan(DEFAULT_OUTLINE_ELEMENT_THRESHOLD);
     expect(result.outline).toBeDefined();
     const ids = result.outline!.map((region) => region.id);
     expect(ids).toEqual(expect.arrayContaining(["container", "post", "side", "comments", "bottom"]));

@@ -40,6 +40,8 @@ import {
   isBadgeEnabled,
   isFocusEnabled,
   getOutlineBoxDepth,
+  getOutlineCharThreshold,
+  getOutlineElementThreshold,
   isMarkEnabled,
   isContainerInherited,
   isHiddenElementsIncluded,
@@ -958,6 +960,8 @@ export class MessageHandler {
           includeHidden,
           full: req.full === true || offset > 0,
           target: scoped ? req : undefined,
+          outlineChars: await getOutlineCharThreshold(),
+          outlineElements: await getOutlineElementThreshold(),
         }),
       },
       LONG_SCRIPT_STALL_MS
@@ -1023,6 +1027,7 @@ export class MessageHandler {
         ref: region.ref,
         label: region.name ? `${region.ref} ${region.name}` : region.ref,
         level,
+        depth: region.depth,
       });
     }
     try {

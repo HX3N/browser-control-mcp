@@ -116,6 +116,7 @@ export interface OutlineRegionMark {
     ref: string;
     label: string;
     level: number;
+    depth: number;
 }
 
 export function buildOutlineOverlayCode(regions: OutlineRegionMark[]): string {
@@ -126,7 +127,7 @@ ${ELEMENT_RESOLVER_SOURCE}
   var list = [];
   for (var i = 0; i < marks.length; i++) {
     try {
-      list.push({ el: __bcmResolve({ ref: marks[i].ref }), label: marks[i].label, level: marks[i].level });
+      list.push({ el: __bcmResolve({ ref: marks[i].ref }), label: marks[i].label, level: marks[i].level, depth: marks[i].depth });
     } catch (err) {}
   }
   window.__bcmOverlay.showRegions(list);

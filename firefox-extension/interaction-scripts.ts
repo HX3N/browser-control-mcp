@@ -1671,7 +1671,7 @@ ${ELEMENT_RESOLVER_SOURCE}
 }
 
 export interface InPageNavigationStart {
-  via: "link" | "history" | null;
+  via: "link" | null;
   before: string;
 }
 
@@ -1690,24 +1690,23 @@ ${CLICK_DISPATCH_SOURCE}
   if (target.origin !== location.origin || target.href === before) {
     return { via: null, before: before };
   }
+  var link = null;
+  var links = document.querySelectorAll('a[href]');
+  for (var i = 0; i < links.length; i++) {
+    var candidate = links[i];
+    if ((candidate.target && candidate.target !== '_self') || candidate.hasAttribute('download')) { continue; }
+    if (candidate.href === target.href) { link = candidate; break; }
+  }
+  if (!link) {
+    return { via: null, before: before };
+  }
   if (window.__bcmNavWatch) { window.__bcmNavWatch.disconnect(); }
   var watch = new MutationObserver(function () { watch.count++; });
   watch.count = 0;
   watch.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
   window.__bcmNavWatch = watch;
-
-  var links = document.querySelectorAll('a[href]');
-  for (var i = 0; i < links.length; i++) {
-    var link = links[i];
-    if ((link.target && link.target !== '_self') || link.hasAttribute('download')) { continue; }
-    if (link.href === target.href) {
-      __bcmDispatchClick(link, 0, 1, []);
-      return { via: 'link', before: before };
-    }
-  }
-  history.pushState(null, '', target.href);
-  window.dispatchEvent(new PopStateEvent('popstate', { state: null }));
-  return { via: 'history', before: before };
+  __bcmDispatchClick(link, 0, 1, []);
+  return { via: 'link', before: before };
 })();`;
 }
 
@@ -1721,9 +1720,6 @@ export function buildInPageNavigationCheckCode(
   if (moved || ${jsValue(final)}) {
     if (watch) { watch.disconnect(); }
     window.__bcmNavWatch = null;
-    if (!moved && ${jsValue(start.via)} === 'history') {
-      history.replaceState(null, '', ${jsValue(start.before)});
-    }
   }
   return { moved: moved, href: location.href };
 })();`;

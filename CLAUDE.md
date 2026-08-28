@@ -67,8 +67,8 @@ the next free port and the extension keeps one spare slot.
 - Hidden elements are listed only with the popup switch on, after the visible ones, marked
   hidden and untrusted. Off-document boxes count as hidden (`__bcmWithinPage`).
 - `password` and `hidden` inputs report length, never value.
-- An unscoped read past `OUTLINE_CHAR_THRESHOLD` / `OUTLINE_ELEMENT_THRESHOLD` returns an outline;
-  `full: true` or `offset > 0` reads whole. Region refs number above `__bcmHighestRef()`.
+- An unscoped read past the popup's outline thresholds returns an outline; `full: true` or
+  `offset > 0` reads whole. Region refs number above `__bcmHighestRef()`.
 - A read reports collapsed content by label and size only, never its text.
 - Scroll positions are reported against `scrollMax`, not `scrollHeight`.
 - A synthetic Enter submits in a single-line field and inserts a line break in a multiline one

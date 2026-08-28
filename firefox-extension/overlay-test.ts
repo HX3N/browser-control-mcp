@@ -13,7 +13,9 @@ declare global {
       focus: (el: Element, state: OverlayState) => void;
       showDrag: (source: Element, drop: Element) => void;
       beginSwipe: () => number;
-      showRegions: (list: { el: Element; label: string; level: number }[]) => void;
+      showRegions: (
+        list: { el: Element; label: string; level: number; depth: number }[]
+      ) => void;
       showResult: (text: string, label: string, isError: boolean) => boolean;
       rest: () => void;
       detach: () => void;
@@ -126,8 +128,12 @@ const actions: Record<string, (button: HTMLButtonElement) => Promise<void> | voi
   regions: async () => {
     await attach("read", t("overlayReadingContent"), { resetAfterMs: 0 });
     window.__bcmOverlay?.showRegions([
-      { el: el("region-a"), label: t("previewRegionA"), level: 1 },
-      { el: el("region-b"), label: t("previewRegionB"), level: 0 },
+      { el: el("region-a"), label: t("previewRegionA"), level: 3, depth: 0 },
+      { el: el("region-a1"), label: t("previewRegionA1"), level: 2, depth: 1 },
+      { el: el("region-a2"), label: t("previewRegionA2"), level: 1, depth: 2 },
+      { el: el("region-a3"), label: t("previewRegionA3"), level: 0, depth: 3 },
+      { el: el("region-b"), label: t("previewRegionB"), level: 1, depth: 0 },
+      { el: el("region-b1"), label: t("previewRegionB1"), level: 0, depth: 1 },
     ]);
   },
   rest: async () => {
