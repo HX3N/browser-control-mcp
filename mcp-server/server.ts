@@ -623,29 +623,6 @@ defineTool(
 );
 
 defineTool(
-  "reorder-browser-tabs",
-  `
-    Move tabs to the front of the tab bar, in the order given; the tabs not named shift after
-    them and keep their relative order.
-  `,
-  { title: "Reorder tabs", readOnlyHint: false, destructiveHint: true, idempotentHint: true },
-  {
-    tabOrder: z
-      .array(z.number())
-      .min(1)
-      .describe("Tab ids in the order they should appear"),
-  },
-  async ({ tabOrder }) => {
-    const newOrder = await browserApi.reorderTabs(tabOrder);
-    return {
-      content: [
-        { type: "text", text: `Tabs reordered: ${newOrder.join(", ")}` },
-      ],
-    };
-  }
-);
-
-defineTool(
   "find-text-in-page",
   `
     Find a phrase in a tab, highlight the matches like the browser's find bar, and return each
@@ -1325,12 +1302,11 @@ defineTool(
     Enter, Tab, Escape, ArrowDown or a single character.
     The common default actions are performed unless the page cancels the event: Enter submits the
     owning form, except in a textarea or contenteditable where it inserts a line break; the
-    editing and caret keys (arrows, Home/End, Backspace/Delete, select-all/copy/cut/paste/undo/redo)
-    work as usual, Control widening a move to whole words or the whole field; outside a field, the
-    arrow, Page and Home/End keys scroll the focused list or the page.
-    Control+V is off until the user turns "Paste the clipboard" on in the extension popup, and
-    pastes plain text only. The clipboard is the user's: paste only where the user asked you to,
-    never to find out what is on it.
+    editing and caret keys (arrows, Home/End, Backspace/Delete, select-all/undo/redo) work as
+    usual, Control widening a move to whole words or the whole field; outside a field, the
+    arrow, Page and Home/End keys scroll the focused list or the page. The clipboard is out of
+    reach: copy, cut and paste shortcuts only dispatch the event for the page to handle, so use
+    type-into-page-element to enter text.
     repeat presses the key several times in one call; the presses stop early once one submits a
     form or the page cancels one.
   `,

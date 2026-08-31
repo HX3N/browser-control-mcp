@@ -788,6 +788,13 @@
         <span class="toggle-hint" data-i18n="popupToggleMediaFetchHint"></span>
       </span>
     </label>
+    <label class="toggle" for="toggle-include-hidden">
+      <input type="checkbox" id="toggle-include-hidden">
+      <span class="toggle-body">
+        <span class="toggle-name" data-i18n="popupToggleHiddenName"></span><br>
+        <span class="toggle-hint toggle-warn" data-i18n="popupToggleHiddenHint"></span>
+      </span>
+    </label>
     <label class="toggle" for="toggle-interact-click">
       <input type="checkbox" id="toggle-interact-click" data-tool-id="interact-click">
       <span class="toggle-body">
@@ -825,23 +832,30 @@
         <span class="toggle-hint" data-i18n="popupToggleUploadFilesHint"></span>
       </span>
     </label>
-    <label class="toggle" for="toggle-include-hidden">
-      <input type="checkbox" id="toggle-include-hidden">
-      <span class="toggle-body">
-        <span class="toggle-name" data-i18n="popupToggleHiddenName"></span><br>
-        <span class="toggle-hint toggle-warn" data-i18n="popupToggleHiddenHint"></span>
-      </span>
-    </label>
-    <label class="toggle" for="toggle-clipboard-read">
-      <input type="checkbox" id="toggle-clipboard-read">
-      <span class="toggle-body">
-        <span class="toggle-name" data-i18n="popupToggleClipboardName"></span><br>
-        <span class="toggle-hint toggle-warn" data-i18n="popupToggleClipboardHint"></span>
-      </span>
-    </label>
   </section>
   <section class="section">
     <h2 data-i18n="popupSectionBehavior"></h2>
+    <span class="field-label" data-i18n="popupContainerPolicyName"></span>
+    <span class="mode-hint" data-i18n="popupContainerPolicyHint"></span>
+    <div id="container-policy" class="segmented" style="margin-top: 6px;">
+      <span class="seg-thumb" aria-hidden="true"></span>
+      <label class="seg" for="container-inherit">
+        <input type="radio" id="container-inherit" name="container-policy" value="inherit">
+        <span data-i18n="popupContainerSegInherit"></span>
+      </label>
+      <label class="seg" for="container-default">
+        <input type="radio" id="container-default" name="container-policy" value="default">
+        <span data-i18n="popupContainerSegDefault"></span>
+      </label>
+      <label class="seg" for="container-fixed">
+        <input type="radio" id="container-fixed" name="container-policy" value="fixed">
+        <span data-i18n="popupContainerSegFixed"></span>
+      </label>
+    </div>
+    <div id="container-target">
+      <div id="container-policy-hint" class="mode-hint"></div>
+      <select id="container-fixed-id" class="hidden"></select>
+    </div>
     <label class="toggle" for="toggle-console-capture">
       <input type="checkbox" id="toggle-console-capture">
       <span class="toggle-body">
@@ -886,27 +900,15 @@
         <span class="toggle-hint" data-i18n="popupToggleBackgroundHint"></span>
       </span>
     </label>
-    <span class="field-label" data-i18n="popupContainerPolicyName"></span>
-    <span class="mode-hint" data-i18n="popupContainerPolicyHint"></span>
-    <div id="container-policy" class="segmented" style="margin-top: 6px;">
-      <span class="seg-thumb" aria-hidden="true"></span>
-      <label class="seg" for="container-inherit">
-        <input type="radio" id="container-inherit" name="container-policy" value="inherit">
-        <span data-i18n="popupContainerSegInherit"></span>
-      </label>
-      <label class="seg" for="container-default">
-        <input type="radio" id="container-default" name="container-policy" value="default">
-        <span data-i18n="popupContainerSegDefault"></span>
-      </label>
-      <label class="seg" for="container-fixed">
-        <input type="radio" id="container-fixed" name="container-policy" value="fixed">
-        <span data-i18n="popupContainerSegFixed"></span>
-      </label>
-    </div>
-    <div id="container-target">
-      <div id="container-policy-hint" class="mode-hint"></div>
-      <select id="container-fixed-id" class="hidden"></select>
-    </div>
+    <label class="toggle is-field" for="hold-seconds">
+      <span class="toggle-body">
+        <span class="toggle-head">
+          <span class="toggle-name" data-i18n="popupHoldSecondsLabel"></span>
+          <span class="toggle-limit"><input type="number" id="hold-seconds" min="10" max="3600" step="10"> s</span>
+        </span>
+        <span class="toggle-hint" data-i18n="popupHoldSecondsHint"></span>
+      </span>
+    </label>
   </section>
   <section class="section">
     <h2 data-i18n="popupSectionDisplay"></h2>
@@ -924,6 +926,13 @@
         <span class="toggle-hint" data-i18n="popupToggleAuroraHint"></span>
       </span>
     </label>
+    <label class="toggle" for="toggle-badge">
+      <input type="checkbox" id="toggle-badge">
+      <span class="toggle-body">
+        <span class="toggle-name" data-i18n="popupToggleBadgeName"></span><br>
+        <span class="toggle-hint" data-i18n="popupToggleBadgeHint"></span>
+      </span>
+    </label>
     <label class="toggle" for="toggle-focus">
       <input type="checkbox" id="toggle-focus">
       <span class="toggle-body">
@@ -938,22 +947,6 @@
           <span class="toggle-limit"><input type="number" id="outline-depth" min="0" max="3" step="1"></span>
         </span>
         <span class="toggle-hint" data-i18n="popupOutlineDepthHint"></span>
-      </span>
-    </label>
-    <label class="toggle is-field" for="hold-seconds">
-      <span class="toggle-body">
-        <span class="toggle-head">
-          <span class="toggle-name" data-i18n="popupHoldSecondsLabel"></span>
-          <span class="toggle-limit"><input type="number" id="hold-seconds" min="10" max="3600" step="10"> s</span>
-        </span>
-        <span class="toggle-hint" data-i18n="popupHoldSecondsHint"></span>
-      </span>
-    </label>
-    <label class="toggle" for="toggle-badge">
-      <input type="checkbox" id="toggle-badge">
-      <span class="toggle-body">
-        <span class="toggle-name" data-i18n="popupToggleBadgeName"></span><br>
-        <span class="toggle-hint" data-i18n="popupToggleBadgeHint"></span>
       </span>
     </label>
   </section>

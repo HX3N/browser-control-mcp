@@ -48,9 +48,9 @@ export const AVAILABLE_TOOLS: ToolInfo[] = [
     descriptionKey: "toolGetTabWebContentDescription"
   },
   {
-    id: "reorder-browser-tabs",
-    nameKey: "toolReorderBrowserTabsName",
-    descriptionKey: "toolReorderBrowserTabsDescription"
+    id: "resize-browser-window",
+    nameKey: "toolResizeBrowserWindowName",
+    descriptionKey: "toolResizeBrowserWindowDescription"
   },
   {
     id: "find-highlight-in-browser-tab",
@@ -126,7 +126,6 @@ export const COMMAND_TO_TOOL_ID: Record<ServerMessageRequest["cmd"], string> = {
   "get-tab-list": "get-list-of-open-tabs",
   "get-browser-recent-history": "get-recent-browser-history",
   "read-page": "get-tab-web-content",
-  "reorder-tabs": "reorder-browser-tabs",
   "find-highlight": "find-highlight-in-browser-tab",
   "capture-screenshot": "capture-tab-screenshot",
   "get-media": "get-tab-web-content",
@@ -143,7 +142,7 @@ export const COMMAND_TO_TOOL_ID: Record<ServerMessageRequest["cmd"], string> = {
   "upload-chunk": "upload-files",
   "download-file": "download-file",
   "get-network-requests": "get-network-requests",
-  "resize-window": "reorder-browser-tabs",
+  "resize-window": "resize-browser-window",
   "execute-js": "execute-javascript",
 };
 
@@ -260,7 +259,6 @@ export interface ExtensionConfig {
   outlineBoxDepth?: number;
   outlineCharThreshold?: number;
   outlineElementThreshold?: number;
-  allowClipboardRead?: boolean;
   urlScope?: UrlScope;
   consoleCapture?: boolean;
   consoleLevel?: ConsoleCaptureLevel;
@@ -744,17 +742,6 @@ export async function setOutlineElementThreshold(
 ): Promise<void> {
   const config = await getConfig();
   config.outlineElementThreshold = elements;
-  await saveConfig(config);
-}
-
-export async function isClipboardReadAllowed(): Promise<boolean> {
-  const config = await getConfig();
-  return config.allowClipboardRead === true;
-}
-
-export async function setClipboardReadAllowed(allow: boolean): Promise<void> {
-  const config = await getConfig();
-  config.allowClipboardRead = allow;
   await saveConfig(config);
 }
 

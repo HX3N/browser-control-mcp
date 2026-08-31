@@ -308,15 +308,6 @@ export class BrowserAPI {
     );
   }
 
-  async reorderTabs(tabOrder: number[]): Promise<number[]> {
-    const correlationId = this.sendMessageToExtension({
-      cmd: "reorder-tabs",
-      tabOrder,
-    });
-    const message = await this.waitForResponse(correlationId, "tabs-reordered");
-    return message.tabOrder;
-  }
-
   async findHighlight(
     tabId: number,
     queryPhrase: string,

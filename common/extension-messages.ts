@@ -124,11 +124,6 @@ export interface BrowserHistoryExtensionMessage extends ExtensionMessageBase {
   historyItems: BrowserHistoryItem[];
 }
 
-export interface ReorderedTabsExtensionMessage extends ExtensionMessageBase {
-  resource: "tabs-reordered";
-  tabOrder: number[];
-}
-
 export interface FindMatch {
   ref: string;
   tag: string;
@@ -284,7 +279,6 @@ export type ExtensionMessage =
   | OpenedTabIdExtensionMessage
   | TabNavigatedExtensionMessage
   | BrowserHistoryExtensionMessage
-  | ReorderedTabsExtensionMessage
   | FindHighlightExtensionMessage
   | TabsClosedExtensionMessage
   | ScreenshotExtensionMessage

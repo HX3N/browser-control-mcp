@@ -29,7 +29,6 @@ import type {
 import { WebsocketClient } from "./client";
 import { t } from "./i18n";
 import {
-  isClipboardReadAllowed,
   isCommandAllowed,
   isDomainInDenyList,
   COMMAND_TO_TOOL_ID,
@@ -387,9 +386,6 @@ export class MessageHandler {
         break;
       case "read-page":
         await this.sendPage(req);
-        break;
-      case "reorder-tabs":
-        await this.reorderTabs(req.correlationId, req.tabOrder);
         break;
       case "find-highlight":
         await this.findAndHighlightText(req);
@@ -1054,22 +1050,6 @@ export class MessageHandler {
     } catch (error) {
       console.error("Could not outline the page regions on tab", tabId, error);
     }
-  }
-
-  private async reorderTabs(
-    correlationId: string,
-    tabOrder: number[]
-  ): Promise<void> {
-    // Reorder the tabs sequentially
-    for (let newIndex = 0; newIndex < tabOrder.length; newIndex++) {
-      const tabId = tabOrder[newIndex];
-      await browser.tabs.move(tabId, { index: newIndex });
-    }
-    await this.client.sendResourceToServer({
-      resource: "tabs-reordered",
-      correlationId,
-      tabOrder,
-    });
   }
 
   private async findAndHighlightText(
@@ -1942,42 +1922,9 @@ export class MessageHandler {
     );
   }
 
-  // Read here, not in the injected script: a content script has only the promise-returning
-  // navigator.clipboard.readText(), and executeScript cannot carry a promise back out.
-  private readClipboardText(): string {
-    const scratch = document.createElement("textarea");
-    scratch.style.position = "fixed";
-    scratch.style.opacity = "0";
-    document.body.appendChild(scratch);
-    try {
-      scratch.focus();
-      if (!document.execCommand("paste")) {
-        throw new Error(
-          "The browser refused to read the clipboard. Check that the extension still holds the clipboardRead permission."
-        );
-      }
-      return scratch.value;
-    } finally {
-      scratch.remove();
-    }
-  }
-
   private async pressKey(
     req: PressKeyServerMessage & { correlationId: string }
   ): Promise<void> {
-    const modifiers = req.modifiers ?? [];
-    const isPaste =
-      (modifiers.includes("Control") || modifiers.includes("Meta")) &&
-      !modifiers.includes("Alt") &&
-      req.key.length === 1 &&
-      req.key.toLowerCase() === "v";
-    if (isPaste && !(await isClipboardReadAllowed())) {
-      throw new Error(
-        "Pasting is disabled in extension settings ('Paste the clipboard' in the popup); type-into-page-element enters the text instead."
-      );
-    }
-    const pasteText = isPaste ? this.readClipboardText() : null;
-
     // Label only: a shortcut reads as Control+A, never Control+a. The event still carries the
     // key exactly as it was sent.
     const combo = req.modifiers?.length
@@ -1990,7 +1937,7 @@ export class MessageHandler {
       "type",
       t("overlayPressKey", combo),
       "press-key",
-      buildPressKeyCode(req, pasteText)
+      buildPressKeyCode(req)
     );
   }
 

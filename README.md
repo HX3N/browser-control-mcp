@@ -27,7 +27,7 @@ addressed by a `ref` from a page read or by a CSS selector.
 - `navigate-browser-tab` — URL or history; a same-origin address is routed by the page itself
 - `resize-browser-window`
 - `read-network-requests`
-- Tab groups, tab reordering, history search
+- `get-recent-browser-history`
 - `read-page` — text and interactive elements with refs; a large page comes back as an outline
   of regions to read by ref
 - `find-text-in-page`

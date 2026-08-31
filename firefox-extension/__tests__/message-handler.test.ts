@@ -42,7 +42,7 @@ describe("MessageHandler", () => {
         "get-list-of-open-tabs": true,
         "get-recent-browser-history": true,
         "get-tab-web-content": true,
-        "reorder-browser-tabs": true,
+        "resize-browser-window": true,
         "find-highlight-in-browser-tab": true,
       },
       permissionMode: "denylist" as const,
@@ -67,7 +67,7 @@ describe("MessageHandler", () => {
           "get-list-of-open-tabs": true,
           "get-recent-browser-history": true,
           "get-tab-web-content": true,
-          "reorder-browser-tabs": true,
+          "resize-browser-window": true,
           "find-highlight-in-browser-tab": true,
         },
         permissionMode: "denylist" as const,
@@ -91,52 +91,6 @@ describe("MessageHandler", () => {
       ).rejects.toThrow(
         "Command 'open-tab' is disabled in extension settings: 'toolOpenBrowserTabName' in the extension options page is off."
       );
-    });
-
-    describe("press-key command", () => {
-      const pasteRequest: ServerMessageRequest = {
-        cmd: "press-key",
-        tabId: 123,
-        key: "v",
-        modifiers: ["Control"],
-        correlationId: "test-correlation-id",
-      };
-
-      it("refuses to paste while the clipboard switch is off", async () => {
-        const execCommand = jest.fn(() => true);
-        document.execCommand = execCommand as typeof document.execCommand;
-
-        await expect(
-          messageHandler.handleDecodedMessage(pasteRequest)
-        ).rejects.toThrow("Paste the clipboard");
-
-        expect(execCommand).not.toHaveBeenCalled();
-        expect(browser.tabs.executeScript).not.toHaveBeenCalled();
-      });
-
-      it("reads the clipboard once the switch is on", async () => {
-        (browser.storage.local.get as jest.Mock).mockResolvedValue({
-          config: { ...defaultConfig, allowClipboardRead: true },
-        });
-        const execCommand = jest.fn(() => true);
-        document.execCommand = execCommand as typeof document.execCommand;
-        (browser.permissions.contains as jest.Mock).mockResolvedValue(true);
-        (browser.tabs.get as jest.Mock).mockResolvedValue({
-          id: 123,
-          url: "https://example.com",
-        });
-        (browser.tabs.executeScript as jest.Mock).mockResolvedValue([
-          {
-            target: "input",
-            detail: "Pressed Control+V and pasted 3 character(s) from the clipboard",
-            url: "https://example.com",
-          },
-        ]);
-
-        await messageHandler.handleDecodedMessage(pasteRequest);
-
-        expect(execCommand).toHaveBeenCalledWith("paste");
-      });
     });
 
     describe("expectedOrigin", () => {
@@ -331,7 +285,7 @@ describe("MessageHandler", () => {
             "get-list-of-open-tabs": true,
             "get-recent-browser-history": true,
             "get-tab-web-content": true,
-            "reorder-browser-tabs": true,
+            "resize-browser-window": true,
             "find-highlight-in-browser-tab": true,
           },
           permissionMode: "denylist" as const,
@@ -498,7 +452,7 @@ describe("MessageHandler", () => {
             "get-list-of-open-tabs": true,
             "get-recent-browser-history": true,
             "get-tab-web-content": true,
-            "reorder-browser-tabs": true,
+            "resize-browser-window": true,
             "find-highlight-in-browser-tab": true,
           },
           permissionMode: "denylist" as const,
@@ -533,7 +487,7 @@ describe("MessageHandler", () => {
             "get-list-of-open-tabs": true,
             "get-recent-browser-history": true,
             "get-tab-web-content": true,
-            "reorder-browser-tabs": true,
+            "resize-browser-window": true,
             "find-highlight-in-browser-tab": true,
           },
           permissionMode: "denylist" as const,
@@ -1487,7 +1441,7 @@ describe("MessageHandler", () => {
             "get-list-of-open-tabs": true,
             "get-recent-browser-history": true,
             "get-tab-web-content": true,
-            "reorder-browser-tabs": true,
+            "resize-browser-window": true,
             "find-highlight-in-browser-tab": true,
           },
           permissionMode: "denylist" as const,
@@ -1562,33 +1516,6 @@ describe("MessageHandler", () => {
       });
     });
 
-    describe("reorder-tabs command", () => {
-      it("should reorder tabs and send confirmation to the server", async () => {
-        // Arrange
-        const request: ServerMessageRequest = {
-          cmd: "reorder-tabs",
-          tabOrder: [123, 456, 789],
-          correlationId: "test-correlation-id",
-        };
-
-        (browser.tabs.move as jest.Mock).mockResolvedValue(undefined);
-
-        // Act
-        await messageHandler.handleDecodedMessage(request);
-
-        // Assert
-        expect(browser.tabs.move).toHaveBeenCalledTimes(3);
-        expect(browser.tabs.move).toHaveBeenNthCalledWith(1, 123, { index: 0 });
-        expect(browser.tabs.move).toHaveBeenNthCalledWith(2, 456, { index: 1 });
-        expect(browser.tabs.move).toHaveBeenNthCalledWith(3, 789, { index: 2 });
-        expect(mockClient.sendResourceToServer).toHaveBeenCalledWith({
-          resource: "tabs-reordered",
-          correlationId: "test-correlation-id",
-          tabOrder: [123, 456, 789],
-        });
-      });
-    });
-
     describe("find-highlight command", () => {
       it("should find and highlight text in a tab", async () => {
         // Arrange
@@ -1646,7 +1573,7 @@ describe("MessageHandler", () => {
             "get-list-of-open-tabs": true,
             "get-recent-browser-history": true,
             "get-tab-web-content": true,
-            "reorder-browser-tabs": true,
+            "resize-browser-window": true,
             "find-highlight-in-browser-tab": true,
           },
           permissionMode: "denylist" as const,

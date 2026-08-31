@@ -26,7 +26,7 @@
 - `navigate-browser-tab` — 주소 또는 방문 기록. 같은 출처의 주소는 페이지 자신이 라우팅
 - `resize-browser-window`
 - `read-network-requests`
-- 탭 그룹, 탭 순서, 방문 기록 검색
+- `get-recent-browser-history`
 - `read-page` — 본문과 상호작용 요소를 ref와 함께. 큰 페이지는 ref로 읽을 구역 개요로
 - `find-text-in-page`
 - `capture-tab-screenshot` — 화면 또는 한 요소

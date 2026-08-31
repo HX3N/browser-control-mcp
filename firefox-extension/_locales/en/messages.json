@@ -38,11 +38,11 @@
     "toolGetTabWebContentDescription": {
         "message": "Lets the MCP server read page text and elements, find text and wait for changes"
     },
-    "toolReorderBrowserTabsName": {
-        "message": "Reorder and group tabs"
+    "toolResizeBrowserWindowName": {
+        "message": "Resize the window"
     },
-    "toolReorderBrowserTabsDescription": {
-        "message": "Lets the MCP server change tab order or group tabs together"
+    "toolResizeBrowserWindowDescription": {
+        "message": "Lets the MCP server resize the browser window"
     },
     "toolFindHighlightInBrowserTabName": {
         "message": "Find and highlight in page"
@@ -255,10 +255,10 @@
         "message": "Local files into the page"
     },
     "popupOutlineDepthLabel": {
-        "message": "Target regions"
+        "message": "Region box depth"
     },
     "popupOutlineDepthHint": {
-        "message": "Fewest levels a region must hold to be highlighted (0~3)"
+        "message": "How deep the boxes drawn for an outline read go (0~3)"
     },
     "popupOutlineThresholdLabel": {
         "message": "Read mode switch"
@@ -283,12 +283,6 @@
     },
     "popupToggleHiddenHint": {
         "message": "This can make it vulnerable to prompt injection attacks!"
-    },
-    "popupToggleClipboardName": {
-        "message": "Paste the clipboard"
-    },
-    "popupToggleClipboardHint": {
-        "message": "The model can read what is on your clipboard!"
     },
     "popupToggleBackgroundName": {
         "message": "Work in the background"
@@ -544,12 +538,6 @@
     },
     "popupFeedbackHiddenOff": {
         "message": "Hidden elements are excluded"
-    },
-    "popupFeedbackClipboardOn": {
-        "message": "Control+V may read the clipboard"
-    },
-    "popupFeedbackClipboardOff": {
-        "message": "The clipboard stays out of reach"
     },
     "popupFeedbackPortOn": {
         "message": "The port reconnected"

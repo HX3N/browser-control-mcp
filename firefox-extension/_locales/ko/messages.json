@@ -38,11 +38,11 @@
     "toolGetTabWebContentDescription": {
         "message": "MCP 서버가 웹 페이지의 본문과 요소를 읽고, 텍스트를 찾고, 변화를 기다릴 수 있게 합니다"
     },
-    "toolReorderBrowserTabsName": {
-        "message": "탭 재정렬·그룹화"
+    "toolResizeBrowserWindowName": {
+        "message": "창 크기 조절"
     },
-    "toolReorderBrowserTabsDescription": {
-        "message": "MCP 서버가 탭 순서를 바꾸거나 그룹으로 묶을 수 있게 합니다"
+    "toolResizeBrowserWindowDescription": {
+        "message": "MCP 서버가 브라우저 창 크기를 바꿀 수 있게 합니다"
     },
     "toolFindHighlightInBrowserTabName": {
         "message": "페이지에서 찾기"
@@ -255,10 +255,10 @@
         "message": "페이지에 로컬 파일 올리기"
     },
     "popupOutlineDepthLabel": {
-        "message": "대상 구역 표시"
+        "message": "구역 상자 깊이"
     },
     "popupOutlineDepthHint": {
-        "message": "강조 대상이 되는 구역의 하위 계층 하한 (0~3)"
+        "message": "개요 읽기에서 상자로 그릴 구역의 계층 깊이 (0~3)"
     },
     "popupOutlineThresholdLabel": {
         "message": "읽기 모드 전환"
@@ -283,12 +283,6 @@
     },
     "popupToggleHiddenHint": {
         "message": "프롬프트 인젝션 공격에 취약해질 수 있습니다!"
-    },
-    "popupToggleClipboardName": {
-        "message": "클립보드 붙여넣기"
-    },
-    "popupToggleClipboardHint": {
-        "message": "클립보드의 내용을 모델이 읽을 수 있습니다!"
     },
     "popupToggleBackgroundName": {
         "message": "백그라운드에서 작업"
@@ -544,12 +538,6 @@
     },
     "popupFeedbackHiddenOff": {
         "message": "숨은 내용을 제외합니다"
-    },
-    "popupFeedbackClipboardOn": {
-        "message": "Control+V가 클립보드를 읽을 수 있습니다"
-    },
-    "popupFeedbackClipboardOff": {
-        "message": "클립보드에 접근하지 않습니다"
     },
     "popupFeedbackPortOn": {
         "message": "포트를 재연결했습니다"

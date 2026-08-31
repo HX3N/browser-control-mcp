@@ -40,11 +40,6 @@ export interface ReadPageServerMessage
   controlsOnly?: boolean;
 }
 
-export interface ReorderTabsServerMessage extends ServerMessageBase {
-  cmd: "reorder-tabs";
-  tabOrder: number[];
-}
-
 export interface FindHighlightServerMessage extends ServerMessageBase {
   cmd: "find-highlight";
   tabId: number;
@@ -241,7 +236,6 @@ export type ServerMessage =
   | GetTabListServerMessage
   | GetBrowserRecentHistoryServerMessage
   | ReadPageServerMessage
-  | ReorderTabsServerMessage
   | FindHighlightServerMessage
   | CaptureScreenshotServerMessage
   | GetPageMediaServerMessage

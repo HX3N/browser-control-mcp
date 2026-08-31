@@ -47,7 +47,6 @@ export interface PopupStatus {
   outlineCharThreshold: number;
   outlineElementThreshold: number;
   holdSeconds: number;
-  clipboardRead: boolean;
   consoleCapture: boolean;
   consoleLevel: ConsoleCaptureLevel;
   imageLimitMb: number | null;
@@ -78,7 +77,6 @@ export type PopupRequest =
   | { kind: "set-outline-chars"; chars: number }
   | { kind: "set-outline-elements"; elements: number }
   | { kind: "set-hold-seconds"; seconds: number }
-  | { kind: "set-clipboard-read"; enabled: boolean }
   | { kind: "set-console-capture"; enabled: boolean }
   | { kind: "set-console-level"; level: ConsoleCaptureLevel }
   | { kind: "set-image-limit"; megabytes: number | null }

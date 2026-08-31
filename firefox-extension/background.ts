@@ -15,7 +15,6 @@ import {
   isBadgeEnabled,
   isBackgroundMode,
   getContainerChoice,
-  isClipboardReadAllowed,
   isHiddenElementsIncluded,
   getUrlScope,
   isFocusEnabled,
@@ -26,7 +25,6 @@ import {
   setBadgeEnabled,
   setBackgroundMode,
   setContainerChoice,
-  setClipboardReadAllowed,
   setHiddenElementsIncluded,
   getOutlineBoxDepth,
   setOutlineBoxDepth,
@@ -360,7 +358,6 @@ async function buildStatus(): Promise<PopupStatus> {
     outlineCharThreshold: await getOutlineCharThreshold(),
     outlineElementThreshold: await getOutlineElementThreshold(),
     holdSeconds: (await getOverlayTimings()).holdReleaseMs / 1000,
-    clipboardRead: await isClipboardReadAllowed(),
     consoleCapture: await isConsoleCaptureEnabled(),
     consoleLevel: await getConsoleCaptureLevel(),
     imageLimitMb: await getStoredImageLimitMb(),
@@ -429,9 +426,6 @@ async function handlePopupRequest(request: PopupRequest): Promise<PopupStatus> {
       break;
     case "set-url-scope":
       await setUrlScope(request.scope);
-      break;
-    case "set-clipboard-read":
-      await setClipboardReadAllowed(request.enabled);
       break;
     case "set-include-hidden":
       await setHiddenElementsIncluded(request.enabled);

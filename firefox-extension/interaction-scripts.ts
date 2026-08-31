@@ -219,15 +219,6 @@ function __bcmSelectAll(el, kind) {
   return kind === 'rich' ? 'selected the whole editable region' : 'selected the whole document';
 }
 
-function __bcmClipboard(command) {
-  var done = false;
-  try { done = document.execCommand(command); } catch (err) { done = false; }
-  if (!done) {
-    throw new Error('The browser refused to ' + command + '. It needs a non-empty selection - select the text first, for example with Control+A.');
-  }
-  return command === 'cut' ? 'cut the selection to the clipboard' : 'copied the selection to the clipboard';
-}
-
 function __bcmMultiline(el, kind) {
   return kind === 'rich' || (kind === 'text' && el.tagName.toLowerCase() === 'textarea');
 }
@@ -248,29 +239,6 @@ function __bcmInsertBreak(el, kind) {
   try { el.setSelectionRange(from + 1, from + 1); } catch (err) { /* caret is best effort */ }
   __bcmNotify(el);
   return 'inserted a line break';
-}
-
-function __bcmPaste(el, kind, text) {
-  if (typeof text !== 'string' || text === '') {
-    throw new Error('The clipboard holds no text, so there was nothing to paste.');
-  }
-  if (kind === 'rich') {
-    var done = false;
-    try { done = document.execCommand('insertText', false, text); } catch (err) { done = false; }
-    if (!done) {
-      throw new Error('The browser refused to paste into this element.');
-    }
-  } else if (kind === 'text') {
-    var value = el.value || '';
-    var start = typeof el.selectionStart === 'number' ? el.selectionStart : value.length;
-    var end = typeof el.selectionEnd === 'number' ? el.selectionEnd : start;
-    __bcmSetValue(el, value.slice(0, start) + text + value.slice(end));
-    try { el.setSelectionRange(start + text.length, start + text.length); } catch (err) { /* caret is best effort */ }
-    __bcmNotify(el);
-  } else {
-    throw new Error('The focused element is not a text field or a contenteditable node. Use type-into-page-element to enter text into it.');
-  }
-  return 'pasted ' + text.length + ' character(s) from the clipboard';
 }
 
 function __bcmHistory(command) {
@@ -408,7 +376,7 @@ function __bcmDeleteInPage(el, backspace, word) {
   return 'deleted the ' + (backspace ? 'preceding' : 'following') + ' text';
 }
 
-function __bcmDefaultAction(el, key, modifiers, pasteText) {
+function __bcmDefaultAction(el, key, modifiers) {
   var accel = modifiers.indexOf('Control') !== -1 || modifiers.indexOf('Meta') !== -1;
   var shift = modifiers.indexOf('Shift') !== -1;
   var alt = modifiers.indexOf('Alt') !== -1;
@@ -417,9 +385,6 @@ function __bcmDefaultAction(el, key, modifiers, pasteText) {
   if (accel && !alt) {
     var letter = key.length === 1 ? key.toLowerCase() : key;
     if (letter === 'a') { return __bcmSelectAll(el, kind); }
-    if (letter === 'c') { return __bcmClipboard('copy'); }
-    if (letter === 'x') { return __bcmClipboard('cut'); }
-    if (letter === 'v') { return __bcmPaste(el, kind, pasteText); }
     if (letter === 'z') { return __bcmHistory(shift ? 'redo' : 'undo'); }
     if (letter === 'y') { return __bcmHistory('redo'); }
   }
@@ -799,10 +764,7 @@ ${VALUE_SETTER_SOURCE}
 })();`;
 }
 
-export function buildPressKeyCode(
-  request: PressKeyServerMessage,
-  pasteText?: string | null
-): string {
+export function buildPressKeyCode(request: PressKeyServerMessage): string {
   const hasTarget = Boolean(request.ref || request.selector);
   return `(function () {
 ${ELEMENT_RESOLVER_SOURCE}
@@ -816,7 +778,6 @@ ${KEY_DEFAULT_ACTION_SOURCE}
   var label = __bcmLabel(el);
   var key = ${jsValue(request.key)};
   var modifiers = ${jsValue(request.modifiers ?? [])};
-  var pasteText = ${jsValue(pasteText ?? null)};
 
   if (typeof el.focus === 'function') {
     try { el.focus({ preventScroll: true }); } catch (err) { /* focus is best effort */ }
@@ -834,7 +795,7 @@ ${KEY_DEFAULT_ACTION_SOURCE}
       submitted = __bcmSubmitOwner(el);
     }
     if (!submitted) {
-      var did = __bcmDefaultAction(el, key, modifiers, pasteText);
+      var did = __bcmDefaultAction(el, key, modifiers);
       if (did) {
         var last = performed[performed.length - 1];
         if (last && last.text === did) { last.count++; } else { performed.push({ text: did, count: 1 }); }

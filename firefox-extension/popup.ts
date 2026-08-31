@@ -120,9 +120,6 @@ const containerPolicyHint = document.getElementById(
 const includeHiddenToggle = document.getElementById(
   "toggle-include-hidden"
 ) as HTMLInputElement;
-const clipboardReadToggle = document.getElementById(
-  "toggle-clipboard-read"
-) as HTMLInputElement;
 const activeTabContainer = document.getElementById(
   "active-tab-container"
 ) as HTMLSpanElement;
@@ -539,7 +536,6 @@ function render(status: PopupStatus): void {
   renderContainerPolicy(status);
   backgroundModeToggle.checked = status.backgroundMode;
   includeHiddenToggle.checked = status.includeHidden;
-  clipboardReadToggle.checked = status.clipboardRead;
 
   renderSiteList(status);
 
@@ -837,18 +833,6 @@ includeHiddenToggle.addEventListener("change", async () => {
     includeHiddenToggle.checked
       ? t("popupFeedbackHiddenOn")
       : t("popupFeedbackHiddenOff")
-  );
-});
-
-clipboardReadToggle.addEventListener("change", async () => {
-  await refresh({
-    kind: "set-clipboard-read",
-    enabled: clipboardReadToggle.checked,
-  });
-  showFeedback(
-    clipboardReadToggle.checked
-      ? t("popupFeedbackClipboardOn")
-      : t("popupFeedbackClipboardOff")
   );
 });
 

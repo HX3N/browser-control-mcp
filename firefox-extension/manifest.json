@@ -9,7 +9,7 @@
             "id": "browser-control-mcp@hx3n"
         }
     },
-    "permissions": ["tabs", "history", "storage", "activeTab", "cookies", "clipboardWrite", "clipboardRead", "find", "webNavigation", "webRequest", "downloads", "<all_urls>"],
+    "permissions": ["tabs", "history", "storage", "activeTab", "cookies", "find", "webNavigation", "webRequest", "downloads", "<all_urls>"],
     "icons": {
         "48": "assets/claude_icon.svg",
         "96": "assets/claude_icon.svg",

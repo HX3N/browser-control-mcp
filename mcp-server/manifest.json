@@ -76,10 +76,6 @@
             "description": "Read a page or one element of it: text and interactive elements in document order, each element stamped with a ref the interaction tools accept; a large page read as a whole returns an outline of its regions instead"
         },
         {
-            "name": "reorder-browser-tabs",
-            "description": "Change the order of open browser tabs"
-        },
-        {
             "name": "find-text-in-page",
             "description": "Find and highlight text in a browser tab, returning a ref and the surrounding text for each match"
         },
