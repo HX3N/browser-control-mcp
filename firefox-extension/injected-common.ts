@@ -93,16 +93,49 @@ function __bcmMemory() {
   return window.__bcmRefs;
 }
 
+function __bcmRefIndex() {
+  if (!window.__bcmRefOf) { window.__bcmRefOf = new WeakMap(); }
+  return window.__bcmRefOf;
+}
+
 function __bcmRemember(ref, el) {
-  __bcmMemory().set(ref, el);
+  __bcmMemory().set(ref, new WeakRef(el));
+  __bcmRefIndex().set(el, ref);
+}
+
+function __bcmRecall(ref) {
+  var held = __bcmMemory().get(ref);
+  return held ? held.deref() : undefined;
+}
+
+function __bcmRefFor(el) {
+  var ref = __bcmRefIndex().get(el);
+  return ref && __bcmRecall(ref) === el ? ref : null;
+}
+
+function __bcmSeedRefs(floor) {
+  if ((window.__bcmRefSeq || 0) < floor) { window.__bcmRefSeq = floor; }
+}
+
+// The counter climbs and never restarts within a document, so a number the sweep frees is not
+// handed to a second element: a ref the caller still holds goes stale instead of moving.
+function __bcmMintRef() {
+  window.__bcmRefSeq = (window.__bcmRefSeq || 0) + 1;
+  return 'e' + window.__bcmRefSeq;
+}
+
+function __bcmSweepRefs() {
+  var memory = __bcmMemory();
+  var dead = [];
+  memory.forEach(function (held, ref) {
+    var el = held.deref();
+    if (!el || !el.isConnected) { dead.push(ref); }
+  });
+  for (var i = 0; i < dead.length; i++) { memory.delete(dead[i]); }
 }
 
 function __bcmForget(ref) {
   if (ref) { __bcmMemory().delete(ref); }
-}
-
-function __bcmForgetAll() {
-  __bcmMemory().clear();
 }
 
 function __bcmQueryAll(selector, start) {
@@ -120,7 +153,7 @@ function __bcmResolve(target) {
     var ref = String(target.ref);
     // The stamp is an attribute, so a page that copies markup copies the ref with it. The element
     // behind a ref is remembered as well, and a copy cannot inherit that.
-    var known = __bcmMemory().get(ref);
+    var known = __bcmRecall(ref);
     if (known) {
       if (known.isConnected && known.getAttribute('${REF_ATTRIBUTE}') === ref) { return known; }
       throw new Error('The element behind ref "' + ref + '" has left the page. Refs are stamped by page-snapshot and are dropped when the page re-renders or navigates, so take a fresh snapshot and retry.');

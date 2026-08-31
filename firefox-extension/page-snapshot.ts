@@ -80,6 +80,20 @@ function __bcmTrim(value, limit) {
   return value.length > limit ? value.slice(0, limit) + '...' : value;
 }
 
+function __bcmSensitive(el) {
+  if (el.tagName.toLowerCase() === 'input') {
+    var kind = (el.getAttribute('type') || 'text').toLowerCase();
+    if (kind === 'password' || kind === 'hidden') { return true; }
+  }
+  var hint = (el.getAttribute('autocomplete') || '').toLowerCase();
+  if (!hint) { return false; }
+  var tokens = ['current-password', 'new-password', 'one-time-code', 'cc-number', 'cc-csc', 'cc-exp'];
+  for (var i = 0; i < tokens.length; i++) {
+    if (hint.indexOf(tokens[i]) !== -1) { return true; }
+  }
+  return false;
+}
+
 function __bcmName(el) {
   var aria = el.getAttribute('aria-label');
   if (aria && aria.trim()) { return __bcmTrim(aria.trim(), 120); }
@@ -114,8 +128,10 @@ function __bcmName(el) {
     }
   }
 
-  var own = __bcmText(el);
-  if (own) { return __bcmTrim(own, 120); }
+  if (!__bcmSensitive(el)) {
+    var own = __bcmText(el);
+    if (own) { return __bcmTrim(own, 120); }
+  }
 
   var fallback = el.getAttribute('title') || el.getAttribute('placeholder') || el.getAttribute('alt') || el.getAttribute('name') || '';
   return __bcmTrim(fallback, 120);
@@ -203,10 +219,8 @@ function __bcmDescribe(el, ref, hidden, frame) {
   if (frame) { entry.frame = frame; }
 
   if (tag === 'input' || tag === 'textarea' || tag === 'select') {
-    var kind = tag === 'input' ? (el.type || 'text').toLowerCase() : '';
     if (typeof el.value === 'string' && el.value) {
-      // The page masks these, and the text read leaves them out for the same reason.
-      entry.value = kind === 'password' || kind === 'hidden'
+      entry.value = __bcmSensitive(el)
         ? '(' + el.value.length + ' characters, not shown)'
         : __bcmTrim(el.value, 120);
     }
@@ -223,7 +237,7 @@ function __bcmDescribe(el, ref, hidden, frame) {
     entry.expanded = el.parentElement.open === true;
   }
 
-  if (tag === 'select') {
+  if (tag === 'select' && !__bcmSensitive(el)) {
     var options = [];
     for (var i = 0; i < el.options.length && i < 40; i++) {
       options.push(el.options[i].value + (el.options[i].text ? ' | ' + __bcmText(el.options[i]) : ''));
@@ -422,12 +436,11 @@ function __bcmOutline(body, interactive) {
     return visibleText(el);
   }
   var regions = [];
-  var nextRef = __bcmHighestRef();
   function emit(el, depth) {
     if (regions.length >= ${jsValue(MAX_OUTLINE_REGIONS)}) { return; }
     el = unwrap(el);
     var m = measure(el);
-    var ref = 'e' + (++nextRef);
+    var ref = __bcmRefFor(el) || __bcmMintRef();
     el.setAttribute('${REF_ATTRIBUTE}', ref);
     __bcmRemember(ref, el);
     var entry = { ref: ref, tag: el.tagName.toLowerCase(), name: __bcmTrim(label(el), 80), depth: depth, chars: m.chars, controls: m.controls };
@@ -480,6 +493,7 @@ export function buildSnapshotCode(options: {
   target?: ElementTarget;
   outlineChars?: number;
   outlineElements?: number;
+  controlsOnly?: boolean;
 }): string {
   const scopeExpression = isElementTargeted(options.target)
     ? `__bcmResolve(${targetLiteral(options.target!)})`
@@ -491,32 +505,15 @@ ${PAGE_READ_SOURCE}
 ${WALKER_SOURCE}
 ${OUTLINE_SOURCE}
   var scopeRoot = ${scopeExpression};
-  var roots = __bcmRoots(scopeRoot);
 
-  if (!scopeRoot) { __bcmForgetAll(); }
-
-  for (var r = 0; r < roots.length; r++) {
-    var previous = roots[r].querySelectorAll('[${REF_ATTRIBUTE}]');
-    for (var p = 0; p < previous.length; p++) {
-      __bcmForget(previous[p].getAttribute('${REF_ATTRIBUTE}'));
-      previous[p].removeAttribute('${REF_ATTRIBUTE}');
-    }
-  }
-
-  var base = 0;
-  if (scopeRoot) {
-    if (scopeRoot.hasAttribute('${REF_ATTRIBUTE}')) {
-      __bcmForget(scopeRoot.getAttribute('${REF_ATTRIBUTE}'));
-      scopeRoot.removeAttribute('${REF_ATTRIBUTE}');
-    }
-    base = __bcmHighestRef();
-  }
+  __bcmSeedRefs(__bcmHighestRef());
 
   var interactive = ${jsValue(INTERACTIVE_SELECTOR)};
   var includeHidden = ${jsValue(options.includeHidden)};
   var maxElements = ${jsValue(options.maxElements)};
   var maxChars = ${jsValue(MAX_READ_TEXT_CHARS)};
   var full = ${jsValue(options.full === true)};
+  var controlsOnly = ${jsValue(options.controlsOnly === true)};
 
   var items = [];
   var chars = 0;
@@ -528,6 +525,7 @@ ${OUTLINE_SOURCE}
   var bufferFrame = '';
 
   function pushItem(item) {
+    if (controlsOnly && item.kind === 'text') { return; }
     if (chars >= maxChars) { return; }
     if (bufferFrame && !item.frame) { item.frame = bufferFrame; }
     items.push(item);
@@ -550,7 +548,7 @@ ${OUTLINE_SOURCE}
     }
     if (listedElements >= maxElements) { elementsTruncated = true; return; }
     flush();
-    var ref = 'e' + (base + listedElements + 1);
+    var ref = __bcmRefFor(el) || __bcmMintRef();
     el.setAttribute('${REF_ATTRIBUTE}', ref);
     __bcmRemember(ref, el);
     listedElements++;
@@ -652,7 +650,7 @@ ${OUTLINE_SOURCE}
   for (var k = 0; k < items.length; k++) {
     var item = items[k];
     if (item.kind === 'element' && item.tag === 'a' && !item.name && item.href && named.has(item.href)) {
-      var el = __bcmMemory().get(item.ref);
+      var el = __bcmRecall(item.ref);
       if (el) { el.removeAttribute('${REF_ATTRIBUTE}'); }
       __bcmForget(item.ref);
       listedElements--;
@@ -664,10 +662,12 @@ ${OUTLINE_SOURCE}
   items = kept;
 
   var outline;
-  if (!scopeRoot && !full && document.body &&
+  if (!scopeRoot && !full && !controlsOnly && document.body &&
       (chars > ${jsValue(options.outlineChars ?? DEFAULT_OUTLINE_CHAR_THRESHOLD)} || totalElements > ${jsValue(options.outlineElements ?? DEFAULT_OUTLINE_ELEMENT_THRESHOLD)})) {
     outline = __bcmOutline(document.body, interactive);
   }
+
+  __bcmSweepRefs();
 
   var doc = document.scrollingElement || document.documentElement;
   return {

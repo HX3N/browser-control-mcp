@@ -123,15 +123,46 @@ describe("ref identity", () => {
     expect(resolve(minor).text).toBe("마이너갤");
   });
 
-  it("remembers an element under the ref a scoped snapshot gives it", () => {
+  it("keeps the ref the element a scoped snapshot starts from already carries", () => {
     snapshot();
     const before = refOf("마이너갤");
 
     const scoped = snapshot({ ref: before });
-    const after = scoped[0].ref;
 
-    expect(after).not.toBe(before);
-    expect(resolve(after).text).toBe("마이너갤");
-    expect(() => resolve(before)).toThrow(/No element carries ref/);
+    expect(scoped[0].ref).toBe(before);
+    expect(resolve(before).text).toBe("마이너갤");
+  });
+
+  it("hands an element the same ref on every later read", () => {
+    const first = snapshot();
+
+    document.querySelector(".gall_list")!.insertAdjacentHTML(
+      "beforeend",
+      `<a href="/board/view/?no=3">third post</a>`
+    );
+    const second = snapshot();
+
+    for (const element of first) {
+      expect(second.find((later) => later.name === element.name)?.ref).toBe(
+        element.ref
+      );
+    }
+    expect(second).toHaveLength(first.length + 1);
+  });
+
+  it("never hands a number twice, so a ref goes stale instead of changing meaning", () => {
+    const first = snapshot();
+    const dropped = first[first.length - 1].ref;
+    document.querySelector(".gall_list")!.lastElementChild!.remove();
+
+    snapshot();
+    document.querySelector(".gall_list")!.insertAdjacentHTML(
+      "beforeend",
+      `<a href="/board/view/?no=9">late post</a>`
+    );
+    const third = snapshot();
+
+    expect(third.map((element) => element.ref)).not.toContain(dropped);
+    expect(() => resolve(dropped)).toThrow(/No element carries ref/);
   });
 });

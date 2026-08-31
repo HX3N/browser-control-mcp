@@ -55,7 +55,7 @@ addressed by a `ref` from a page read or by a CSS selector.
 
 - **Connection** — connected servers per port, each switchable
 - **Permission** — access scope and its site list; `+ Current tab` adds the tab in front
-- **New tabs** — inherit the container of the tab in front
+- **New tabs** — which container a tab this session opens lands in
 - **Interaction permissions** — one switch per capability, hidden-content reads, background work
 - **Display** — tab icon, aurora, action highlight, badge, region box size, tab hold time
 
@@ -105,8 +105,9 @@ doubt. Experimental; use at your own risk.
 
 - Compact mode hides the toolbar: use `Alt+Shift+B`.
 - Split view puts both tabs in a screenshot.
-- Containers: a tab in the default container looks signed out, so new tabs inherit the current
-  container by default; the `container` parameter overrides per call.
+- Containers: a tab in the default container looks signed out, so a new tab follows the tab in
+  front by default. The popup picks that, the default container, or one pinned by name; no tool
+  parameter can overrule it.
 
 ## Installation
 

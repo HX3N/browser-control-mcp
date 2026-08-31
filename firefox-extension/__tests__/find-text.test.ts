@@ -2,8 +2,13 @@ import { buildFindCode, FindMatchResult } from "../interaction-scripts";
 import { buildSnapshotCode } from "../page-snapshot";
 import { ELEMENT_RESOLVER_SOURCE, REF_ATTRIBUTE } from "../injected-common";
 
-function find(phrase: string, max = 10, includeHidden = false): FindMatchResult[] {
-  const code = buildFindCode(phrase, max, includeHidden);
+function find(
+  phrase: string,
+  max = 10,
+  includeHidden = false,
+  caseSensitive = false
+): FindMatchResult[] {
+  const code = buildFindCode(phrase, max, includeHidden, caseSensitive);
   return (new Function(`return ${code}`)() as { matches: FindMatchResult[] })
     .matches;
 }
@@ -152,6 +157,47 @@ describe("find script", () => {
   it("returns every occurrence up to the limit", () => {
     expect(find("Edit", 10)).toHaveLength(2);
     expect(find("Edit", 1)).toHaveLength(1);
+  });
+
+  it("ignores case unless the caller asks for it", () => {
+    expect(find("LOOKS GOOD")).toHaveLength(1);
+    expect(find("LOOKS GOOD", 10, false, true)).toHaveLength(0);
+    expect(find("Looks good", 10, false, true)).toHaveLength(1);
+  });
+
+  it("falls back to control names when no rendered text matches", () => {
+    document.body.innerHTML = `
+      <input id="q" placeholder="Search the archive">
+      <button id="go" aria-label="Start the search">Go</button>
+    `;
+
+    const matches = find("search");
+
+    expect(matches).toHaveLength(2);
+    expect(matches[0].context).toBe('placeholder="Search the archive"');
+    expect(matches[1].context).toBe('aria-label="Start the search"');
+    expect(resolve(matches[0].ref)).toBe("q");
+  });
+
+  it("keeps the fallback case-sensitive when the caller asked for that", () => {
+    document.body.innerHTML = `
+      <input id="q" placeholder="Search the archive">
+    `;
+
+    expect(find("search", 10, false, true)).toHaveLength(0);
+    expect(find("Search", 10, false, true)).toHaveLength(1);
+  });
+
+  it("prefers rendered text and never falls back once it has a match", () => {
+    document.body.innerHTML = `
+      <p>Thanks for the report</p>
+      <input id="q" placeholder="Thanks">
+    `;
+
+    const matches = find("Thanks");
+
+    expect(matches).toHaveLength(1);
+    expect(matches[0].tag).toBe("p");
   });
 
   it("leaves out text the page does not render", () => {

@@ -21,11 +21,13 @@ function runSnapshot(options: {
   maxElements?: number;
   includeHidden?: boolean;
   target?: ElementTarget;
+  controlsOnly?: boolean;
 }): SnapshotResult {
   const code = buildSnapshotCode({
     maxElements: options.maxElements ?? 200,
     includeHidden: options.includeHidden ?? false,
     target: options.target,
+    controlsOnly: options.controlsOnly,
   });
   const result = new Function(`return ${code}`)() as PageReadResult;
   return {
@@ -225,6 +227,19 @@ describe("text and elements interleaved", () => {
     ]);
   });
 
+  it("drops the text and keeps the controls when asked for controls only", () => {
+    document.body.innerHTML = `
+      <h2>Comments</h2>
+      <p>First comment by <a href="/alice">alice</a></p>
+      <button>Edit</button>
+    `;
+
+    expect(lines(runSnapshot({ controlsOnly: true }))).toEqual([
+      '[e1] link "alice" - href: /alice',
+      '[e2] button "Edit"',
+    ]);
+  });
+
   it("does not repeat the text of a control as a text line", () => {
     document.body.innerHTML = `<p>Go <a href="/x">there</a> now</p>`;
 
@@ -322,5 +337,97 @@ describe("text and elements interleaved", () => {
     `;
 
     expect(lines(runSnapshot({}))).toEqual(["Name | Size", "a.txt | 12"]);
+  });
+});
+
+describe("sensitive fields", () => {
+  const originalRect = Element.prototype.getBoundingClientRect;
+
+  beforeAll(() => {
+    Element.prototype.getBoundingClientRect = function () {
+      return {
+        width: 10,
+        height: 10,
+        top: 0,
+        left: 0,
+        right: 10,
+        bottom: 10,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      } as DOMRect;
+    };
+  });
+
+  afterAll(() => {
+    Element.prototype.getBoundingClientRect = originalRect;
+  });
+
+  function firstElement(html: string): PageElementItem {
+    document.body.innerHTML = html;
+    return runSnapshot({}).items.find(
+      (item): item is PageElementItem => item.kind === "element"
+    )!;
+  }
+
+  function valueOf(html: string): string | undefined {
+    return firstElement(html).value;
+  }
+
+  it("reports a password length instead of the password", () => {
+    expect(valueOf(`<input type="password" value="hunter2">`)).toBe(
+      "(7 characters, not shown)"
+    );
+  });
+
+  it.each([
+    "current-password",
+    "new-password",
+    "one-time-code",
+    "cc-number",
+    "cc-csc",
+    "cc-exp",
+    "cc-exp-month",
+    "cc-exp-year",
+  ])("masks a text input the page marks as %s", (hint) => {
+    expect(
+      valueOf(`<input type="text" autocomplete="${hint}" value="123456">`)
+    ).toBe("(6 characters, not shown)");
+  });
+
+  it("masks a field whose autocomplete carries the hint among other tokens", () => {
+    expect(
+      valueOf(
+        `<input type="text" autocomplete="section-pay billing cc-number" value="4111">`
+      )
+    ).toBe("(4 characters, not shown)");
+  });
+
+  it("leaves an ordinary field alone", () => {
+    expect(
+      valueOf(`<input type="text" autocomplete="email" value="a@b.com">`)
+    ).toBe("a@b.com");
+  });
+
+  it("does not list the options of a sensitive select, nor name it after one", () => {
+    const element = firstElement(`
+      <select autocomplete="cc-exp-month">
+        <option value="03" selected>March</option>
+        <option value="04">April</option>
+      </select>`);
+
+    expect(element.options).toBeUndefined();
+    expect(element.name).not.toContain("March");
+    expect(element.value).toBe("(2 characters, not shown)");
+  });
+
+  it("still lists the options of an ordinary select", () => {
+    const element = firstElement(`
+      <select autocomplete="country">
+        <option value="kr" selected>Korea</option>
+        <option value="jp">Japan</option>
+      </select>`);
+
+    expect(element.options).toEqual(["kr | Korea", "jp | Japan"]);
   });
 });

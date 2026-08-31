@@ -186,6 +186,13 @@ function normalizePermissionMode(stored: string | undefined): PermissionMode {
 
 export type UrlScope = "https" | "loopback" | "any";
 
+export type ContainerPolicy = "inherit" | "default" | "fixed";
+
+export interface ContainerChoice {
+  policy: ContainerPolicy;
+  cookieStoreId?: string;
+}
+
 export type ConsoleCaptureLevel = "error" | "warn" | "log";
 
 export const DEFAULT_CONSOLE_LEVEL: ConsoleCaptureLevel = "error";
@@ -244,7 +251,10 @@ export interface ExtensionConfig {
   markEnabled?: boolean;
   badgeEnabled?: boolean;
   disabledPorts?: number[];
+  // Retired in favour of containerPolicy; still read once, to carry an existing install over.
   inheritContainer?: boolean;
+  containerPolicy?: ContainerPolicy;
+  containerFixedId?: string;
   backgroundMode?: boolean;
   includeHiddenElements?: boolean;
   outlineBoxDepth?: number;
@@ -624,14 +634,26 @@ export async function setPortEnabled(
   await saveConfig(config);
 }
 
-export async function isContainerInherited(): Promise<boolean> {
+export async function getContainerChoice(): Promise<ContainerChoice> {
   const config = await getConfig();
-  return config.inheritContainer !== false;
+  if (config.containerPolicy === "fixed" && config.containerFixedId) {
+    return { policy: "fixed", cookieStoreId: config.containerFixedId };
+  }
+  if (config.containerPolicy === "default" || config.containerPolicy === "inherit") {
+    return { policy: config.containerPolicy };
+  }
+  return { policy: config.inheritContainer === false ? "default" : "inherit" };
 }
 
-export async function setContainerInherited(inherit: boolean): Promise<void> {
+export async function setContainerChoice(choice: ContainerChoice): Promise<void> {
   const config = await getConfig();
-  config.inheritContainer = inherit;
+  config.containerPolicy = choice.policy;
+  if (choice.policy === "fixed") {
+    config.containerFixedId = choice.cookieStoreId;
+  } else {
+    delete config.containerFixedId;
+  }
+  delete config.inheritContainer;
   await saveConfig(config);
 }
 

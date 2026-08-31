@@ -139,6 +139,61 @@ describe("MessageHandler", () => {
       });
     });
 
+    describe("expectedOrigin", () => {
+      const clickRequest: ServerMessageRequest = {
+        cmd: "click-element",
+        tabId: 123,
+        ref: "e4",
+        correlationId: "test-correlation-id",
+        expectedOrigin: "https://example.com",
+      };
+
+      it("refuses to act once the tab has moved elsewhere", async () => {
+        (browser.tabs.get as jest.Mock).mockResolvedValue({
+          id: 123,
+          url: "https://elsewhere.test/checkout",
+        });
+
+        await expect(
+          messageHandler.handleDecodedMessage(clickRequest)
+        ).rejects.toThrow(/is on https:\/\/elsewhere.test\/checkout, not on/);
+
+        expect(browser.tabs.executeScript).not.toHaveBeenCalled();
+      });
+
+      it("refuses an unauthorized tab without saying where it is", async () => {
+        (browser.storage.local.get as jest.Mock).mockResolvedValue({
+          config: { ...defaultConfig, permissionMode: "allowlist" },
+        });
+        (browser.tabs.get as jest.Mock).mockResolvedValue({
+          id: 123,
+          title: "Checkout",
+          url: "https://elsewhere.test/checkout",
+        });
+
+        await expect(
+          messageHandler.handleDecodedMessage(clickRequest)
+        ).rejects.toThrow(/has not been authorized/);
+
+        expect(browser.tabs.executeScript).not.toHaveBeenCalled();
+      });
+
+      it("acts when the tab is still on the origin that was read", async () => {
+        (browser.permissions.contains as jest.Mock).mockResolvedValue(true);
+        (browser.tabs.get as jest.Mock).mockResolvedValue({
+          id: 123,
+          url: "https://example.com/cart",
+        });
+        (browser.tabs.executeScript as jest.Mock).mockResolvedValue([
+          { target: "button", detail: "Clicked", url: "https://example.com/cart" },
+        ]);
+
+        await messageHandler.handleDecodedMessage(clickRequest);
+
+        expect(browser.tabs.executeScript).toHaveBeenCalled();
+      });
+    });
+
     describe("background mode", () => {
       const keyRequest: ServerMessageRequest = {
         cmd: "press-key",
@@ -334,6 +389,60 @@ describe("MessageHandler", () => {
           expect(browser.tabs.create).toHaveBeenCalledWith({
             url: "about:blank",
             cookieStoreId: "firefox-container-1",
+            active: false,
+          });
+        });
+
+        it("keeps using the default container while the policy says so", async () => {
+          (browser.storage.local.get as jest.Mock).mockResolvedValue({
+            config: { ...defaultConfig, containerPolicy: "default" },
+          });
+          (browser.tabs.query as jest.Mock).mockResolvedValue([
+            { id: 12, hidden: false, cookieStoreId: "firefox-container-1" },
+          ]);
+          (browser.tabs.create as jest.Mock).mockResolvedValue({ id: 13 });
+
+          await driveOpen(
+            {
+              cmd: "open-tab",
+              url: "https://example.com",
+              correlationId: "test-correlation-id",
+            } as ServerMessageRequest,
+            13
+          );
+
+          expect(browser.tabs.create).toHaveBeenCalledWith({
+            url: "about:blank",
+            active: false,
+            cookieStoreId: "firefox-default",
+          });
+        });
+
+        it("uses the pinned container whatever the tab in front carries", async () => {
+          (browser.storage.local.get as jest.Mock).mockResolvedValue({
+            config: {
+              ...defaultConfig,
+              containerPolicy: "fixed",
+              containerFixedId: "firefox-container-7",
+            },
+          });
+          (browser.tabs.query as jest.Mock).mockResolvedValue([
+            { id: 12, hidden: false, cookieStoreId: "firefox-default" },
+          ]);
+          (browser.tabs.create as jest.Mock).mockResolvedValue({ id: 13 });
+
+          await driveOpen(
+            {
+              cmd: "open-tab",
+              url: "https://example.com",
+              correlationId: "test-correlation-id",
+            } as ServerMessageRequest,
+            13
+          );
+
+          expect(browser.tabs.create).toHaveBeenCalledWith({
+            url: "about:blank",
+            cookieStoreId: "firefox-container-7",
             active: false,
           });
         });
@@ -1492,6 +1601,10 @@ describe("MessageHandler", () => {
 
         const mockFindResults = { count: 5 };
         (browser.find.find as jest.Mock).mockResolvedValue(mockFindResults);
+        (browser.tabs.get as jest.Mock).mockResolvedValue({
+          id: 123,
+          url: "https://example.com",
+        });
         (browser.tabs.update as jest.Mock).mockResolvedValue(undefined);
         (browser.permissions.contains as jest.Mock).mockResolvedValue(true);
         const located = [{ ref: "e3", tag: "p", context: "a test here" }];
@@ -1508,7 +1621,7 @@ describe("MessageHandler", () => {
         // Assert
         expect(browser.find.find).toHaveBeenCalledWith("test", {
           tabId: 123,
-          caseSensitive: true,
+          caseSensitive: false,
         });
         expect(browser.tabs.update).not.toHaveBeenCalled();
         expect(browser.find.highlightResults).toHaveBeenCalledWith({

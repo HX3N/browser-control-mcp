@@ -1,5 +1,7 @@
 import type {
   ConsoleCaptureLevel,
+  ContainerChoice,
+  ContainerPolicy,
   PermissionMode,
   ToolSettings,
   UrlScope,
@@ -37,7 +39,8 @@ export interface PopupStatus {
   badgeEnabled: boolean;
   domainDenyList: string[];
   allowedOrigins: string[];
-  inheritContainer: boolean;
+  container: ContainerChoice;
+  containers: string[];
   backgroundMode: boolean;
   includeHidden: boolean;
   outlineBoxDepth: number;
@@ -64,7 +67,11 @@ export type PopupRequest =
   | { kind: "set-base-port"; port: number }
   | { kind: "set-port-enabled"; port: number; enabled: boolean }
   | { kind: "set-all-ports-enabled"; enabled: boolean }
-  | { kind: "set-inherit-container"; enabled: boolean }
+  | {
+      kind: "set-container-policy";
+      policy: ContainerPolicy;
+      cookieStoreId?: string;
+    }
   | { kind: "set-background-mode"; enabled: boolean }
   | { kind: "set-include-hidden"; enabled: boolean }
   | { kind: "set-outline-depth"; depth: number }

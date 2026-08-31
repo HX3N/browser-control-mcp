@@ -386,11 +386,35 @@
     "popupButtonRequestAllUrls": {
         "message": "전체 웹 접근 권한 요청"
     },
-    "popupToggleInheritContainerName": {
-        "message": "로그인 세션 유지"
+    "popupContainerPolicyName": {
+        "message": "새 탭 컨테이너"
     },
-    "popupToggleInheritContainerHint": {
-        "message": "지금 탭과 같은 컨테이너로 새 탭 열기"
+    "popupContainerPolicyHint": {
+        "message": "이 세션이 여는 탭이 어느 컨테이너로 갈지"
+    },
+    "popupContainerSegInherit": {
+        "message": "현재 탭"
+    },
+    "popupContainerSegDefault": {
+        "message": "기본"
+    },
+    "popupContainerSegFixed": {
+        "message": "지정"
+    },
+    "popupContainerHintInherit": {
+        "message": "지금 보는 탭을 따라 $1"
+    },
+    "popupContainerHintDefault": {
+        "message": "컨테이너 없이 기본으로"
+    },
+    "popupContainerHintFixed": {
+        "message": "항상 $1"
+    },
+    "popupContainerHintNone": {
+        "message": "열려 있는 탭에 컨테이너가 없습니다"
+    },
+    "popupFeedbackContainerFixed": {
+        "message": "새 탭이 항상 $1을 씁니다"
     },
     "popupToggleAuroraName": {
         "message": "탭 오로라"

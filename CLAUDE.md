@@ -48,6 +48,10 @@ the next free port and the extension keeps one spare slot.
 - `getConfig` fills `toolSettings` from defaults so popup, options and gate agree on a new tool.
 - `<all_urls>` is the literal required host permission (`captureVisibleTab` compares it verbatim).
   The browser is no backstop; defaults stay locked.
+- A tab this session opens follows `containerPolicy` alone: `inherit` copies the tab in front,
+  `default` names `firefox-default` outright — Zen hands a new tab the front tab's container when
+  `tabs.create` names none — and `fixed` pins `containerFixedId`. No tool parameter overrules it.
+  The popup lists the containers seen on open tabs, so `contextualIdentities` is never asked for.
 
 **Pages and refs**
 - Every injection goes through `runScript`, never `browser.tabs.executeScript` directly: a frozen
@@ -60,15 +64,27 @@ the next free port and the extension keeps one spare slot.
   started a load: the tab reads loading while the document being left finishes too.
 - Quiet probes inject `runAt: "document_start"`; the default waits for a load event that a page
   holding an unfinished subresource never fires.
-- Refs die on re-render; `window.__bcmRefs` is trusted over the attribute because markup copies
-  carry the attribute.
+- A ref outlives a read: `__bcmRefOf` maps element→ref, so a stamped element keeps its number and
+  only unseen ones are minted. `window.__bcmRefSeq` climbs per document and never restarts, so a
+  number `__bcmSweepRefs` frees is never reused — a stale ref dies instead of moving. Refs still
+  die on re-render; `window.__bcmRefs` is trusted over the attribute because markup copies carry
+  the attribute.
+- `expectedOrigin` is checked once, in `dispatch`: a command carrying it fails when the tab has
+  left that origin, since refs taken before the move no longer describe the page.
 - Roots are walked with `__bcmRoots()`, never `document` alone; cross-origin frames are reported
   by `__bcmUnreachableFrames`.
 - Hidden elements are listed only with the popup switch on, after the visible ones, marked
   hidden and untrusted. Off-document boxes count as hidden (`__bcmWithinPage`).
-- `password` and `hidden` inputs report length, never value.
+- `__bcmSensitive` decides what is masked: `password`/`hidden` inputs and the `autocomplete`
+  tokens for passwords, one-time codes and card numbers. A masked field reports length, never
+  value, lends no own text to its name, and a masked `<select>` lists no options.
 - An unscoped read past the popup's outline thresholds returns an outline; `full: true` or
   `offset > 0` reads whole. Region refs number above `__bcmHighestRef()`.
+- `controlsOnly` drops text items in `pushItem`, not in `flush`: a heading never reaches `flush`.
+  That mode builds no outline.
+- `find-text-in-page` matches case-insensitively unless asked otherwise, and falls back to control
+  names (`FIND_NAME_ATTRIBUTES`) only when the rendered text matched nothing; the script therefore
+  runs even when `browser.find.find` counted zero.
 - A read reports collapsed content by label and size only, never its text.
 - Scroll positions are reported against `scrollMax`, not `scrollHeight`.
 - A synthetic Enter submits in a single-line field and inserts a line break in a multiline one

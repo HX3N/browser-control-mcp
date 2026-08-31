@@ -1330,10 +1330,13 @@ const MAX_FIND_CONTROLS = 12;
 
 // Refs already on the page are kept: a find is a lookup, not a fresh snapshot, and the caller
 // may still hold refs from the last read.
+export const FIND_NAME_ATTRIBUTES = ["aria-label", "placeholder", "title", "alt", "name"];
+
 export function buildFindCode(
   phrase: string,
   maxMatches: number,
-  includeHidden = false
+  includeHidden = false,
+  caseSensitive = false
 ): string {
   return `(function () {
 ${ELEMENT_RESOLVER_SOURCE}
@@ -1341,6 +1344,9 @@ ${VISIBILITY_SOURCE}
   var phrase = ${jsValue(phrase)}.replace(/\\s+/g, ' ').trim();
   var maxMatches = ${jsValue(maxMatches)};
   var includeHidden = ${jsValue(includeHidden)};
+  var caseSensitive = ${jsValue(caseSensitive)};
+  var needle = caseSensitive ? phrase : phrase.toLowerCase();
+  var nameAttributes = ${jsValue(FIND_NAME_ATTRIBUTES)};
   var blockTags = ${jsValue(BLOCK_TAGS)};
   var interactive = ${jsValue(INTERACTIVE_SELECTOR)};
   var maxControls = ${jsValue(MAX_FIND_CONTROLS)};
@@ -1354,6 +1360,7 @@ ${VISIBILITY_SOURCE}
     var seen = /^e(\\d+)$/.exec(stamped[s].getAttribute('${REF_ATTRIBUTE}') || '');
     if (seen && parseInt(seen[1], 10) > base) { base = parseInt(seen[1], 10); }
   }
+  __bcmSeedRefs(base);
 
   function container(node) {
     var el = node.parentElement;
@@ -1361,10 +1368,9 @@ ${VISIBILITY_SOURCE}
     return el || node.parentElement;
   }
   function stamp(el) {
-    var existing = el.getAttribute('${REF_ATTRIBUTE}');
-    if (existing && __bcmMemory().get(existing) === el) { return existing; }
-    base++;
-    var ref = 'e' + base;
+    var existing = __bcmRefFor(el);
+    if (existing) { return existing; }
+    var ref = __bcmMintRef();
     el.setAttribute('${REF_ATTRIBUTE}', ref);
     __bcmRemember(ref, el);
     return ref;
@@ -1421,7 +1427,8 @@ ${VISIBILITY_SOURCE}
   var groups = visibleGroups.concat(hiddenGroups);
   for (var g = 0; g < groups.length && matches.length < maxMatches; g++) {
     var text = groups[g].text.replace(/\\s+/g, ' ');
-    var at = text.indexOf(phrase);
+    var hay = caseSensitive ? text : text.toLowerCase();
+    var at = hay.indexOf(needle);
     while (at !== -1 && matches.length < maxMatches) {
       var from = Math.max(0, at - ${FIND_CONTEXT_CHARS});
       var to = Math.min(text.length, at + phrase.length + ${FIND_CONTEXT_CHARS});
@@ -1436,9 +1443,37 @@ ${VISIBILITY_SOURCE}
       if (inside.controls.length) { entry.controls = inside.controls; }
       if (inside.more > 0) { entry.moreControls = inside.more; }
       matches.push(entry);
-      at = text.indexOf(phrase, at + phrase.length);
+      at = hay.indexOf(needle, at + needle.length);
     }
   }
+  if (matches.length === 0) {
+    var namedRoots = __bcmRoots();
+    for (var nr = 0; nr < namedRoots.length && matches.length < maxMatches; nr++) {
+      if (!namedRoots[nr].querySelectorAll) { continue; }
+      var namedFrame = __bcmFrameLabel(namedRoots[nr]);
+      var candidates = namedRoots[nr].querySelectorAll(interactive);
+      for (var nc = 0; nc < candidates.length && matches.length < maxMatches; nc++) {
+        var candidate = candidates[nc];
+        var candidateVisible = __bcmVisible(candidate);
+        if (!candidateVisible && !includeHidden) { continue; }
+        var hit = '';
+        for (var na = 0; na < nameAttributes.length; na++) {
+          var attribute = candidate.getAttribute(nameAttributes[na]);
+          if (!attribute) { continue; }
+          var attributeHay = caseSensitive ? attribute : attribute.toLowerCase();
+          if (attributeHay.indexOf(needle) === -1) { continue; }
+          hit = nameAttributes[na] + '="' + attribute.replace(/\\s+/g, ' ').trim().slice(0, 120) + '"';
+          break;
+        }
+        if (!hit) { continue; }
+        var named = { ref: stamp(candidate), tag: candidate.tagName.toLowerCase(), context: hit };
+        if (namedFrame) { named.frame = namedFrame; }
+        if (!candidateVisible) { named.hidden = true; }
+        matches.push(named);
+      }
+    }
+  }
+
   return { matches: matches };
 })();`;
 }

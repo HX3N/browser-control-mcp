@@ -69,3 +69,12 @@ Object.defineProperty(global, 'browser', {
 
 // Export for use in tests
 export { mockBrowser };
+
+// jsdom hands every test the same window, and refs now outlive a read, so without this a test
+// inherits the ref numbers of the one before it instead of starting on a fresh document.
+beforeEach(() => {
+  const page = window as unknown as Record<string, unknown>;
+  delete page.__bcmRefs;
+  delete page.__bcmRefOf;
+  delete page.__bcmRefSeq;
+});

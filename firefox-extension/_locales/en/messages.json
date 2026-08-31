@@ -386,11 +386,35 @@
     "popupButtonRequestAllUrls": {
         "message": "Request full web access"
     },
-    "popupToggleInheritContainerName": {
-        "message": "Keep the signed-in session"
+    "popupContainerPolicyName": {
+        "message": "New tab container"
     },
-    "popupToggleInheritContainerHint": {
-        "message": "Opens new tabs in the container of the tab in front"
+    "popupContainerPolicyHint": {
+        "message": "Which container a tab this session opens lands in"
+    },
+    "popupContainerSegInherit": {
+        "message": "This tab"
+    },
+    "popupContainerSegDefault": {
+        "message": "Default"
+    },
+    "popupContainerSegFixed": {
+        "message": "Pick"
+    },
+    "popupContainerHintInherit": {
+        "message": "Follows the tab you are on, now $1"
+    },
+    "popupContainerHintDefault": {
+        "message": "No container, the default one"
+    },
+    "popupContainerHintFixed": {
+        "message": "Always $1"
+    },
+    "popupContainerHintNone": {
+        "message": "No tab is open in a container"
+    },
+    "popupFeedbackContainerFixed": {
+        "message": "New tabs always use $1"
     },
     "popupToggleAuroraName": {
         "message": "Tab aurora"

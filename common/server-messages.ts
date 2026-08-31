@@ -5,7 +5,6 @@ export interface ServerMessageBase {
 export interface OpenTabServerMessage extends ServerMessageBase {
   cmd: "open-tab";
   url: string;
-  cookieStoreId?: string;
 }
 
 export interface NavigateTabServerMessage extends ServerMessageBase {
@@ -38,6 +37,7 @@ export interface ReadPageServerMessage
   includeSelectors?: boolean;
   includeHrefs?: boolean;
   full?: boolean;
+  controlsOnly?: boolean;
 }
 
 export interface ReorderTabsServerMessage extends ServerMessageBase {
@@ -50,6 +50,7 @@ export interface FindHighlightServerMessage extends ServerMessageBase {
   tabId: number;
   queryPhrase: string;
   maxMatches?: number;
+  caseSensitive?: boolean;
 }
 
 export interface CaptureScreenshotServerMessage
@@ -84,6 +85,10 @@ export interface FetchMediaServerMessage extends ServerMessageBase {
   url: string;
 }
 
+export interface OriginGuarded {
+  expectedOrigin?: string;
+}
+
 export interface ElementTarget {
   ref?: string;
   selector?: string;
@@ -94,7 +99,8 @@ export type KeyModifier = "Control" | "Shift" | "Alt" | "Meta";
 
 export interface ClickElementServerMessage
   extends ServerMessageBase,
-    ElementTarget {
+    ElementTarget,
+    OriginGuarded {
   cmd: "click-element";
   tabId: number;
   button?: "left" | "middle" | "right";
@@ -111,7 +117,8 @@ export interface HoverElementServerMessage
 
 export interface DragElementServerMessage
   extends ServerMessageBase,
-    ElementTarget {
+    ElementTarget,
+    OriginGuarded {
   cmd: "drag-element";
   tabId: number;
   to: ElementTarget;
@@ -127,7 +134,8 @@ export interface UploadFile {
 
 export interface UploadFilesServerMessage
   extends ServerMessageBase,
-    ElementTarget {
+    ElementTarget,
+    OriginGuarded {
   cmd: "upload-files";
   tabId: number;
   files: UploadFile[];
@@ -166,7 +174,8 @@ export interface GetNetworkRequestsServerMessage extends ServerMessageBase {
 
 export interface TypeTextServerMessage
   extends ServerMessageBase,
-    ElementTarget {
+    ElementTarget,
+    OriginGuarded {
   cmd: "type-text";
   tabId: number;
   text: string;
@@ -175,7 +184,9 @@ export interface TypeTextServerMessage
   clickAfter?: ElementTarget;
 }
 
-export interface ExecuteJsServerMessage extends ServerMessageBase {
+export interface ExecuteJsServerMessage
+  extends ServerMessageBase,
+    OriginGuarded {
   cmd: "execute-js";
   tabId: number;
   code: string;
@@ -192,7 +203,8 @@ export interface ScrollPageServerMessage
 
 export interface PressKeyServerMessage
   extends ServerMessageBase,
-    ElementTarget {
+    ElementTarget,
+    OriginGuarded {
   cmd: "press-key";
   tabId: number;
   key: string;
@@ -202,7 +214,8 @@ export interface PressKeyServerMessage
 
 export interface SelectOptionServerMessage
   extends ServerMessageBase,
-    ElementTarget {
+    ElementTarget,
+    OriginGuarded {
   cmd: "select-option";
   tabId: number;
   values: string[];

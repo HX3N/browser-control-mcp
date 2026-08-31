@@ -39,9 +39,11 @@ const mcpServer = new McpServer(
       one round trip instead of one per step.
 
       Refs and scope, for every page tool:
-      - A ref such as e12 comes from the latest read-page or find-text-in-page of a tab and dies
-        when the page re-renders or navigates: read again and retry. Element tools take a ref or
-        a CSS selector; prefer the ref.
+      - A ref such as e12 comes from a read-page or find-text-in-page of a tab and stays with that
+        element across later reads. It dies when the element is re-rendered away or the page
+        navigates: read again and retry. A number is never handed to a second element, so a stale
+        ref fails instead of acting somewhere else. Element tools take a ref or a CSS selector;
+        prefer the ref.
       - read-page, capture-tab-screenshot and list-page-media take a ref or selector to cover one
         element only. Prefer that whenever the part you need is a known region.
       - Elements, matches and media the user cannot see are counted, and listed only when the user
@@ -282,38 +284,50 @@ const elementTargetShape = {
     .describe("Which match of the selector to use, zero based"),
 };
 
+const originGuardShape = {
+  expectedOrigin: z
+    .string()
+    .optional()
+    .describe(
+      "The address read-page reported for this tab, or just its origin. The action is refused when the tab has moved elsewhere since, instead of acting on a page you have not seen"
+    ),
+};
+
 function elementTarget(input: {
   ref?: string;
   selector?: string;
   index?: number;
+  expectedOrigin?: string;
 }) {
-  return { ref: input.ref, selector: input.selector, index: input.index };
+  return {
+    ref: input.ref,
+    selector: input.selector,
+    index: input.index,
+    expectedOrigin: input.expectedOrigin,
+  };
 }
 
 defineTool(
   "open-browser-tab",
   `
-    Open a new tab. By default it reuses the container of the tab in front, unless the user turned
-    that off in the extension popup; a tab in another Firefox container appears signed out.
+    Open a new tab. Which Firefox container it lands in is the user's setting in the extension
+    popup, not a choice this tool makes; a tab in another container appears signed out, and the
+    answer says which one it opened in.
   `,
   { title: "Open a new tab", readOnlyHint: false, destructiveHint: false, idempotentHint: false },
   {
     url: z.string(),
-    container: z
-      .string()
-      .default("auto")
-      .describe(
-        '"auto" (default) follows the user\'s setting in the extension popup; "inherit" forces the container of the tab in front; "default" is the browser default container; a cookieStoreId from list-open-tabs targets one'
-      ),
   },
-  async ({ url, container }) => {
-    const opened = await browserApi.openTab(url, container);
+  async ({ url }) => {
+    const opened = await browserApi.openTab(url);
     if (opened.tabId !== undefined) {
       return {
         content: [
           {
             type: "text",
-            text: `${url} opened in tab id ${opened.tabId}`,
+            text: `${url} opened in tab id ${opened.tabId}${
+              opened.cookieStoreId ? `, container ${opened.cookieStoreId}` : ""
+            }`,
           },
           ...dialogNotice(opened),
         ],
@@ -494,9 +508,11 @@ defineTool(
     text as plain lines, each control as [e12] link <a> "Edit" with a ref the interaction tools
     accept.
     "ref" or "selector" reads one element only; refs outside the scope survive and new ones are
-    numbered above them. Refs are replaced on every read. Same-origin frames and shadow roots
-    are included.
+    numbered above them. An element keeps its ref from read to read. Same-origin frames and
+    shadow roots are included.
     A large page read whole comes back as an outline of its regions; full: true reads it whole.
+    controlsOnly: true drops the text and lists the controls alone - the index to reach for when
+    the question is what can be clicked or typed into, not what the page says.
     Links show their text alone; includeHrefs adds where each points, needed to navigate by URL.
     Use "offset" only to continue a truncated answer.
   `,
@@ -507,6 +523,10 @@ defineTool(
       .boolean()
       .default(false)
       .describe("Whole text of a large page instead of its outline; only when no outlined region fits"),
+    controlsOnly: z
+      .boolean()
+      .default(false)
+      .describe("List the interactive elements alone, without the page text"),
     offset: z
       .number()
       .int()
@@ -530,11 +550,11 @@ defineTool(
       .describe("Also list where each link points (costs many tokens on a link-heavy page)"),
     ...elementTargetShape,
   },
-  async ({ tabId, full, offset, maxElements, includeSelectors, includeHrefs, ref, selector, index }) => {
+  async ({ tabId, full, controlsOnly, offset, maxElements, includeSelectors, includeHrefs, ref, selector, index }) => {
     const scoped = !!(ref || selector);
     const page = await browserApi.readPage(
       tabId,
-      { offset, maxElements, includeSelectors, includeHrefs, full },
+      { offset, maxElements, includeSelectors, includeHrefs, full, controlsOnly },
       scoped ? elementTarget({ ref, selector, index }) : undefined
     );
 
@@ -632,8 +652,11 @@ defineTool(
     with a ref and the text around it. The ref is on the block holding the match - a paragraph, a
     comment, a row - and the controls inside it follow with refs of their own, so the button beside
     the phrase can be clicked at once; read-page with the block's ref shows the rest of it.
-    Use this to locate one item on a long page; do not walk the page one element at a time. The
-    phrase has to be rendered text, not a URL or an attribute; the match is case-sensitive.
+    Use this to locate one item on a long page; do not walk the page one element at a time.
+    The phrase is matched against rendered text, ignoring case unless caseSensitive is set. When
+    no rendered text matches, the controls are searched by name instead - aria-label, placeholder,
+    title, alt, name - which is how a search box named only by its placeholder is found; those
+    matches say which attribute carried the phrase.
   `,
   { title: "Find text on a page", readOnlyHint: true },
   {
@@ -646,9 +669,18 @@ defineTool(
       .max(20)
       .default(10)
       .describe("Maximum matches to return"),
+    caseSensitive: z
+      .boolean()
+      .default(false)
+      .describe("Match the phrase exactly as written, including case"),
   },
-  async ({ tabId, queryPhrase, maxMatches }) => {
-    const found = await browserApi.findHighlight(tabId, queryPhrase, maxMatches);
+  async ({ tabId, queryPhrase, maxMatches, caseSensitive }) => {
+    const found = await browserApi.findHighlight(
+      tabId,
+      queryPhrase,
+      maxMatches,
+      caseSensitive
+    );
     const lines = found.matches.map((match) => {
       const line = `[${match.ref}] <${match.tag}>${match.frame ? ` (${match.frame})` : ""}${match.hidden ? " hidden" : ""}: ${match.context}`;
       if (!match.controls?.length) {
@@ -958,6 +990,7 @@ defineTool(
   {
     tabId: z.number(),
     ...elementTargetShape,
+    ...originGuardShape,
     action: z
       .enum(["click", "hover"])
       .default("click")
@@ -1006,6 +1039,7 @@ defineTool(
   {
     tabId: z.number(),
     ...elementTargetShape,
+    ...originGuardShape,
     toRef: z
       .string()
       .optional()
@@ -1056,6 +1090,7 @@ defineTool(
   {
     tabId: z.number(),
     ...elementTargetShape,
+    ...originGuardShape,
     paths: z
       .array(z.string())
       .min(1)
@@ -1228,6 +1263,7 @@ defineTool(
   {
     tabId: z.number(),
     ...elementTargetShape,
+    ...originGuardShape,
     text: z.string(),
     clearFirst: z
       .boolean()
@@ -1314,6 +1350,7 @@ defineTool(
       .default(1)
       .describe("How many times to press the key"),
     ...elementTargetShape,
+    ...originGuardShape,
   },
   async ({ tabId, key, modifiers, repeat, ...target }) => {
     const result = await browserApi.pressKey(
@@ -1373,6 +1410,7 @@ defineTool(
   {
     tabId: z.number(),
     ...elementTargetShape,
+    ...originGuardShape,
     values: z
       .array(z.string())
       .min(1)
@@ -1399,14 +1437,15 @@ defineTool(
   { title: "Run JavaScript", readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   {
     tabId: z.number(),
+    ...originGuardShape,
     code: z
       .string()
       .describe(
         "Function body, such as: return document.title;"
       ),
   },
-  async ({ tabId, code }) => {
-    const result = await browserApi.executeJs(tabId, code);
+  async ({ tabId, code, expectedOrigin }) => {
+    const result = await browserApi.executeJs(tabId, code, expectedOrigin);
     const suffix = result.isTruncated
       ? "\n\n[result truncated]"
       : "";

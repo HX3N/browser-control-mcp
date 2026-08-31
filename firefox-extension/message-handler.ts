@@ -43,7 +43,7 @@ import {
   getOutlineCharThreshold,
   getOutlineElementThreshold,
   isMarkEnabled,
-  isContainerInherited,
+  getContainerChoice,
   isHiddenElementsIncluded,
   getOverlayColors,
   getOverlayTimings,
@@ -188,6 +188,9 @@ const DEFAULT_TEXT_WAIT_TIMEOUT_MS = 30_000;
 const MAX_TEXT_SETTLE_MS = 5_000;
 const MAX_TEXT_WAIT_TIMEOUT_MS = 180_000;
 const MAX_ADDED_TEXT_LENGTH = 20_000;
+// Zen hands a new tab the container of the tab in front when tabs.create names none, so the
+// default container has to be named outright to be reached.
+const DEFAULT_COOKIE_STORE = "firefox-default";
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -358,13 +361,17 @@ export class MessageHandler {
       );
     }
 
+    if ("expectedOrigin" in req && req.expectedOrigin && "tabId" in req) {
+      await this.ensureExpectedOrigin(req.tabId, req.expectedOrigin);
+    }
+
     this.addAuditLogForReq(req).catch((error) => {
       console.error("Failed to add audit log entry:", error);
     });
 
     switch (req.cmd) {
       case "open-tab":
-        await this.openUrl(req.correlationId, req.url, req.cookieStoreId);
+        await this.openUrl(req.correlationId, req.url);
         break;
       case "navigate-tab":
         await this.navigateTab(req);
@@ -482,11 +489,23 @@ export class MessageHandler {
     }
   }
 
-  private async openUrl(
-    correlationId: string,
-    url: string,
-    cookieStoreId?: string
+  private async ensureExpectedOrigin(
+    tabId: number,
+    expected: string
   ): Promise<void> {
+    const tab = await browser.tabs.get(tabId);
+    await ensureTabAccess(tab);
+    if (tab.url && sameOrigin(tab.url, expected)) {
+      return;
+    }
+    throw new Error(
+      `Tab ${tabId} is on ${tab.url ?? "a page with no address"}, not on ${expected}. ` +
+        `The page moved after it was read, so its refs no longer describe what is on screen. ` +
+        `Read the tab again and retry against what it shows now.`
+    );
+  }
+
+  private async openUrl(correlationId: string, url: string): Promise<void> {
     await this.ensureUrlInScope(url);
 
     if (await isDomainInDenyList(url)) {
@@ -496,7 +515,7 @@ export class MessageHandler {
     // contentScripts.register resolves in the parent process before the content processes have
     // heard of it, so a tab created straight onto the URL can load its first document unguarded.
     // Parking on about:blank and navigating afterwards buys the registration time to spread.
-    const container = await this.resolveCookieStore(cookieStoreId);
+    const container = await this.resolveCookieStore();
     const active = !(await isBackgroundMode());
     const tab = await browser.tabs.create(
       container
@@ -543,6 +562,7 @@ export class MessageHandler {
       resource: "opened-tab-id",
       correlationId,
       tabId: tab.id,
+      cookieStoreId: tab.cookieStoreId,
     };
     if (tab.id === undefined) {
       await this.client.sendResourceToServer(opened);
@@ -800,17 +820,15 @@ export class MessageHandler {
     return { done, committed: () => seen, cancel: () => finish(false) };
   }
 
-  // Container tabs each keep their own cookie jar, and Zen ties workspaces to containers. A
-  // tab created without one lands in the default jar, which reads as signed out everywhere.
-  private async resolveCookieStore(
-    requested: string | undefined
-  ): Promise<string | undefined> {
-    const explicit = requested && requested !== "auto";
-    if (explicit && requested !== "inherit") {
-      return requested === "default" ? undefined : requested;
+  // Container tabs each keep their own cookie jar, so the one a tab opens in decides whether the
+  // page reads as signed in.
+  private async resolveCookieStore(): Promise<string | undefined> {
+    const choice = await getContainerChoice();
+    if (choice.policy === "default") {
+      return DEFAULT_COOKIE_STORE;
     }
-    if (!explicit && !(await isContainerInherited())) {
-      return undefined;
+    if (choice.policy === "fixed") {
+      return choice.cookieStoreId;
     }
     try {
       const inFront = await this.findTabInFront();
@@ -959,6 +977,7 @@ export class MessageHandler {
           maxElements: Math.max(1, req.maxElements ?? DEFAULT_ELEMENT_LIMIT),
           includeHidden,
           full: req.full === true || offset > 0,
+          controlsOnly: req.controlsOnly === true,
           target: scoped ? req : undefined,
           outlineChars: await getOutlineCharThreshold(),
           outlineElements: await getOutlineElementThreshold(),
@@ -1065,12 +1084,12 @@ export class MessageHandler {
     const includeHidden = await isHiddenElementsIncluded();
     await this.attachOverlay(tabId, "read", t("overlayFind"));
 
+    const caseSensitive = req.caseSensitive === true;
     const findResults = await browser.find.find(queryPhrase, {
       tabId,
-      caseSensitive: true,
+      caseSensitive,
     });
 
-    let matches: FindMatchResult[] = [];
     // If there are results, highlight them
     if (findResults.count > 0) {
       // Firefox only auto-scrolls to a hit in the active tab, so foregrounding is what makes
@@ -1081,20 +1100,22 @@ export class MessageHandler {
       browser.find.highlightResults({
         tabId,
       });
-      await this.guardDialogs(tabId);
-      const located = await this.runScript(
-        tabId,
-        {
-          code: buildFindCode(
-            queryPhrase,
-            Math.max(1, Math.min(MAX_FIND_MATCHES, req.maxMatches ?? MAX_FIND_MATCHES)),
-            includeHidden
-          ),
-        },
-        LONG_SCRIPT_STALL_MS
-      );
-      matches = (located[0] as { matches: FindMatchResult[] }).matches;
     }
+
+    await this.guardDialogs(tabId);
+    const located = await this.runScript(
+      tabId,
+      {
+        code: buildFindCode(
+          queryPhrase,
+          Math.max(1, Math.min(MAX_FIND_MATCHES, req.maxMatches ?? MAX_FIND_MATCHES)),
+          includeHidden,
+          caseSensitive
+        ),
+      },
+      LONG_SCRIPT_STALL_MS
+    );
+    const matches = (located[0] as { matches: FindMatchResult[] }).matches;
 
     await this.sendResource(
       {

@@ -389,6 +389,45 @@
       transform: translateX(200%);
     }
 
+    #container-policy {
+      grid-template-columns: 1fr 1fr 1fr;
+    }
+
+    #container-policy .seg-thumb {
+      width: calc(33.333% - 2px);
+    }
+
+    #container-policy:has(#container-default:checked) .seg-thumb {
+      transform: translateX(100%);
+    }
+
+    #container-policy:has(#container-fixed:checked) .seg-thumb {
+      transform: translateX(200%);
+    }
+
+    #container-target {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    #container-target .mode-hint {
+      margin-top: 0;
+    }
+
+    #container-fixed-id {
+      font: inherit;
+      flex: none;
+      max-width: 55%;
+      padding: 4px 8px;
+      border-radius: 8px;
+      border: 1px solid var(--panel-border);
+      background: var(--bg);
+      color: var(--text);
+    }
+
     #console-level {
       grid-template-columns: 1fr 1fr 1fr;
     }
@@ -433,6 +472,11 @@
 
     .seg:has(input:checked) {
       color: #fff;
+    }
+
+    .seg:has(input:disabled) {
+      opacity: 0.45;
+      cursor: not-allowed;
     }
 
     .mode-hint {
@@ -842,13 +886,27 @@
         <span class="toggle-hint" data-i18n="popupToggleBackgroundHint"></span>
       </span>
     </label>
-    <label class="toggle" for="toggle-inherit-container">
-      <input type="checkbox" id="toggle-inherit-container">
-      <span class="toggle-body">
-        <span class="toggle-name" data-i18n="popupToggleInheritContainerName"></span><br>
-        <span class="toggle-hint" data-i18n="popupToggleInheritContainerHint"></span>
-      </span>
-    </label>
+    <span class="field-label" data-i18n="popupContainerPolicyName"></span>
+    <span class="mode-hint" data-i18n="popupContainerPolicyHint"></span>
+    <div id="container-policy" class="segmented" style="margin-top: 6px;">
+      <span class="seg-thumb" aria-hidden="true"></span>
+      <label class="seg" for="container-inherit">
+        <input type="radio" id="container-inherit" name="container-policy" value="inherit">
+        <span data-i18n="popupContainerSegInherit"></span>
+      </label>
+      <label class="seg" for="container-default">
+        <input type="radio" id="container-default" name="container-policy" value="default">
+        <span data-i18n="popupContainerSegDefault"></span>
+      </label>
+      <label class="seg" for="container-fixed">
+        <input type="radio" id="container-fixed" name="container-policy" value="fixed">
+        <span data-i18n="popupContainerSegFixed"></span>
+      </label>
+    </div>
+    <div id="container-target">
+      <div id="container-policy-hint" class="mode-hint"></div>
+      <select id="container-fixed-id" class="hidden"></select>
+    </div>
   </section>
   <section class="section">
     <h2 data-i18n="popupSectionDisplay"></h2>

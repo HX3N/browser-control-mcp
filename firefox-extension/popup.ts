@@ -1,5 +1,6 @@
 import type {
   ConsoleCaptureLevel,
+  ContainerPolicy,
   PermissionMode,
   UrlScope,
 } from "./extension-config";
@@ -107,9 +108,15 @@ const holdSecondsInput = document.getElementById(
 const backgroundModeToggle = document.getElementById(
   "toggle-background-mode"
 ) as HTMLInputElement;
-const inheritContainerToggle = document.getElementById(
-  "toggle-inherit-container"
-) as HTMLInputElement;
+const containerPolicyRadios = Array.from(
+  document.querySelectorAll<HTMLInputElement>("input[name='container-policy']")
+);
+const containerFixedSelect = document.getElementById(
+  "container-fixed-id"
+) as HTMLSelectElement;
+const containerPolicyHint = document.getElementById(
+  "container-policy-hint"
+) as HTMLDivElement;
 const includeHiddenToggle = document.getElementById(
   "toggle-include-hidden"
 ) as HTMLInputElement;
@@ -302,6 +309,63 @@ function describeContainer(cookieStoreId: string | null): string {
   return numbered ? t("popupContainerNumbered", numbered[1]) : cookieStoreId;
 }
 
+function renderContainerPolicy(status: PopupStatus): void {
+  const { policy, cookieStoreId } = status.container;
+  for (const radio of containerPolicyRadios) {
+    radio.checked = radio.value === policy;
+    if (radio.value === "fixed") {
+      radio.disabled = status.containers.length === 0;
+    }
+  }
+
+  containerFixedSelect.replaceChildren(
+    ...status.containers.map((id) => {
+      const option = document.createElement("option");
+      option.value = id;
+      option.textContent = describeContainer(id);
+      return option;
+    })
+  );
+  const target =
+    cookieStoreId && status.containers.includes(cookieStoreId)
+      ? cookieStoreId
+      : status.containers[0];
+  if (target) {
+    containerFixedSelect.value = target;
+  }
+  containerFixedSelect.classList.toggle("hidden", policy !== "fixed");
+
+  containerPolicyHint.textContent =
+    policy === "fixed"
+      ? target
+        ? t("popupContainerHintFixed", describeContainer(target))
+        : t("popupContainerHintNone")
+      : policy === "default"
+      ? t("popupContainerHintDefault")
+      : t(
+          "popupContainerHintInherit",
+          describeContainer(status.activeTab.cookieStoreId)
+        );
+}
+
+async function applyContainerPolicy(policy: ContainerPolicy): Promise<void> {
+  const fixed = policy === "fixed" ? containerFixedSelect.value : "";
+  await refresh({
+    kind: "set-container-policy",
+    policy,
+    cookieStoreId: fixed || undefined,
+  });
+  showFeedback(
+    policy === "fixed"
+      ? fixed
+        ? t("popupFeedbackContainerFixed", describeContainer(fixed))
+        : t("popupContainerHintNone")
+      : policy === "inherit"
+      ? t("popupFeedbackContainerInherit")
+      : t("popupFeedbackContainerDefault")
+  );
+}
+
 function renderActiveTab(status: PopupStatus): void {
   const tab = status.activeTab;
   activeTabTitle.textContent = tab.title || tab.url || t("popupTabUnknown");
@@ -472,7 +536,7 @@ function render(status: PopupStatus): void {
   focusToggle.checked = status.focusEnabled;
   markToggle.checked = status.markEnabled;
   badgeToggle.checked = status.badgeEnabled;
-  inheritContainerToggle.checked = status.inheritContainer;
+  renderContainerPolicy(status);
   backgroundModeToggle.checked = status.backgroundMode;
   includeHiddenToggle.checked = status.includeHidden;
   clipboardReadToggle.checked = status.clipboardRead;
@@ -739,16 +803,17 @@ outlineElementsInput.addEventListener("blur", async () => {
   }
 });
 
-inheritContainerToggle.addEventListener("change", async () => {
-  await refresh({
-    kind: "set-inherit-container",
-    enabled: inheritContainerToggle.checked,
+for (const radio of containerPolicyRadios) {
+  radio.addEventListener("change", async () => {
+    if (!radio.checked) {
+      return;
+    }
+    await applyContainerPolicy(radio.value as ContainerPolicy);
   });
-  showFeedback(
-    inheritContainerToggle.checked
-      ? t("popupFeedbackContainerInherit")
-      : t("popupFeedbackContainerDefault")
-  );
+}
+
+containerFixedSelect.addEventListener("change", async () => {
+  await applyContainerPolicy("fixed");
 });
 
 backgroundModeToggle.addEventListener("change", async () => {

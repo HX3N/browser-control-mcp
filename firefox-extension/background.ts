@@ -14,7 +14,7 @@ import {
   isAuroraEnabled,
   isBadgeEnabled,
   isBackgroundMode,
-  isContainerInherited,
+  getContainerChoice,
   isClipboardReadAllowed,
   isHiddenElementsIncluded,
   getUrlScope,
@@ -25,7 +25,7 @@ import {
   setAuroraEnabled,
   setBadgeEnabled,
   setBackgroundMode,
-  setContainerInherited,
+  setContainerChoice,
   setClipboardReadAllowed,
   setHiddenElementsIncluded,
   getOutlineBoxDepth,
@@ -300,7 +300,26 @@ async function describeActiveTab(): Promise<ActiveTabStatus> {
   };
 }
 
+async function listKnownContainers(pinned?: string): Promise<string[]> {
+  const seen = new Set<string>();
+  if (pinned) {
+    seen.add(pinned);
+  }
+  try {
+    for (const tab of await browser.tabs.query({})) {
+      const id = tab.cookieStoreId;
+      if (id && id !== "firefox-default" && id !== "firefox-private") {
+        seen.add(id);
+      }
+    }
+  } catch (error) {
+    console.error("Could not list the open tabs' containers:", error);
+  }
+  return [...seen].sort();
+}
+
 async function buildStatus(): Promise<PopupStatus> {
+  const container = await getContainerChoice();
   const disabledPorts = await getDisabledPorts();
   const ports = await getPorts();
   const live = [...slots].map((slot) => ({
@@ -333,7 +352,8 @@ async function buildStatus(): Promise<PopupStatus> {
     badgeEnabled: await isBadgeEnabled(),
     domainDenyList: await getDomainDenyList(),
     allowedOrigins: await getAllowedOrigins(),
-    inheritContainer: await isContainerInherited(),
+    container,
+    containers: await listKnownContainers(container.cookieStoreId),
     backgroundMode: await isBackgroundMode(),
     includeHidden: await isHiddenElementsIncluded(),
     outlineBoxDepth: await getOutlineBoxDepth(),
@@ -398,8 +418,11 @@ async function handlePopupRequest(request: PopupRequest): Promise<PopupStatus> {
       }
       await syncSlotsFromConfig(activeSecret);
       break;
-    case "set-inherit-container":
-      await setContainerInherited(request.enabled);
+    case "set-container-policy":
+      await setContainerChoice({
+        policy: request.policy,
+        cookieStoreId: request.cookieStoreId,
+      });
       break;
     case "set-background-mode":
       await setBackgroundMode(request.enabled);

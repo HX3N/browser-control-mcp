@@ -1,5 +1,6 @@
 import WebSocket from "ws";
 import type {
+  OriginGuarded,
   ExtensionMessage,
   BrowserTab,
   BrowserHistoryItem,
@@ -223,14 +224,10 @@ export class BrowserAPI {
     return this.boundPort ?? undefined;
   }
 
-  async openTab(
-    url: string,
-    cookieStoreId?: string
-  ): Promise<OpenedTabIdExtensionMessage> {
+  async openTab(url: string): Promise<OpenedTabIdExtensionMessage> {
     const correlationId = this.sendMessageToExtension({
       cmd: "open-tab",
       url,
-      cookieStoreId,
     });
     return await this.waitForResponse(
       correlationId,
@@ -294,6 +291,7 @@ export class BrowserAPI {
       includeSelectors: boolean;
       includeHrefs: boolean;
       full: boolean;
+      controlsOnly: boolean;
     },
     target?: ElementTarget
   ): Promise<PageExtensionMessage> {
@@ -322,13 +320,15 @@ export class BrowserAPI {
   async findHighlight(
     tabId: number,
     queryPhrase: string,
-    maxMatches: number
+    maxMatches: number,
+    caseSensitive: boolean
   ): Promise<FindHighlightExtensionMessage> {
     const correlationId = this.sendMessageToExtension({
       cmd: "find-highlight",
       tabId,
       queryPhrase,
       maxMatches,
+      caseSensitive,
     });
     return await this.waitForResponse(
       correlationId,
@@ -397,7 +397,7 @@ export class BrowserAPI {
 
   async clickElement(
     tabId: number,
-    target: ElementTarget,
+    target: ElementTarget & OriginGuarded,
     button: "left" | "middle" | "right",
     clickCount: number,
     modifiers: KeyModifier[]
@@ -435,7 +435,7 @@ export class BrowserAPI {
 
   async dragElement(
     tabId: number,
-    target: ElementTarget,
+    target: ElementTarget & OriginGuarded,
     to: ElementTarget
   ): Promise<InteractionResultExtensionMessage> {
     const correlationId = this.sendMessageToExtension({
@@ -453,7 +453,7 @@ export class BrowserAPI {
 
   async uploadFiles(
     tabId: number,
-    target: ElementTarget,
+    target: ElementTarget & OriginGuarded,
     files: UploadFile[]
   ): Promise<InteractionResultExtensionMessage> {
     const correlationId = this.sendMessageToExtension({
@@ -525,7 +525,7 @@ export class BrowserAPI {
 
   async typeText(
     tabId: number,
-    target: ElementTarget,
+    target: ElementTarget & OriginGuarded,
     text: string,
     clearFirst: boolean,
     submit: boolean,
@@ -552,7 +552,7 @@ export class BrowserAPI {
     key: string,
     modifiers: ("Control" | "Shift" | "Alt" | "Meta")[],
     repeat: number,
-    target: ElementTarget
+    target: ElementTarget & OriginGuarded
   ): Promise<InteractionResultExtensionMessage> {
     const correlationId = this.sendMessageToExtension({
       cmd: "press-key",
@@ -591,7 +591,7 @@ export class BrowserAPI {
 
   async selectOption(
     tabId: number,
-    target: ElementTarget,
+    target: ElementTarget & OriginGuarded,
     values: string[]
   ): Promise<InteractionResultExtensionMessage> {
     const correlationId = this.sendMessageToExtension({
@@ -609,12 +609,14 @@ export class BrowserAPI {
 
   async executeJs(
     tabId: number,
-    code: string
+    code: string,
+    expectedOrigin?: string
   ): Promise<ScriptResultExtensionMessage> {
     const correlationId = this.sendMessageToExtension({
       cmd: "execute-js",
       tabId,
       code,
+      expectedOrigin,
     });
     return await this.waitForResponse(
       correlationId,

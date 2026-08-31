@@ -100,6 +100,7 @@ export interface TabsExtensionMessage extends ExtensionMessageBase {
 export interface OpenedTabIdExtensionMessage extends ExtensionMessageBase {
   resource: "opened-tab-id";
   tabId: number | undefined;
+  cookieStoreId?: string;
 }
 
 export interface TabNavigatedExtensionMessage extends ExtensionMessageBase {
