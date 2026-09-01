@@ -1870,7 +1870,7 @@ export class MessageHandler {
     if (readyState) {
       return (
         `Tab ${tabId}${title} is not frozen, but the command's script never got to run: the document ` +
-        `is still loading (readyState "${readyState}"), typically held by a script it is fetching. ` +
+        `is still loading (readyState "${readyState}"). ` +
         `Wait for the page to finish loading and run the command again.`
       );
     }

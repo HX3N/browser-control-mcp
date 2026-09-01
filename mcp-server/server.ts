@@ -43,8 +43,7 @@ const mcpServer = new McpServer(
       - A ref such as e12 comes from a read-page or find-text-in-page of a tab and stays with that
         element across later reads. It dies when the element is re-rendered away or the page
         navigates: read again and retry. A number is never handed to a second element, so a stale
-        ref fails instead of acting somewhere else. Element tools take a ref or a CSS selector;
-        prefer the ref.
+        ref fails instead of acting somewhere else.
       - read-page, capture-tab-screenshot and list-page-media take a ref or selector to cover one
         element only. Prefer that whenever the part you need is a known region.
       - Elements, matches and media the user cannot see are counted, and listed only when the user
@@ -260,7 +259,7 @@ function frameNotice(
     {
       type: "text",
       text:
-        `${frames.length} frame(s) on this page could not be read at all, so none of their text, links or elements are below. ` +
+        `${frames.length} frame(s) on this page could not be read, so none of their text, links or elements are below. ` +
         "Navigate a tab to a frame's own URL to work inside it - a page whose real content sits in one " +
         "large frame carries almost nothing outside it:\n" +
         lines.join("\n") +
@@ -315,8 +314,8 @@ defineTool(
   "open-browser-tab",
   `
     Open a new tab. Which Firefox container it lands in is the user's setting in the extension
-    popup, not a choice this tool makes; a tab in another container appears signed out, and the
-    answer says which one it opened in.
+    popup; a tab in another container appears signed out, and the answer says which one it
+    opened in.
   `,
   { title: "Open a new tab", readOnlyHint: false, destructiveHint: false, idempotentHint: false },
   {
@@ -354,8 +353,8 @@ defineTool(
   "navigate-browser-tab",
   `
     Send an open tab to a URL, or "back" / "forward" through its history. Prefer it over
-    open-browser-tab once a tab is in use; click-page-element on a link also stays in the tab, so
-    use this when the address is known up front or no link leads there. A same-origin address is
+    open-browser-tab once a tab is in use, when the address is known up front or no link leads
+    there; a link is followed with click-page-element. A same-origin address is
     first handed to the page itself, so an app that routes on its own keeps its state; the answer
     says when that happened. Answers once the page loads; unsaved input and refs are gone.
   `,
@@ -512,14 +511,9 @@ defineTool(
     text as plain lines, each control as [e12] link <a> "Edit" with a ref the interaction tools
     accept.
     "ref" or "selector" reads one element only; refs outside the scope survive and new ones are
-    numbered above them. An element keeps its ref from read to read. Frames and shadow roots are
-    included; a cross-origin frame follows the page under a "## frame host/path" heading and its
-    refs read f3e12, which every tool accepts.
-    A large page read whole comes back as an outline of its regions; full: true reads it whole.
-    controlsOnly: true drops the text and lists the controls alone - the index to reach for when
-    the question is what can be clicked or typed into, not what the page says.
-    Links show their text alone; includeHrefs adds where each points, needed to navigate by URL.
-    Use "offset" only to continue a truncated answer.
+    numbered above them. Frames and shadow roots are included; a cross-origin frame follows the
+    page under a "## frame host/path" heading and its refs read f3e12.
+    A large page read whole comes back as an outline of its regions.
   `,
   { title: "Read a page", readOnlyHint: true },
   {
@@ -531,7 +525,9 @@ defineTool(
     controlsOnly: z
       .boolean()
       .default(false)
-      .describe("List the interactive elements alone, without the page text"),
+      .describe(
+        "List the interactive elements alone, without the page text; the index to reach for when the question is what can be clicked or typed into, not what the page says"
+      ),
     offset: z
       .number()
       .int()
@@ -552,7 +548,9 @@ defineTool(
     includeHrefs: z
       .boolean()
       .default(false)
-      .describe("Also list where each link points (costs many tokens on a link-heavy page)"),
+      .describe(
+        "Also list where each link points, needed to navigate by URL; without it links show their text alone (costs many tokens on a link-heavy page)"
+      ),
     ...elementTargetShape,
   },
   async ({ tabId, full, controlsOnly, offset, maxElements, includeSelectors, includeHrefs, ref, selector, index }) => {
@@ -635,7 +633,7 @@ defineTool(
     comment, a row - and the controls inside it follow with refs of their own, so the button beside
     the phrase can be clicked at once; read-page with the block's ref shows the rest of it.
     Use this to locate one item on a long page; do not walk the page one element at a time.
-    The phrase is matched against rendered text, ignoring case unless caseSensitive is set. When
+    The phrase is matched against rendered text. When
     no rendered text matches, the controls are searched by name instead - aria-label, placeholder,
     title, alt, name - which is how a search box named only by its placeholder is found; those
     matches say which attribute carried the phrase.
@@ -726,8 +724,6 @@ defineTool(
     foregrounding, and the part below the fold is in the image too.
     "region" zooms into a viewport rectangle, in the pixel coordinates of an earlier full-screen
     capture at scale 1: for an icon, a chart label or a table cell the full shot rendered too small.
-    An element taller than 2000 pixels comes back as up to maxSlices images, top to bottom with a
-    small overlap; maxSlices 1 crops to the slice near the scroll position.
   `,
   { title: "Screenshot a tab", readOnlyHint: true },
   {
@@ -756,7 +752,7 @@ defineTool(
       .max(8)
       .default(3)
       .describe(
-        "How many images an element taller than 2000px may be split into"
+        "How many images an element taller than 2000px may be split into, top to bottom with a small overlap; 1 crops to the slice near the scroll position"
       ),
     region: z
       .array(z.number())
@@ -928,14 +924,17 @@ defineTool(
   `
     Read one image from a page by URL as the original file, with the page's own cookies. Prefer
     it over a screenshot when the original is larger than displayed or the exact file matters.
-    The URL must be one list-page-media listed for this tab on the page it is showing now. Only
-    jpeg, png, gif and webp are returned, capped by the limit next to "Read images" in the
+    Only jpeg, png, gif and webp are returned, capped by the limit next to "Read images" in the
     extension popup, 8MB by default.
   `,
   { title: "View an image", readOnlyHint: true },
   {
     tabId: z.number(),
-    url: z.string().describe("A URL from this tab's latest list-page-media answer"),
+    url: z
+      .string()
+      .describe(
+        "A URL list-page-media listed for this tab on the page it is showing now"
+      ),
   },
   async ({ tabId, url }) => {
     const media = await browserApi.fetchMediaContent(tabId, url);
@@ -963,8 +962,7 @@ defineTool(
 defineTool(
   "click-page-element",
   `
-    Click an element by ref or CSS selector, or with action "hover" only move the pointer over it;
-    either way it is scrolled into view and highlighted first.
+    Click an element by ref or CSS selector; it is scrolled into view and highlighted first.
     Middle and right clicks, and clicks with modifiers, dispatch the events but not the browser's
     default action: no new tab opens and no selection extends - use open-browser-tab for a new tab.
   `,
@@ -1108,9 +1106,8 @@ defineTool(
 defineTool(
   "download-file-from-page",
   `
-    Save a file a page shows into the browser's downloads folder, with the page's own cookies:
-    the pair of upload-files-to-page-element. Pass the ref of a link or media element from the
-    latest read-page, or a URL from this tab's latest list-page-media answer. The file goes
+    Save a file a page shows into the browser's downloads folder, with the page's own cookies.
+    Pass the ref of a link or media element from the latest read-page. The file goes
     straight from the browser to disk and never enters this conversation; use read-page-image
     to look at an image. The browser chooses the folder; "filename" only names the file inside
     it. A download still running after a minute is reported as in progress and carries on.
@@ -1237,9 +1234,9 @@ defineTool(
   "type-into-page-element",
   `
     Type into an input, textarea or contenteditable: text is appended and input/change events
-    fire. submit also presses Enter to submit the owning form. A field outside a <form> - a chat
-    composer, a framework's search box - has no form to submit: pass clickAfterRef or
-    clickAfterSelector to press the page's own send button in the same call.
+    fire. A field outside a <form> - a chat composer, a framework's search box - has no form to
+    submit: pass clickAfterRef or clickAfterSelector to press the page's own send button in the
+    same call.
   `,
   { title: "Type into an element", readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   {
@@ -1312,8 +1309,6 @@ defineTool(
     arrow, Page and Home/End keys scroll the focused list or the page. The clipboard is out of
     reach: copy, cut and paste shortcuts only dispatch the event for the page to handle, so use
     type-into-page-element to enter text.
-    repeat presses the key several times in one call; the presses stop early once one submits a
-    form or the page cancels one.
   `,
   { title: "Press a key", readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   {
@@ -1329,7 +1324,9 @@ defineTool(
       .min(1)
       .max(100)
       .default(1)
-      .describe("How many times to press the key"),
+      .describe(
+        "How many times to press the key; the presses stop early once one submits a form or the page cancels one"
+      ),
     ...elementTargetShape,
     ...originGuardShape,
   },
@@ -1413,8 +1410,7 @@ defineTool(
     Run JavaScript in a tab. The code is a function body: only what a return statement hands back
     comes out. It runs in the extension's content script sandbox: the DOM is available, the page's
     own globals are not - reach those through window.wrappedJSObject. The result is serialised to
-    text, and DOM nodes are summarised rather than dumped. It runs in the tab's top document
-    unless frameRef names an element inside a frame, and then in that frame's document.
+    text, and DOM nodes are summarised rather than dumped.
   `,
   { title: "Run JavaScript", readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   {
@@ -1455,14 +1451,11 @@ defineTool(
     because the page had not rendered. Matched inside same-origin frames and shadow roots too.
     Without "selector": block until the page's text changes, then return only the text that
     arrived - the way to follow a chat, a feed or a job reporting progress in one round trip.
-    Nothing is lost between calls: each picks up where the last stopped. timeoutMs 0 checks for
-    new text without waiting: use it right before sending a reply, and rewrite the reply if the
-    answer is not empty - it answers off a single sample, so it alone cannot tell a clock from an
-    answer and hands back both. The page is sampled around every settleMs, and the wait ends once a line
-    that is not in the previous text has been there in three samples running, never once missing -
-    so a clock, a counter, a spinner or a typing indicator, which reads differently from sample to
-    sample, never ends it and never reaches the answer, while a reply still being written ends it
-    once it stops growing. Waiting therefore costs three samples at the least.
+    Nothing is lost between calls: each picks up where the last stopped. timeoutMs 0 answers off
+    a single sample: use it right before sending a reply, and rewrite the reply if the answer is
+    not empty - a single sample cannot tell a clock from an answer and hands back both.
+    The wait ends once new text has held still; text that keeps changing never ends it and never
+    reaches the answer, while a reply still being written ends it once it stops growing.
     withinRef or withinSelector watches one element only, in both ways: a row in one list when the
     same selector matches elsewhere, or keeping a clock elsewhere on the page from ending a text
     wait. The watched element is outlined on screen.
@@ -1495,9 +1488,7 @@ defineTool(
       .min(0)
       .max(5000)
       .default(800)
-      .describe(
-        "Text wait only: how far apart the samples are; a line has to stand across three of them"
-      ),
+      .describe("Text wait only: how far apart the samples are"),
     withinRef: z
       .string()
       .optional()
@@ -1586,7 +1577,7 @@ defineTool(
                 ? result.fresh
                   ? `No earlier wait was held on ${where}, so this call only took the baseline. Call again to receive what arrives from now on.`
                   : `Nothing new on ${where} since the last wait.`
-                : `Nothing on ${where} stood still long enough to count as a change within ${waitMs}ms.`,
+                : `No new text on ${where} held still within ${waitMs}ms; anything that appeared kept changing.`,
           },
           ...dialogNotice(result),
         ],
@@ -1616,9 +1607,8 @@ defineTool(
   BATCH_TOOL_NAME,
   `
     Run several browser tools in one call, in order, and get every answer back together. Use it
-    whenever two or more steps are known in advance. Each action is {tool, input}, input being
-    what that tool takes on its own; the built-in "wait" with {ms} pauses up to ${MAX_BATCH_WAIT_MS}ms
-    between steps.
+    whenever two or more steps are known in advance. Each action is {tool, input}; the built-in
+    "wait" with {ms} pauses up to ${MAX_BATCH_WAIT_MS}ms between steps.
     Actions stop at the first failure. A step cannot use a ref that an earlier step of the same
     batch produced: read before the batch, and use the refs of a read taken inside it only in the
     next call.
