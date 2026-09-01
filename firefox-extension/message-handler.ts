@@ -55,7 +55,6 @@ import {
   getImageLimitBytes,
 } from "./extension-config";
 import { ensureTabAccess } from "./tab-access";
-import { diffText } from "./text-diff";
 import { formatScript } from "./format-script";
 import { buildSnapshotCode, formatPageItems, PageReadResult } from "./page-snapshot";
 import { ELEMENT_RESOLVER_SOURCE, isElementTargeted } from "./injected-common";
@@ -117,7 +116,7 @@ import {
   buildRegionBoxCode,
   buildScrollCode,
   buildSelectOptionCode,
-  buildTextReadCode,
+  buildTextResultCode,
   buildTextWatchCode,
   DEFAULT_TEXT_SETTLE_MS,
   buildTypeCode,
@@ -125,6 +124,7 @@ import {
   buildWaitProbeCode,
   ElementBoxResult,
   InteractionScriptResult,
+  TextWatchOutcome,
   TextWatchResult,
   WaitProbeResult,
 } from "./interaction-scripts";
@@ -2113,7 +2113,6 @@ export class MessageHandler {
       MAX_TEXT_SETTLE_MS,
       Math.max(0, req.settleMs ?? DEFAULT_TEXT_SETTLE_MS)
     );
-    const minChars = Math.max(0, req.minChars ?? 0);
     const startedAt = Date.now();
 
     // Anything the page said since the last wait has to be diffed against where that wait
@@ -2133,52 +2132,46 @@ export class MessageHandler {
           req.correlationId,
           carried,
           settleMs,
-          timeoutMs,
-          minChars
+          timeoutMs
         ),
       },
       LONG_SCRIPT_STALL_MS
     );
     const watch = watchResults[0] as TextWatchResult;
 
-    let current = watch.current;
     let outcome: TextWaitOutcome = "changed";
+    let result: TextWatchOutcome = {
+      added: watch.added ?? "",
+      removed: watch.removed ?? "",
+      text: watch.current,
+    };
 
     if (!watch.settled) {
       // The hold would otherwise expire under a wait longer than holdReleaseMs and end it.
       const timings = await getOverlayTimings();
       this.extendHold(req.tabId, timeoutMs + timings.holdReleaseMs);
-      outcome = await awaitTextChange(
-        req.tabId,
-        req.correlationId,
-        timeoutMs
-      );
+      outcome = await awaitTextChange(req.tabId, req.correlationId, timeoutMs);
       this.extendHold(req.tabId, timings.holdReleaseMs);
-      if (outcome !== "navigated") {
-        const readResults = await this.runScript(
+      if (outcome === "navigated") {
+        result = { added: "", removed: "", text: watch.baseline };
+      } else {
+        const resultScript = await this.runScript(
           req.tabId,
-          { code: buildTextReadCode(within) },
+          { code: buildTextResultCode(within) },
           LONG_SCRIPT_STALL_MS
         );
-        current = readResults[0] as string;
+        result = resultScript[0] as TextWatchOutcome;
       }
     }
 
-    const diff =
-      outcome === "navigated"
-        ? { added: "", removed: 0, delta: 0 }
-        : diffText(watch.baseline, current);
-    // A change too small to report leaves the baseline where it was, so the small ones that
-    // follow are measured together and reported once they add up past the threshold.
     const changed =
       outcome !== "navigated" &&
-      current !== watch.baseline &&
-      diff.delta >= minChars;
+      (result.added.length > 0 || result.removed.length > 0);
 
     if (outcome === "navigated") {
       this.textBaselines.delete(req.tabId);
     } else {
-      held.set(scopeKey, changed ? current : watch.baseline);
+      held.set(scopeKey, changed ? result.text : watch.baseline);
       this.textBaselines.set(req.tabId, held);
     }
 
@@ -2191,9 +2184,9 @@ export class MessageHandler {
         changed,
         navigated: outcome === "navigated",
         fresh: carried === null,
-        addedText: diff.added.slice(0, MAX_ADDED_TEXT_LENGTH),
-        rewritten: diff.removed > 0,
-        removedChars: diff.removed,
+        addedText: result.added.slice(0, MAX_ADDED_TEXT_LENGTH),
+        rewritten: result.removed.length > 0,
+        removedChars: result.removed.length,
         elapsedMs: Date.now() - startedAt,
       },
       req.tabId

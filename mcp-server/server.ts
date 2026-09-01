@@ -1445,9 +1445,12 @@ defineTool(
     arrived - the way to follow a chat, a feed or a job reporting progress in one round trip.
     Nothing is lost between calls: each picks up where the last stopped. timeoutMs 0 checks for
     new text without waiting: use it right before sending a reply, and rewrite the reply if the
-    answer is not empty. The wait ends once the text has been still for settleMs. When noise
-    inside the watched element - a counter, a typing indicator, a ticking timestamp - keeps ending
-    the wait, raise minChars: smaller changes do not end it but add up until they cross it.
+    answer is not empty - it answers off a single sample, so it alone cannot tell a clock from an
+    answer and hands back both. The page is sampled around every settleMs, and the wait ends once a line
+    that is not in the previous text has been there in three samples running, never once missing -
+    so a clock, a counter, a spinner or a typing indicator, which reads differently from sample to
+    sample, never ends it and never reaches the answer, while a reply still being written ends it
+    once it stops growing. Waiting therefore costs three samples at the least.
     withinRef or withinSelector watches one element only, in both ways: a row in one list when the
     same selector matches elsewhere, or keeping a clock elsewhere on the page from ending a text
     wait. The watched element is outlined on screen.
@@ -1481,15 +1484,7 @@ defineTool(
       .max(5000)
       .default(800)
       .describe(
-        "Text wait only: how long the text has to stay still before the wait ends"
-      ),
-    minChars: z
-      .number()
-      .int()
-      .min(0)
-      .default(0)
-      .describe(
-        "Text wait only: characters added or removed for a change to count"
+        "Text wait only: how far apart the samples are; a line has to stand across three of them"
       ),
     withinRef: z
       .string()
@@ -1512,7 +1507,6 @@ defineTool(
     state,
     timeoutMs,
     settleMs,
-    minChars,
     withinRef,
     withinSelector,
     withinIndex,
@@ -1531,7 +1525,6 @@ defineTool(
       state,
       timeoutMs: waitMs,
       settleMs,
-      minChars,
       within,
     });
 
@@ -1581,9 +1574,7 @@ defineTool(
                 ? result.fresh
                   ? `No earlier wait was held on ${where}, so this call only took the baseline. Call again to receive what arrives from now on.`
                   : `Nothing new on ${where} since the last wait.`
-                : minChars > 0
-                  ? `The text of ${where} did not change by ${minChars} character(s) or more within ${waitMs}ms.`
-                  : `The text of ${where} did not change within ${waitMs}ms.`,
+                : `Nothing on ${where} stood still long enough to count as a change within ${waitMs}ms.`,
           },
           ...dialogNotice(result),
         ],

@@ -623,7 +623,6 @@ export class BrowserAPI {
       state?: ElementWaitState;
       timeoutMs: number;
       settleMs?: number;
-      minChars?: number;
       within?: ElementTarget;
     }
   ): Promise<PageWaitExtensionMessage> {

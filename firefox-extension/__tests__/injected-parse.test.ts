@@ -31,7 +31,7 @@ import {
   buildRegionBoxCode,
   buildScrollCode,
   buildSelectOptionCode,
-  buildTextReadCode,
+  buildTextResultCode,
   buildTextWatchCode,
   buildTypeCode,
   buildDownloadUrlCode,
@@ -216,14 +216,7 @@ const cases: [string, string][] = [
   ],
   [
     "text watch, whole page, no baseline yet",
-    buildTextWatchCode(
-      undefined,
-      "abc-1",
-      null,
-      800,
-      30000,
-      0
-    ),
+    buildTextWatchCode(undefined, "abc-1", null, 800, 30000),
   ],
   [
     "text watch, carrying a baseline",
@@ -232,34 +225,15 @@ const cases: [string, string][] = [
       "abc-2",
       "what the page said last time\n'quoted'",
       0,
-      0,
       0
     ),
   ],
   [
     "text watch, scoped by selector",
-    buildTextWatchCode(
-      bySelector,
-      "abc-3",
-      null,
-      5000,
-      180000,
-      0
-    ),
+    buildTextWatchCode(bySelector, "abc-3", null, 5000, 180000),
   ],
-  [
-    "text watch, ignoring changes under a threshold",
-    buildTextWatchCode(
-      bySelector,
-      "abc-4",
-      "what the page said last time\n'quoted'",
-      800,
-      30000,
-      12
-    ),
-  ],
-  ["text read, whole page", buildTextReadCode(undefined)],
-  ["text read, scoped by ref", buildTextReadCode(target)],
+  ["text result, whole page", buildTextResultCode(undefined)],
+  ["text result, scoped by ref", buildTextResultCode(target)],
   [
     "press key",
     buildPressKeyCode({

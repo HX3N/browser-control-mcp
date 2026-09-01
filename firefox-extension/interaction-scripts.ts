@@ -1131,61 +1131,33 @@ export interface TextWatchResult {
   current: string;
   settled: boolean;
   label: string;
+  added?: string;
+  removed?: string;
 }
 
-const TEXT_DELTA_SOURCE = `
-function __bcmCharDelta(before, after) {
-  var shortest = Math.min(before.length, after.length);
-  var prefix = 0;
-  while (prefix < shortest && before.charCodeAt(prefix) === after.charCodeAt(prefix)) { prefix++; }
-  var room = shortest - prefix;
-  var suffix = 0;
-  while (suffix < room &&
-    before.charCodeAt(before.length - 1 - suffix) === after.charCodeAt(after.length - 1 - suffix)) { suffix++; }
-  return (after.length - prefix - suffix) + (before.length - prefix - suffix);
+export interface TextWatchOutcome {
+  added: string;
+  removed: string;
+  text: string;
 }
-function __bcmTextDelta(before, after) {
-  var b = before.split('\\n');
-  var a = after.split('\\n');
-  var prefix = 0;
-  while (prefix < b.length && prefix < a.length && b[prefix] === a[prefix]) { prefix++; }
-  var ahead = new Map();
-  for (var k = prefix; k < a.length; k++) { ahead.set(a[k], (ahead.get(a[k]) || 0) + 1); }
-  var suffix = 0;
-  while (suffix < b.length - prefix && suffix < a.length - prefix &&
-    b[b.length - 1 - suffix] === a[a.length - 1 - suffix]) {
-    var line = a[a.length - 1 - suffix];
-    var left = (ahead.has(line) ? ahead.get(line) : 1) - 1;
-    if (left > 0) { break; }
-    ahead.set(line, left);
-    suffix++;
+
+const TEXT_LINES_SOURCE = `
+function __bcmNewLines(baseline, sample) {
+  var have = new Map();
+  var before = baseline.split('\\n');
+  for (var i = 0; i < before.length; i++) {
+    have.set(before[i], (have.get(before[i]) || 0) + 1);
   }
-  var oldMid = b.slice(prefix, b.length - suffix);
-  var newMid = a.slice(prefix, a.length - suffix);
-  if (!oldMid.length || !newMid.length || oldMid.length * newMid.length > 250000) {
-    return __bcmCharDelta(oldMid.join('\\n'), newMid.join('\\n'));
+  var out = [];
+  var after = sample.split('\\n');
+  for (var j = 0; j < after.length; j++) {
+    var line = after[j];
+    var left = have.get(line) || 0;
+    if (left > 0) { have.set(line, left - 1); continue; }
+    if (!line.trim()) { continue; }
+    out.push(line);
   }
-  var width = newMid.length + 1;
-  var table = new Uint32Array((oldMid.length + 1) * width);
-  for (var i = oldMid.length - 1; i >= 0; i--) {
-    for (var j = newMid.length - 1; j >= 0; j--) {
-      table[i * width + j] = oldMid[i] === newMid[j]
-        ? table[(i + 1) * width + j + 1] + 1
-        : Math.max(table[(i + 1) * width + j], table[i * width + j + 1]);
-    }
-  }
-  var added = [];
-  var removed = [];
-  var x = 0;
-  var y = 0;
-  while (x < oldMid.length && y < newMid.length) {
-    if (oldMid[x] === newMid[y]) { x++; y++; }
-    else if (table[(x + 1) * width + y] >= table[x * width + y + 1]) { removed.push(oldMid[x]); x++; }
-    else { added.push(newMid[y]); y++; }
-  }
-  removed = removed.concat(oldMid.slice(x));
-  added = added.concat(newMid.slice(y));
-  return __bcmCharDelta(removed.join('\\n'), added.join('\\n'));
+  return out;
 }
 `;
 
@@ -1195,50 +1167,102 @@ const TEXT_SCOPE_SOURCE = (target: ElementTarget | undefined) =>
     : "document.body";
 
 export const DEFAULT_TEXT_SETTLE_MS = 800;
+export const TEXT_STABLE_SAMPLES = 3;
 
 export function buildTextWatchCode(
   scope: ElementTarget | undefined,
   token: string,
   carried: string | null,
   settleMs: number,
-  timeoutMs: number,
-  minChars: number
+  timeoutMs: number
 ): string {
   return `(function () {
 ${ELEMENT_RESOLVER_SOURCE}
 ${PAGE_READ_SOURCE}
-${TEXT_DELTA_SOURCE}
+${TEXT_LINES_SOURCE}
   function scope() { return ${TEXT_SCOPE_SOURCE(scope)}; }
   var el = scope();
   var label = __bcmLabel(el);
   var carried = ${jsValue(carried)};
-  var current = __bcmReadText(el);
+  var latest = __bcmReadText(el);
   try { if (window.__bcmTextWatch) { window.__bcmTextWatch(); window.__bcmTextWatch = null; } } catch (err) { /* nothing was watching */ }
+  window.__bcmWatchResult = null;
 
-  var baseline = carried === null ? current : carried;
+  var baseline = carried === null ? latest : carried;
+  var arrived = __bcmNewLines(baseline, latest);
+  var erased = __bcmNewLines(latest, baseline);
+
   if (${jsValue(timeoutMs <= 0)}) {
-    return { baseline: baseline, current: current, settled: true, label: label };
+    return {
+      baseline: baseline,
+      current: latest,
+      settled: true,
+      label: label,
+      added: arrived.join('\\n'),
+      removed: erased.join('\\n')
+    };
   }
 
-  var settleMs = ${jsValue(settleMs)};
+  var keep = ${jsValue(TEXT_STABLE_SAMPLES)};
+  var arrivedLedger = new Map();
+  var erasedLedger = new Map();
+  var round = 0;
+  var dirty = false;
   var done = false;
   var timer = null;
-  var firstSeenAt = 0;
 
   function stop() {
     done = true;
     if (timer) { clearTimeout(timer); timer = null; }
     try { observer.disconnect(); } catch (err) { /* already gone */ }
   }
-  function compare() {
-    timer = null;
+  function note(book, lines) {
+    var once = new Set(lines);
+    once.forEach(function (line) {
+      var seen = book.get(line);
+      if (seen) { seen.last = round; seen.count++; }
+      else { book.set(line, { first: round, last: round, count: 1 }); }
+    });
+  }
+  // A line that went missing for even one sample and came back is something the page keeps
+  // rewriting, so it stays out for good: three sightings in a row can happen by chance when a
+  // spinner has only a handful of frames.
+  function steady(book) {
+    var out = [];
+    book.forEach(function (seen, line) {
+      if (seen.last === round && seen.count >= keep && seen.last - seen.first + 1 === seen.count) {
+        out.push(line);
+      }
+    });
+    return out;
+  }
+  function sample() {
     if (done) { return; }
-    var now;
-    try { now = __bcmReadText(scope()); } catch (err) { return; }
-    firstSeenAt = 0;
-    if (now === baseline) { return; }
-    if (__bcmTextDelta(baseline, now) < ${jsValue(minChars)}) { return; }
+    if (dirty) {
+      dirty = false;
+      var text;
+      try { text = __bcmReadText(scope()); } catch (err) { return; }
+      latest = text;
+      arrived = __bcmNewLines(baseline, latest);
+      erased = __bcmNewLines(latest, baseline);
+    }
+    round++;
+    note(arrivedLedger, arrived);
+    note(erasedLedger, erased);
+    var stableAdded = steady(arrivedLedger);
+    // A line the page rewrites is missing from the samples as well as arriving in them, so
+    // counting removals while anything is still churning would report the first reading of a
+    // clock as deleted text. The cost is that a page taking text away while something else
+    // ticks reports nothing: text alone cannot tell that removal from the clock's own.
+    var settledArrivals = arrived.length === stableAdded.length;
+    var stableGone = settledArrivals ? steady(erasedLedger) : [];
+    if (!stableAdded.length && !stableGone.length) { return; }
     stop();
+    window.__bcmWatchResult = {
+      added: stableAdded.join('\\n'),
+      removed: stableGone.join('\\n'),
+      text: latest
+    };
     try {
       browser.runtime.sendMessage({
         kind: 'page-event',
@@ -1247,31 +1271,36 @@ ${TEXT_DELTA_SOURCE}
       });
     } catch (err) { /* the background is the only listener and it may be gone */ }
   }
-  function schedule() {
-    var at = Date.now();
-    if (!firstSeenAt) { firstSeenAt = at; }
-    // A page that never stops mutating would hold the settle window open forever.
-    if (at - firstSeenAt >= settleMs * 4) { compare(); return; }
-    if (timer) { clearTimeout(timer); }
-    timer = setTimeout(compare, settleMs);
+  // A spinner whose period divides the gap reads the same on every sample and passes for stopped,
+  // so the gaps have to be uneven: no fixed cadence can stay in step with all three.
+  var base = Math.max(50, ${jsValue(settleMs)});
+  var gaps = [base, Math.round(base * 0.75), Math.round(base * 1.25)];
+  var gapAt = 0;
+  function arm() {
+    timer = setTimeout(function () {
+      sample();
+      if (!done) { arm(); }
+    }, gaps[gapAt++ % gaps.length]);
   }
-  var observer = new MutationObserver(function () {
-    if (!done) { schedule(); }
-  });
+
+  var observer = new MutationObserver(function () { dirty = true; });
   observer.observe(el.ownerDocument.documentElement, { childList: true, characterData: true, subtree: true });
   window.__bcmTextWatch = stop;
-  if (current !== baseline) { schedule(); }
+  arm();
 
-  return { baseline: baseline, current: current, settled: false, label: label };
+  return { baseline: baseline, current: latest, settled: false, label: label };
 })();`;
 }
 
-export function buildTextReadCode(target: ElementTarget | undefined): string {
+export function buildTextResultCode(target: ElementTarget | undefined): string {
   return `(function () {
 ${ELEMENT_RESOLVER_SOURCE}
 ${PAGE_READ_SOURCE}
+  var held = window.__bcmWatchResult || null;
   try { if (window.__bcmTextWatch) { window.__bcmTextWatch(); window.__bcmTextWatch = null; } } catch (err) { /* nothing was watching */ }
-  return __bcmReadText(${TEXT_SCOPE_SOURCE(target)});
+  window.__bcmWatchResult = null;
+  if (held) { return held; }
+  return { added: '', removed: '', text: __bcmReadText(${TEXT_SCOPE_SOURCE(target)}) };
 })();`;
 }
 

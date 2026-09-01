@@ -225,7 +225,6 @@ export interface WaitForPageServerMessage extends ServerMessageBase {
   state?: ElementWaitState;
   timeoutMs?: number;
   settleMs?: number;
-  minChars?: number;
   within?: ElementTarget;
 }
 

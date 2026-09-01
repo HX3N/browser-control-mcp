@@ -89,9 +89,15 @@ the next free port and the extension keeps one spare slot.
 - Scroll positions are reported against `scrollMax`, not `scrollHeight`.
 - A synthetic Enter submits in a single-line field and inserts a line break in a multiline one
   (`__bcmMultiline`).
-- `wait-for-page-text-change` carries its baseline in `textBaselines` per tab and scope; the
-  answer is a common-prefix/suffix diff (`text-diff.ts`); a navigation drops the baseline. The
-  wait lives in the background, not in a script, because it can outlast `runScript`.
+- `wait-for-page` keeps its text baseline in `textBaselines` per tab and scope; a navigation drops
+  it. The wait lives in the background, not in a script, because it can outlast `runScript`.
+- The watch samples the scope on uneven gaps (`settleMs`, then ×0.75 and ×1.25) and ends on a line
+  absent from the baseline that has been there three samples running, never once missing. Even
+  gaps let a spinner whose period divides them read the same every sample; a broken run is out for
+  good, since three sightings in a row come up by chance when a spinner has four frames. Removals
+  count only while nothing else is churning — a clock's first reading is missing from every sample
+  too — so text taken away beside a ticking element goes unreported, and `timeoutMs: 0` answers off
+  one sample and cannot apply the rule at all.
 
 **Overlay**
 - `overlay-runtime.ts` is injected as `overlayRuntime.toString()`, so it cannot reference module
