@@ -29,6 +29,7 @@ the next free port and the extension keeps one spare slot.
 | `firefox-extension/extension-config.ts` | Tool registry, permission mode, overlay settings, storage |
 | `firefox-extension/tab-access.ts`, `tab-authorization.ts` | Permission mode, per-tab grants |
 | `firefox-extension/injected-common.ts` | Shared injected source: root walk, ref resolution, read scan, sweep easing |
+| `firefox-extension/frames.ts` | A tab's frames, and which of them the top document cannot walk into |
 | `firefox-extension/sweep-ease.ts` | Sweep easing as a real function (scroll script, preview page) |
 | `firefox-extension/page-snapshot.ts` | Snapshot that stamps `data-bcm-ref` |
 | `firefox-extension/interaction-scripts.ts` | Click, type, key, scroll, select, execute, wait |
@@ -71,8 +72,17 @@ the next free port and the extension keeps one spare slot.
   the attribute.
 - `expectedOrigin` is checked once, in `dispatch`: a command carrying it fails when the tab has
   left that origin, since refs taken before the move no longer describe the page.
-- Roots are walked with `__bcmRoots()`, never `document` alone; cross-origin frames are reported
-  by `__bcmUnreachableFrames`.
+- Roots are walked with `__bcmRoots()`, never `document` alone. A frame that walk cannot enter is
+  injected into on its own, `executeScript({frameId})` per frame from `frames.ts`; the frame itself
+  decides that, by reaching for each ancestor's document, because a URL comparison misses a
+  sandboxed frame and a frame that navigated on its own. A frame whose own detached parent can
+  walk into it is left off the list — that parent's injection already reads it, and listing both
+  would read the document twice. `__bcmUnreachableFrames` then names only what stayed out of reach.
+- A ref carries its frame outside the extension (`f3e12` is `e12` in frame 3) and is split again in
+  `routeFrames`, so the counter stays per document. A command acts in one document: two refs naming
+  different frames are refused. A capture of an element in such a frame crops the frame element in
+  the outermost document that can be walked, since nothing in the top viewport places that
+  element's own box.
 - Hidden elements are listed only with the popup switch on, after the visible ones, marked
   hidden and untrusted. Off-document boxes count as hidden (`__bcmWithinPage`).
 - `__bcmSensitive` decides what is masked: `password`/`hidden` inputs and the `autocomplete`

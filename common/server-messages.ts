@@ -136,7 +136,9 @@ export interface UploadFilesServerMessage
   files: UploadFile[];
 }
 
-export interface UploadChunkServerMessage extends ServerMessageBase {
+export interface UploadChunkServerMessage
+  extends ServerMessageBase,
+    ElementTarget {
   cmd: "upload-chunk";
   tabId: number;
   uploadId: string;
@@ -185,6 +187,7 @@ export interface ExecuteJsServerMessage
   cmd: "execute-js";
   tabId: number;
   code: string;
+  frameRef?: string;
 }
 
 export interface ScrollPageServerMessage

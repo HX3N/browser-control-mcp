@@ -55,9 +55,20 @@ import {
   getImageLimitBytes,
 } from "./extension-config";
 import { ensureTabAccess } from "./tab-access";
+import {
+  DetachedFrame,
+  listDetachedFrames,
+  parseFrameRef,
+  stampFrameRef,
+  TOP_FRAME_ID,
+} from "./frames";
 import { formatScript } from "./format-script";
 import { buildSnapshotCode, formatPageItems, PageReadResult } from "./page-snapshot";
-import { ELEMENT_RESOLVER_SOURCE, isElementTargeted } from "./injected-common";
+import {
+  ELEMENT_RESOLVER_SOURCE,
+  isElementTargeted,
+  targetLiteral,
+} from "./injected-common";
 import {
   buildDownloadUrlCode,
   buildUploadChunkCode,
@@ -100,6 +111,7 @@ import {
   buildClickCode,
   buildElementBoxCode,
   buildExecuteJsCode,
+  buildFrameBoxCode,
   buildHoverCode,
   buildDragCode,
   buildFindCode,
@@ -137,6 +149,7 @@ const SCRIPT_STALL_MS = 3000;
 // inside the server's own response budget for those commands, which is 15 seconds.
 const LONG_SCRIPT_STALL_MS = 10_000;
 const SCRIPT_STALLED = "__bcm_script_stalled__";
+const STALL_PROBE_MS = 1500;
 
 class StalledPageError extends Error {}
 
@@ -210,6 +223,7 @@ interface OverlayExtras {
   scriptLabel?: string;
   resting?: boolean;
   swipe?: string;
+  frameId?: number;
 }
 
 function formatForOverlay(code: string): string {
@@ -217,6 +231,33 @@ function formatForOverlay(code: string): string {
     return formatScript(code) || code;
   } catch (error) {
     return code;
+  }
+}
+
+function buildTargetProbeCode(target: ElementTarget): string {
+  return `(function () {
+${ELEMENT_RESOLVER_SOURCE}
+  try { return !!__bcmResolve(${targetLiteral(target)}); } catch (err) { return false; }
+})();`;
+}
+
+function stampFramePage(page: PageReadResult, frameId: number): void {
+  for (const item of page.items) {
+    if (item.kind === "element") {
+      item.ref = stampFrameRef(item.ref, frameId);
+    }
+  }
+  for (const region of page.outline ?? []) {
+    region.ref = stampFrameRef(region.ref, frameId);
+  }
+}
+
+function frameHeading(frame: DetachedFrame): string {
+  try {
+    const url = new URL(frame.url);
+    return `frame ${url.host}${url.pathname}`;
+  } catch (error) {
+    return `frame ${frame.url || frame.frameId}`;
   }
 }
 
@@ -236,6 +277,7 @@ export class MessageHandler {
   private lastMarkReclaim: Map<number, number> = new Map();
   private shownOutlines: Map<number, PageRegion[]> = new Map();
   private commitWaits: Map<number, (committed: boolean) => void> = new Map();
+  private frameByRequest: WeakMap<object, number> = new WeakMap();
   private attendedTabId: number | undefined;
 
   private readonly onTabRemoved = (tabId: number) => {
@@ -363,6 +405,8 @@ export class MessageHandler {
     if ("expectedOrigin" in req && req.expectedOrigin && "tabId" in req) {
       await this.ensureExpectedOrigin(req.tabId, req.expectedOrigin);
     }
+
+    this.routeFrames(req);
 
     this.addAuditLogForReq(req).catch((error) => {
       console.error("Failed to add audit log entry:", error);
@@ -958,30 +1002,52 @@ export class MessageHandler {
 
     await this.prepareTabAccess(tabId);
 
+    const frameId = await this.resolveTargetFrame(req);
+
     await this.attachOverlay(
       tabId,
       "read",
       scoped ? t("overlayReadingElement") : t("overlayReadingContent"),
-      scoped ? req : undefined
+      scoped ? req : undefined,
+      { frameId }
     );
 
     const includeHidden = await isHiddenElementsIncluded();
+    const snapshot = {
+      maxElements: Math.max(1, req.maxElements ?? DEFAULT_ELEMENT_LIMIT),
+      includeHidden,
+      full: req.full === true || offset > 0,
+      controlsOnly: req.controlsOnly === true,
+      outlineChars: await getOutlineCharThreshold(),
+      outlineElements: await getOutlineElementThreshold(),
+    };
     const results = await this.runScript(
       tabId,
       {
         code: buildSnapshotCode({
-          maxElements: Math.max(1, req.maxElements ?? DEFAULT_ELEMENT_LIMIT),
-          includeHidden,
-          full: req.full === true || offset > 0,
-          controlsOnly: req.controlsOnly === true,
+          ...snapshot,
           target: scoped ? req : undefined,
-          outlineChars: await getOutlineCharThreshold(),
-          outlineElements: await getOutlineElementThreshold(),
         }),
+        frameId,
+        matchAboutBlank: true,
       },
       LONG_SCRIPT_STALL_MS
     );
     const page = results[0] as PageReadResult;
+    if (page.scopeUnreachableFrame) {
+      const src = page.scopeUnreachableFrame.src || "no src";
+      throw new Error(
+        `The scoped element is a frame from another origin (${src}), which its document cannot ` +
+        `be walked into from here. Read the page without a ref or selector: the frame's content ` +
+        `appears under a "## frame ..." heading with refs like f3e12, which every tool accepts.`
+      );
+    }
+    if (frameId !== TOP_FRAME_ID) {
+      stampFramePage(page, frameId);
+    }
+    if (!scoped && !page.outline) {
+      await this.mergeDetachedFrames(tabId, page, snapshot);
+    }
     if (page.outline && (await isFocusEnabled())) {
       await this.showOutlineRegions(tabId, page.outline);
       this.shownOutlines.set(tabId, page.outline);
@@ -1016,6 +1082,60 @@ export class MessageHandler {
         outline: page.outline,
       },
       tabId
+    );
+  }
+
+  private async mergeDetachedFrames(
+    tabId: number,
+    page: PageReadResult,
+    snapshot: {
+      maxElements: number;
+      includeHidden: boolean;
+      full?: boolean;
+      controlsOnly?: boolean;
+    }
+  ): Promise<void> {
+    const frames = await this.detachedFrames(tabId);
+    if (frames.length === 0) {
+      return;
+    }
+    const code = buildSnapshotCode({
+      ...snapshot,
+      outlineChars: Number.MAX_SAFE_INTEGER,
+      outlineElements: Number.MAX_SAFE_INTEGER,
+    });
+    const wasRead = new Set<string>();
+
+    for (const frame of frames) {
+      let framePage: PageReadResult | undefined;
+      try {
+        const results = await this.runScript(
+          tabId,
+          { code, frameId: frame.frameId, matchAboutBlank: true },
+          LONG_SCRIPT_STALL_MS
+        );
+        framePage = results?.[0] as PageReadResult | undefined;
+      } catch (error) {
+        continue;
+      }
+      if (!framePage) {
+        continue;
+      }
+      stampFramePage(framePage, frame.frameId);
+      if (framePage.items.length > 0) {
+        page.items.push({ kind: "text", text: frameHeading(frame), level: 2 });
+        page.items.push(...framePage.items);
+      }
+      page.totalElements += framePage.totalElements;
+      page.listedElements += framePage.listedElements;
+      page.hiddenElements += framePage.hiddenElements;
+      page.elementsTruncated = page.elementsTruncated || framePage.elementsTruncated;
+      page.collapsed = page.collapsed.concat(framePage.collapsed);
+      wasRead.add(frame.url);
+    }
+
+    page.unreachableFrames = page.unreachableFrames.filter(
+      (entry) => !wasRead.has(entry.src)
     );
   }
 
@@ -1097,6 +1217,41 @@ export class MessageHandler {
     );
     const matches = (located[0] as { matches: FindMatchResult[] }).matches;
 
+    const budget = Math.max(1, Math.min(MAX_FIND_MATCHES, req.maxMatches ?? MAX_FIND_MATCHES));
+    for (const frame of await this.detachedFrames(tabId)) {
+      if (matches.length >= budget) {
+        break;
+      }
+      let found: FindMatchResult[] | undefined;
+      try {
+        const inFrame = await this.runScript(
+          tabId,
+          {
+            code: buildFindCode(
+              queryPhrase,
+              budget - matches.length,
+              includeHidden,
+              caseSensitive
+            ),
+            frameId: frame.frameId,
+            matchAboutBlank: true,
+          },
+          LONG_SCRIPT_STALL_MS
+        );
+        found = (inFrame?.[0] as { matches: FindMatchResult[] } | undefined)?.matches;
+      } catch (error) {
+        continue;
+      }
+      for (const match of found ?? []) {
+        match.ref = stampFrameRef(match.ref, frame.frameId);
+        match.frame = match.frame ?? frameHeading(frame);
+        for (const control of match.controls ?? []) {
+          control.ref = stampFrameRef(control.ref, frame.frameId);
+        }
+        matches.push(match);
+      }
+    }
+
     await this.sendResource(
       {
         resource: "find-highlight-result",
@@ -1120,7 +1275,7 @@ export class MessageHandler {
 
     await ensureTabAccess(tab);
 
-    await this.runScript(tabId, { code: buildConcealOverlayCode() }).catch(
+    await this.runScript(tabId, { code: buildConcealOverlayCode(), allFrames: true, matchAboutBlank: true }).catch(
       () => undefined
     );
     await delay(SCROLL_SETTLE_MS);
@@ -1136,7 +1291,7 @@ export class MessageHandler {
         Math.min(req.maxSlices ?? 1, MAX_CAPTURE_SLICES)
       );
       const box = isElementTargeted(req)
-        ? await this.measureElement(tabId, req)
+        ? await this.measureElement(tabId, req, await this.resolveTargetFrame(req))
         : req.region
           ? await this.measureRegion(tabId, req.region)
           : null;
@@ -1232,7 +1387,7 @@ export class MessageHandler {
           console.error("Failed to restore the previously active tab:", error);
         }
       }
-      await this.runScript(tabId, { code: buildRevealOverlayCode() }).catch(
+      await this.runScript(tabId, { code: buildRevealOverlayCode(), allFrames: true, matchAboutBlank: true }).catch(
         () => undefined
       );
       await this.attachOverlay(
@@ -1252,20 +1407,62 @@ export class MessageHandler {
 
     await this.prepareTabAccess(tabId);
 
+    const frameId = await this.resolveTargetFrame(req);
+
     await this.attachOverlay(
       tabId,
       "read",
       scoped ? t("overlayMediaListElement") : t("overlayMediaList"),
-      scoped ? req : undefined
+      scoped ? req : undefined,
+      { frameId }
     );
 
     const includeHidden = await isHiddenElementsIncluded();
     const results = await this.runScript(
       tabId,
-      { code: buildMediaListCode(scoped ? req : undefined, includeHidden) },
+      {
+        code: buildMediaListCode(scoped ? req : undefined, includeHidden),
+        frameId,
+        matchAboutBlank: true,
+      },
       LONG_SCRIPT_STALL_MS
     );
     const media = results[0] as MediaListResult;
+
+    if (!scoped && frameId === TOP_FRAME_ID) {
+      const frames = await this.detachedFrames(tabId);
+      for (const frame of frames) {
+        let inFrame: MediaListResult | undefined;
+        try {
+          const framed = await this.runScript(
+            tabId,
+            {
+              code: buildMediaListCode(undefined, includeHidden),
+              frameId: frame.frameId,
+              matchAboutBlank: true,
+            },
+            LONG_SCRIPT_STALL_MS
+          );
+          inFrame = framed?.[0] as MediaListResult | undefined;
+        } catch (error) {
+          continue;
+        }
+        if (!inFrame) {
+          continue;
+        }
+        const heading = frameHeading(frame);
+        for (const item of inFrame.items) {
+          media.items.push({ ...item, frame: item.frame ?? heading });
+        }
+        media.totalItems += inFrame.totalItems;
+        media.hiddenItems += inFrame.hiddenItems;
+        media.isTruncated = media.isTruncated || inFrame.isTruncated;
+        media.unreachableFrames = Math.max(
+          0,
+          media.unreachableFrames + inFrame.unreachableFrames - 1
+        );
+      }
+    }
     const scope = await getUrlScope();
     const items = media.items.filter((item) => isUrlInScope(item.url, scope));
 
@@ -1352,9 +1549,14 @@ export class MessageHandler {
 
     let url: string;
     if (isElementTargeted(req)) {
-      await this.attachOverlay(tabId, "click", t("overlayDownload"), req);
+      const frameId = await this.resolveTargetFrame(req);
+      await this.attachOverlay(tabId, "click", t("overlayDownload"), req, {
+        frameId,
+      });
       const results = await this.runScript(tabId, {
         code: buildDownloadUrlCode(req),
+        frameId,
+        matchAboutBlank: true,
       });
       url = results[0] as string;
     } else if (req.url) {
@@ -1449,12 +1651,35 @@ export class MessageHandler {
 
   private async measureElement(
     tabId: number,
-    target: ElementTarget
+    target: ElementTarget,
+    frameId: number = TOP_FRAME_ID
   ): Promise<ElementBoxResult> {
-    const results = await this.runScript(tabId, {
-      code: buildElementBoxCode(target),
-    });
+    const code =
+      frameId === TOP_FRAME_ID
+        ? buildElementBoxCode(target)
+        : buildFrameBoxCode(await this.outermostFrameUrl(tabId, frameId));
+    const results = await this.runScript(tabId, { code });
     return results[0] as ElementBoxResult;
+  }
+
+  // The frame element itself is in the outermost document this session can still walk, which is
+  // the first ancestor that is not cross-origin to the top.
+  private async outermostFrameUrl(
+    tabId: number,
+    frameId: number
+  ): Promise<string> {
+    const frames = await this.detachedFrames(tabId);
+    const byId = new Map(frames.map((frame) => [frame.frameId, frame]));
+    let frame = byId.get(frameId);
+    if (!frame) {
+      throw new Error(
+        `Frame ${frameId} is no longer on tab ${tabId}. Read the page again and retry.`
+      );
+    }
+    while (byId.has(frame.parentFrameId)) {
+      frame = byId.get(frame.parentFrameId)!;
+    }
+    return frame.url;
   }
 
   private async measureRegion(
@@ -1512,6 +1737,97 @@ export class MessageHandler {
     }
   }
 
+  private async detachedFrames(tabId: number): Promise<DetachedFrame[]> {
+    return listDetachedFrames(tabId, (frameId, code) =>
+      this.runScript(tabId, { code, frameId, matchAboutBlank: true })
+    );
+  }
+
+  private frameOf(req: object): number {
+    return this.frameByRequest.get(req) ?? TOP_FRAME_ID;
+  }
+
+  private routeFrames(req: ServerMessageRequest): void {
+    const carrier = req as ServerMessageRequest &
+      ElementTarget & { to?: ElementTarget; frameRef?: string };
+    const frames = new Set<number>();
+
+    if (typeof carrier.ref === "string") {
+      const parsed = parseFrameRef(carrier.ref);
+      carrier.ref = parsed.ref;
+      frames.add(parsed.frameId);
+    }
+    const within = (carrier as { within?: ElementTarget }).within;
+    if (within && typeof within.ref === "string") {
+      const parsed = parseFrameRef(within.ref);
+      within.ref = parsed.ref;
+      frames.add(parsed.frameId);
+    }
+    if (carrier.to && typeof carrier.to.ref === "string") {
+      const parsed = parseFrameRef(carrier.to.ref);
+      carrier.to.ref = parsed.ref;
+      frames.add(parsed.frameId);
+    }
+    if (typeof carrier.frameRef === "string") {
+      frames.add(parseFrameRef(carrier.frameRef).frameId);
+    }
+
+    if (frames.size > 1) {
+      throw new Error(
+        "The refs in this command name different frames. A command acts inside one document, " +
+          "so a drag or a drop cannot cross a frame boundary."
+      );
+    }
+    const [frameId] = frames;
+    if (frameId !== undefined && frameId !== TOP_FRAME_ID) {
+      this.frameByRequest.set(req, frameId);
+    }
+  }
+
+  private async frameForSelector(
+    tabId: number,
+    target: ElementTarget
+  ): Promise<number> {
+    const code = buildTargetProbeCode(target);
+    try {
+      const results = await this.runScript(tabId, { code });
+      if (results?.[0] === true) {
+        return TOP_FRAME_ID;
+      }
+    } catch (error) {
+      return TOP_FRAME_ID;
+    }
+    for (const frame of await this.detachedFrames(tabId)) {
+      try {
+        const results = await this.runScript(tabId, {
+          code,
+          frameId: frame.frameId,
+          matchAboutBlank: true,
+        });
+        if (results?.[0] === true) {
+          return frame.frameId;
+        }
+      } catch (error) {
+        continue;
+      }
+    }
+    return TOP_FRAME_ID;
+  }
+
+  private async resolveTargetFrame(
+    req: ServerMessageRequest & ElementTarget & { tabId: number }
+  ): Promise<number> {
+    const known = this.frameOf(req);
+    if (known !== TOP_FRAME_ID || req.ref || !req.selector) {
+      return known;
+    }
+    const frameId = await this.frameForSelector(req.tabId, elementTargetOf(req)!);
+    if (frameId !== TOP_FRAME_ID) {
+      this.frameByRequest.set(req, frameId);
+    }
+    return frameId;
+  }
+
   // An open dialog suspends the page, so executeScript never settles. Racing it against a timer
   // is the only way to tell that apart from a slow script, and the tab itself still answers.
   private async runScript(
@@ -1550,6 +1866,15 @@ export class MessageHandler {
       return `Tab ${tabId} stopped responding and can no longer be read; it may have been closed.`;
     }
 
+    const readyState = await this.probeStalledTab(tabId);
+    if (readyState) {
+      return (
+        `Tab ${tabId}${title} is not frozen, but the command's script never got to run: the document ` +
+        `is still loading (readyState "${readyState}"), typically held by a script it is fetching. ` +
+        `Wait for the page to finish loading and run the command again.`
+      );
+    }
+
     return (
       `Tab ${tabId}${title} is open but its scripts are frozen, which is what a native dialog does: ` +
       `alert, confirm and prompt suspend the page until someone answers them. The extension ` +
@@ -1557,6 +1882,31 @@ export class MessageHandler {
       `and a tab this session never opened or navigated was never given one. ` +
       `The dialog has to be closed in the browser before this command can run.`
     );
+  }
+
+  // A document_start injection runs even while the parser sits blocked on a script, but never in
+  // a page a dialog has suspended - which tells a slow load apart from a frozen page.
+  private async probeStalledTab(tabId: number): Promise<string | undefined> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const gaveUp = new Promise<undefined>((resolve) => {
+      timer = setTimeout(() => resolve(undefined), STALL_PROBE_MS);
+    });
+    try {
+      const results = await Promise.race([
+        browser.tabs.executeScript(tabId, {
+          code: "document.readyState",
+          runAt: "document_start",
+          matchAboutBlank: true,
+        }),
+        gaveUp,
+      ]);
+      const state = results?.[0];
+      return typeof state === "string" ? state : undefined;
+    } catch (error) {
+      return undefined;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   private async sendResource(
@@ -1598,33 +1948,64 @@ export class MessageHandler {
     if (!extras.resting) {
       await this.attendTab(tabId);
     }
+    const frameId = extras.frameId ?? TOP_FRAME_ID;
+    const inFrame = frameId !== TOP_FRAME_ID;
+    const shared = {
+      status,
+      state,
+      idleStatus: idleStatus(),
+      resetAfterMs:
+        state === "read" || state === "exec" ? 0 : timings.statusResetMs,
+      sweepMs: timings.sweepMs,
+      accents: colors.accents,
+      aurora: colors.aurora,
+      resting: extras.resting === true,
+      detail: extras.detail,
+      scriptLabel: extras.scriptLabel,
+    };
+
+    let drawn: OverlayResult | null = null;
     try {
       const results = await this.runScript(tabId, {
         code: buildAttachOverlayCode({
-          status,
-          state,
+          ...shared,
           markTab,
           showAurora,
           showFocus,
           showBadge,
-          idleStatus: idleStatus(),
-          resetAfterMs:
-            state === "read" || state === "exec" ? 0 : timings.statusResetMs,
-          sweepMs: timings.sweepMs,
-          accents: colors.accents,
-          aurora: colors.aurora,
-          resting: extras.resting === true,
+          target: inFrame ? undefined : target,
+          drop: inFrame ? undefined : extras.drop,
+          swipe: inFrame ? undefined : extras.swipe,
+        }),
+      });
+      drawn = (results?.[0] as OverlayResult) ?? null;
+    } catch (error) {
+      console.error("Failed to draw the interaction overlay:", error);
+    }
+
+    if (!inFrame || !showFocus || !target) {
+      return drawn;
+    }
+
+    try {
+      const framed = await this.runScript(tabId, {
+        frameId,
+        matchAboutBlank: true,
+        code: buildAttachOverlayCode({
+          ...shared,
+          markTab: false,
+          showAurora: false,
+          showFocus: true,
+          showBadge: false,
           target,
           drop: extras.drop,
-          detail: extras.detail,
-          scriptLabel: extras.scriptLabel,
           swipe: extras.swipe,
         }),
       });
-      return (results?.[0] as OverlayResult) ?? null;
+      return (framed?.[0] as OverlayResult) ?? drawn;
     } catch (error) {
-      console.error("Failed to draw the interaction overlay:", error);
-      return null;
+      console.error("Failed to draw the overlay inside frame", frameId, error);
+      return drawn;
     }
   }
 
@@ -1635,7 +2016,7 @@ export class MessageHandler {
       return;
     }
     try {
-      await this.runScript(previous, { code: buildRestOverlayCode() });
+      await this.runScript(previous, { code: buildRestOverlayCode(), allFrames: true, matchAboutBlank: true });
     } catch (error) {
       console.error("Could not rest the overlay on tab", previous, error);
     }
@@ -1718,6 +2099,8 @@ export class MessageHandler {
     try {
       await this.runScript(tabId, {
         code: buildDetachOverlayCode(),
+        allFrames: true,
+        matchAboutBlank: true,
       });
     } catch (error) {
       console.error("Could not remove the overlay from tab", tabId, error);
@@ -1748,18 +2131,24 @@ export class MessageHandler {
       await browser.tabs.update(req.tabId, { active: true });
     }
 
+    const frameId = await this.resolveTargetFrame(req);
+
     const shown = await this.attachOverlay(
       req.tabId,
       state,
       label,
       elementTargetOf(req),
-      extras
+      { ...extras, frameId }
     );
     if (shown) {
       await delay((await getOverlayTimings()).leadMs);
     }
 
-    const results = await this.runScript(req.tabId, { code }, stallMs);
+    const results = await this.runScript(
+      req.tabId,
+      { code, frameId, matchAboutBlank: true },
+      stallMs
+    );
     const result = results[0] as InteractionScriptResult;
 
     const detail =
@@ -1845,10 +2234,17 @@ export class MessageHandler {
     req: UploadChunkServerMessage & { correlationId: string }
   ): Promise<void> {
     await this.prepareTabAccess(req.tabId);
-    await this.attachOverlay(req.tabId, "type", t("overlayUpload"));
+    const frameId = await this.resolveTargetFrame(req);
+    await this.attachOverlay(req.tabId, "type", t("overlayUpload"), undefined, {
+      frameId,
+    });
     const results = await this.runScript(
       req.tabId,
-      { code: buildUploadChunkCode(req.uploadId, req.base64) },
+      {
+        code: buildUploadChunkCode(req.uploadId, req.base64),
+        frameId,
+        matchAboutBlank: true,
+      },
       UPLOAD_SCRIPT_STALL_MS
     );
     const staged = results[0] as { stagedBytes: number };
@@ -1972,9 +2368,12 @@ export class MessageHandler {
   ): Promise<void> {
     await this.prepareTabAccess(req.tabId);
 
+    const frameId = this.frameOf(req);
+
     await this.attachOverlay(req.tabId, "exec", t("overlayExecuteJs"), undefined, {
       detail: formatForOverlay(req.code),
       scriptLabel: t("overlayScriptLabel"),
+      frameId,
     });
 
     let results;
@@ -1983,6 +2382,8 @@ export class MessageHandler {
         req.tabId,
         {
           code: buildExecuteJsCode(req.code, MAX_SCRIPT_RESULT_LENGTH),
+          frameId,
+          matchAboutBlank: true,
         },
         LONG_SCRIPT_STALL_MS
       );
@@ -2040,26 +2441,67 @@ export class MessageHandler {
   private async waitForPage(
     req: WaitForPageServerMessage & { correlationId: string }
   ): Promise<void> {
-    await this.prepareTabAccess(req.tabId);
+    const timeoutMs = Math.min(
+      req.selector ? MAX_WAIT_TIMEOUT_MS : MAX_TEXT_WAIT_TIMEOUT_MS,
+      Math.max(
+        0,
+        req.timeoutMs ??
+          (req.selector ? DEFAULT_WAIT_TIMEOUT_MS : DEFAULT_TEXT_WAIT_TIMEOUT_MS)
+      )
+    );
+    const startedAt = Date.now();
 
     const within = isElementTargeted(req.within) ? req.within : undefined;
+    // The steps before the watch inject scripts of their own, and a page still parsing stalls
+    // them; a wait is the one command whose budget exists to sit that out, so they retry on it,
+    // and the watch itself runs on whatever the retries left.
+    let frameId: number;
+    for (;;) {
+      try {
+        await this.prepareTabAccess(req.tabId);
+        frameId = within
+          ? await this.resolveTargetFrame({
+              ...req,
+              ref: within.ref,
+              selector: within.selector,
+              index: within.index,
+            })
+          : this.frameOf(req);
+        break;
+      } catch (error) {
+        if (
+          !(error instanceof StalledPageError) ||
+          Date.now() - startedAt >= timeoutMs
+        ) {
+          throw error;
+        }
+        await delay(WAIT_POLL_INTERVAL_MS);
+      }
+    }
+
+    const budgeted = {
+      ...req,
+      timeoutMs: Math.max(0, timeoutMs - (Date.now() - startedAt)),
+    };
     if (req.selector) {
-      await this.waitForElement(req, req.selector, within);
+      await this.waitForElement(budgeted, req.selector, within, frameId);
     } else {
-      await this.waitForTextChange(req, within);
+      await this.waitForTextChange(budgeted, within, frameId);
     }
   }
 
   private async waitForElement(
     req: WaitForPageServerMessage & { correlationId: string },
     selector: string,
-    within: ElementTarget | undefined
+    within: ElementTarget | undefined,
+    frameId: number
   ): Promise<void> {
     await this.attachOverlay(
       req.tabId,
       "read",
       within ? t("overlayWaitElement") : t("overlayWait"),
-      within
+      within,
+      { frameId }
     );
 
     const timeoutMs = Math.min(
@@ -2070,9 +2512,26 @@ export class MessageHandler {
     const startedAt = Date.now();
 
     let probe: WaitProbeResult = { matchCount: 0, satisfied: false };
+    // A stalled probe is a page not ready to answer, not a failed wait: keep polling, and hand
+    // the stall out only when the deadline passes without the page ever answering.
     while (true) {
-      const results = await this.runScript(req.tabId, { code });
-      probe = results[0] as WaitProbeResult;
+      try {
+        const results = await this.runScript(req.tabId, {
+          code,
+          frameId,
+          matchAboutBlank: true,
+        });
+        probe = results[0] as WaitProbeResult;
+      } catch (error) {
+        if (
+          !(error instanceof StalledPageError) ||
+          Date.now() - startedAt >= timeoutMs
+        ) {
+          throw error;
+        }
+        await delay(WAIT_POLL_INTERVAL_MS);
+        continue;
+      }
       if (probe.satisfied || Date.now() - startedAt >= timeoutMs) {
         break;
       }
@@ -2096,13 +2555,15 @@ export class MessageHandler {
 
   private async waitForTextChange(
     req: WaitForPageServerMessage & { correlationId: string },
-    within: ElementTarget | undefined
+    within: ElementTarget | undefined,
+    frameId: number
   ): Promise<void> {
     await this.attachOverlay(
       req.tabId,
       "read",
       within ? t("overlayWaitTextElement") : t("overlayWaitText"),
-      within
+      within,
+      { frameId }
     );
 
     const timeoutMs = Math.min(
@@ -2117,27 +2578,49 @@ export class MessageHandler {
 
     // Anything the page said since the last wait has to be diffed against where that wait
     // stopped, not against the page as it looks now, or it is swallowed while the caller thinks.
-    const scopeKey = within
-      ? JSON.stringify([within.ref, within.selector, within.index])
-      : "";
+    const scopeKey = JSON.stringify([
+      frameId,
+      within?.ref,
+      within?.selector,
+      within?.index,
+    ]);
     const held =
       this.textBaselines.get(req.tabId) ?? new Map<string, string>();
     const carried = held.get(scopeKey) ?? null;
 
-    const watchResults = await this.runScript(
-      req.tabId,
-      {
-        code: buildTextWatchCode(
-          within,
-          req.correlationId,
-          carried,
-          settleMs,
-          timeoutMs
-        ),
-      },
-      LONG_SCRIPT_STALL_MS
-    );
-    const watch = watchResults[0] as TextWatchResult;
+    let watch: TextWatchResult;
+    // Same tolerance as the element wait: a stall is a page not ready for the watch yet, and
+    // the watch re-arms with only the time the wait has left.
+    while (true) {
+      const remainingMs = Math.max(0, timeoutMs - (Date.now() - startedAt));
+      try {
+        const watchResults = await this.runScript(
+          req.tabId,
+          {
+            code: buildTextWatchCode(
+              within,
+              req.correlationId,
+              carried,
+              settleMs,
+              remainingMs
+            ),
+            frameId,
+            matchAboutBlank: true,
+          },
+          LONG_SCRIPT_STALL_MS
+        );
+        watch = watchResults[0] as TextWatchResult;
+        break;
+      } catch (error) {
+        if (
+          !(error instanceof StalledPageError) ||
+          Date.now() - startedAt >= timeoutMs
+        ) {
+          throw error;
+        }
+        await delay(WAIT_POLL_INTERVAL_MS);
+      }
+    }
 
     let outcome: TextWaitOutcome = "changed";
     let result: TextWatchOutcome = {
@@ -2157,7 +2640,7 @@ export class MessageHandler {
       } else {
         const resultScript = await this.runScript(
           req.tabId,
-          { code: buildTextResultCode(within) },
+          { code: buildTextResultCode(within), frameId, matchAboutBlank: true },
           LONG_SCRIPT_STALL_MS
         );
         result = resultScript[0] as TextWatchOutcome;

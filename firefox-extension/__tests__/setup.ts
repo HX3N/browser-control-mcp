@@ -27,6 +27,7 @@ const mockBrowser = {
   },
   webNavigation: {
     onCommitted: { addListener: jest.fn() },
+    getAllFrames: jest.fn().mockResolvedValue([]),
   },
   browserAction: {
     setBadgeText: jest.fn().mockResolvedValue(undefined),

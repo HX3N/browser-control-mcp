@@ -16,6 +16,7 @@ import { randomUUID } from "crypto";
 import { BrowserAPI } from "./browser-api";
 import type {
   CollapsedSection,
+  ElementTarget,
   UnreachableFrame,
   UploadFile,
 } from "@browser-control-mcp/common";
@@ -54,8 +55,9 @@ const mcpServer = new McpServer(
       What this server cannot do, and what to reach for instead:
       - Browser shortcuts such as Control+T, Control+W or Control+F never reach the page. Use the
         tab tools and find-text-in-page.
-      - A cross-origin frame is out of reach for every snapshot, ref and click. Open the frame's
-        own URL in a tab and work there.
+      - A frame of its own origin is read and acted on through its own document, and its refs
+        carry the frame: f3e12 is element e12 in frame 3. A frame that stays out of reach even so
+        is named in the answer; open its own URL in a tab and work there.
       - A native file picker cannot be driven. upload-files-to-page-element attaches a file by its
         path on the user's computer, and only when the user has switched that on.
       - Every tool can be switched off in the extension, and page access can be limited to the
@@ -149,6 +151,7 @@ async function readUpload(resolved: string): Promise<UploadFile> {
 
 async function stageUpload(
   tabId: number,
+  target: ElementTarget,
   resolved: string,
   size: number
 ): Promise<UploadFile> {
@@ -163,6 +166,7 @@ async function stageUpload(
       const { bytesRead } = await handle.read(buffer, 0, UPLOAD_CHUNK_BYTES, offset);
       await browserApi.uploadChunk(
         tabId,
+        target,
         uploadId,
         buffer.subarray(0, bytesRead).toString("base64")
       );
@@ -256,7 +260,7 @@ function frameNotice(
     {
       type: "text",
       text:
-        `${frames.length} frame(s) on this page are cross-origin, so none of their text, links or elements are below. ` +
+        `${frames.length} frame(s) on this page could not be read at all, so none of their text, links or elements are below. ` +
         "Navigate a tab to a frame's own URL to work inside it - a page whose real content sits in one " +
         "large frame carries almost nothing outside it:\n" +
         lines.join("\n") +
@@ -508,8 +512,9 @@ defineTool(
     text as plain lines, each control as [e12] link <a> "Edit" with a ref the interaction tools
     accept.
     "ref" or "selector" reads one element only; refs outside the scope survive and new ones are
-    numbered above them. An element keeps its ref from read to read. Same-origin frames and
-    shadow roots are included.
+    numbered above them. An element keeps its ref from read to read. Frames and shadow roots are
+    included; a cross-origin frame follows the page under a "## frame host/path" heading and its
+    refs read f3e12, which every tool accepts.
     A large page read whole comes back as an outline of its regions; full: true reads it whole.
     controlsOnly: true drops the text and lists the controls alone - the index to reach for when
     the question is what can be clicked or typed into, not what the page says.
@@ -676,8 +681,8 @@ defineTool(
     const total = found.noOfResults;
     const counted = (n: number) => `${n} ${n === 1 ? "match" : "matches"}`;
     const unreachable = found.hiddenListed
-      ? "in a cross-origin frame this tool cannot reach"
-      : 'in content hidden from the user, which the "Read hidden elements" switch in the extension popup would list, or in a cross-origin frame this tool cannot reach';
+      ? "in a frame this tool cannot reach"
+      : 'in content hidden from the user, which the "Read hidden elements" switch in the extension popup would list, or in a frame this tool cannot reach';
     // A full page of matches is read as truncation, though some of the rest may be unreachable
     // too: the two causes are indistinguishable once the walker has dropped what it cannot address.
     const missing =
@@ -897,7 +902,7 @@ defineTool(
     }
     if (media.unreachableFrames > 0) {
       notes.push(
-        `${media.unreachableFrames} cross-origin frame(s) could not be read; open the frame's own URL in a tab to list its media.`
+        `${media.unreachableFrames} frame(s) could not be read; open the frame's own URL in a tab to list its media.`
       );
     }
     return {
@@ -1088,7 +1093,7 @@ defineTool(
       files.push(
         total <= UPLOAD_CHUNK_BYTES
           ? await readUpload(resolved[i])
-          : await stageUpload(tabId, resolved[i], sizes[i])
+          : await stageUpload(tabId, elementTarget(target), resolved[i], sizes[i])
       );
     }
     const result = await browserApi.uploadFiles(
@@ -1408,7 +1413,8 @@ defineTool(
     Run JavaScript in a tab. The code is a function body: only what a return statement hands back
     comes out. It runs in the extension's content script sandbox: the DOM is available, the page's
     own globals are not - reach those through window.wrappedJSObject. The result is serialised to
-    text, and DOM nodes are summarised rather than dumped.
+    text, and DOM nodes are summarised rather than dumped. It runs in the tab's top document
+    unless frameRef names an element inside a frame, and then in that frame's document.
   `,
   { title: "Run JavaScript", readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   {
@@ -1419,9 +1425,15 @@ defineTool(
       .describe(
         "Function body, such as: return document.title;"
       ),
+    frameRef: z
+      .string()
+      .optional()
+      .describe(
+        "A ref such as f3e12 from inside a frame; the code runs in that frame's document"
+      ),
   },
-  async ({ tabId, code, expectedOrigin }) => {
-    const result = await browserApi.executeJs(tabId, code, expectedOrigin);
+  async ({ tabId, code, expectedOrigin, frameRef }) => {
+    const result = await browserApi.executeJs(tabId, code, expectedOrigin, frameRef);
     const suffix = result.isTruncated
       ? "\n\n[result truncated]"
       : "";

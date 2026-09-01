@@ -15,6 +15,7 @@ interface SnapshotResult {
   totalElements: number;
   hiddenElements: number;
   elementsTruncated: boolean;
+  scopeUnreachableFrame?: { src: string };
 }
 
 function runSnapshot(options: {
@@ -114,6 +115,33 @@ describe("buildSnapshotCode", () => {
       "load more",
     ]);
     expect(result.totalElements).toBe(3);
+  });
+
+  it("reads a scoped frame element through its own document", () => {
+    document.body.innerHTML = `<iframe id="fr"></iframe>`;
+    const frame = document.getElementById("fr") as HTMLIFrameElement;
+    frame.contentDocument!.body.innerHTML = "<p>inside the frame</p>";
+
+    const result = runSnapshot({ target: { selector: "#fr" } });
+
+    expect(lines(result).join("\n")).toContain("inside the frame");
+    expect(result.scopeUnreachableFrame).toBeUndefined();
+  });
+
+  it("flags a scoped frame element whose document is out of reach", () => {
+    document.body.innerHTML = `<iframe id="fr" src="https://other.example/page"></iframe>`;
+    const frame = document.getElementById("fr") as HTMLIFrameElement;
+    Object.defineProperty(frame, "contentDocument", {
+      get() {
+        throw new Error("cross-origin");
+      },
+    });
+
+    const result = runSnapshot({ target: { selector: "#fr" } });
+
+    expect(result.scopeUnreachableFrame).toEqual({
+      src: "https://other.example/page",
+    });
   });
 
   it("names the scope element, and leaves scope out of a whole-page read", () => {

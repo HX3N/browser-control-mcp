@@ -1469,9 +1469,27 @@ ${VISIBILITY_SOURCE}
 }
 
 export function buildElementBoxCode(target: ElementTarget): string {
+  return elementBoxCode(`__bcmResolve(${targetLiteral(target)})`);
+}
+
+// A cross-origin frame measures its own elements against its own viewport, and nothing in the
+// top document can place that box. The frame's own element is what the capture rect can hold.
+export function buildFrameBoxCode(frameUrl: string): string {
+  return elementBoxCode(`__bcmFrameElement(${jsValue(frameUrl)})`);
+}
+
+function elementBoxCode(resolver: string): string {
   return `(function () {
 ${ELEMENT_RESOLVER_SOURCE}
-  var el = __bcmResolve(${targetLiteral(target)});
+  function __bcmFrameElement(url) {
+    var frames = __bcmQueryAll('iframe,frame');
+    for (var i = 0; i < frames.length; i++) {
+      if (frames[i].src === url) { return frames[i]; }
+    }
+    throw new Error('The element sits in a cross-origin frame, and the frame ' + url + ' is no longer on this page. Capture the whole tab instead.');
+  }
+
+  var el = ${resolver};
   var pad = ${jsValue(CAPTURE_PADDING_PX)};
   var maxHeight = ${jsValue(MAX_CAPTURE_HEIGHT_PX)};
 

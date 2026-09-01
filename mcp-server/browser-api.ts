@@ -162,12 +162,14 @@ export class BrowserAPI {
 
   async uploadChunk(
     tabId: number,
+    target: ElementTarget,
     uploadId: string,
     base64: string
   ): Promise<UploadChunkAckExtensionMessage> {
     const correlationId = this.sendMessageToExtension({
       cmd: "upload-chunk",
       tabId,
+      ...target,
       uploadId,
       base64,
     });
@@ -601,13 +603,15 @@ export class BrowserAPI {
   async executeJs(
     tabId: number,
     code: string,
-    expectedOrigin?: string
+    expectedOrigin?: string,
+    frameRef?: string
   ): Promise<ScriptResultExtensionMessage> {
     const correlationId = this.sendMessageToExtension({
       cmd: "execute-js",
       tabId,
       code,
       expectedOrigin,
+      frameRef,
     });
     return await this.waitForResponse(
       correlationId,

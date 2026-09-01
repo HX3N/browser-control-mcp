@@ -296,6 +296,7 @@ export interface PageReadResult {
     height: number;
     hidden?: boolean;
   }[];
+  scopeUnreachableFrame?: { src: string };
   outline?: PageRegion[];
 }
 
@@ -506,6 +507,13 @@ ${WALKER_SOURCE}
 ${OUTLINE_SOURCE}
   var scopeRoot = ${scopeExpression};
 
+  var scopeFrameSrc = null;
+  if (scopeRoot && (scopeRoot.tagName === 'IFRAME' || scopeRoot.tagName === 'FRAME')) {
+    var scopeInner = null;
+    try { scopeInner = scopeRoot.contentDocument; } catch (err) { scopeInner = null; }
+    if (!scopeInner) { scopeFrameSrc = scopeRoot.src || scopeRoot.getAttribute('src') || ''; }
+  }
+
   __bcmSeedRefs(__bcmHighestRef());
 
   var interactive = ${jsValue(INTERACTIVE_SELECTOR)};
@@ -629,6 +637,11 @@ ${OUTLINE_SOURCE}
   }
 
   var start = scopeRoot || document.body;
+  if (start && (start.tagName === 'IFRAME' || start.tagName === 'FRAME')) {
+    var startInner = null;
+    try { startInner = start.contentDocument; } catch (err) { startInner = null; }
+    if (startInner && startInner.body) { start = startInner.body; }
+  }
   if (start) {
     var startFrame = __bcmFrameLabel(start);
     if (scopeRoot && scopeRoot.matches && scopeRoot.matches(interactive)) {
@@ -684,6 +697,7 @@ ${OUTLINE_SOURCE}
     scrollMax: Math.max(0, Math.round(doc.scrollHeight) - Math.round(doc.clientHeight || 0)),
     collapsed: __bcmCollapsed(start || document.body, ${jsValue(MAX_COLLAPSED_SECTIONS)}),
     unreachableFrames: __bcmUnreachableFrames(scopeRoot),
+    scopeUnreachableFrame: scopeFrameSrc === null ? undefined : { src: scopeFrameSrc },
     outline: outline
   };
 })();`;

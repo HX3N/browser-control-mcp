@@ -204,7 +204,7 @@ describe("stalled pages", () => {
         /The dialog has to be closed/
       );
 
-      await jest.advanceTimersByTimeAsync(11_000);
+      await jest.advanceTimersByTimeAsync(12_500);
       await settled;
 
       expect(browser.tabs.reload).not.toHaveBeenCalled();
@@ -223,7 +223,65 @@ describe("stalled pages", () => {
     } as ServerMessageRequest);
     const settled = expect(pending).rejects.toThrow(/Tab 123 \("Frozen page"\)/);
 
-    await jest.advanceTimersByTimeAsync(11_000);
+    await jest.advanceTimersByTimeAsync(12_500);
+    await settled;
+  });
+
+  it("wait-for-page outlives probes stalled by a page still loading", async () => {
+    jest.useFakeTimers();
+    let commandCalls = 0;
+    (browser.tabs.executeScript as jest.Mock).mockImplementation(
+      (_tabId, details) => {
+        if (
+          SUPPORT_MARKERS.some((marker) => String(details.code).includes(marker))
+        ) {
+          return Promise.resolve(ANY_RESULT);
+        }
+        commandCalls++;
+        return commandCalls === 1
+          ? new Promise(() => undefined)
+          : Promise.resolve([{ matchCount: 1, satisfied: true }]);
+      }
+    );
+
+    const pending = messageHandler.handleDecodedMessage({
+      cmd: "wait-for-page",
+      tabId: TAB_ID,
+      correlationId: "c14",
+      selector: "#done",
+      state: "visible",
+      timeoutMs: 10_000,
+    } as ServerMessageRequest);
+
+    await jest.advanceTimersByTimeAsync(5_000);
+    await pending;
+
+    expect(mockClient.sendResourceToServer).toHaveBeenCalledWith(
+      expect.objectContaining({ resource: "page-wait-result", found: true })
+    );
+  });
+
+  it("reports a page still parsing as loading, not as frozen", async () => {
+    jest.useFakeTimers();
+    (browser.tabs.executeScript as jest.Mock).mockImplementation(
+      (_tabId, details) =>
+        SUPPORT_MARKERS.some((marker) => String(details.code).includes(marker))
+          ? Promise.resolve(ANY_RESULT)
+          : String(details.code) === "document.readyState"
+          ? Promise.resolve(["loading"])
+          : new Promise(() => undefined)
+    );
+
+    const pending = messageHandler.handleDecodedMessage({
+      cmd: "read-page",
+      tabId: TAB_ID,
+      correlationId: "c11",
+    } as ServerMessageRequest);
+    const settled = expect(pending).rejects.toThrow(
+      /still loading \(readyState "loading"\)/
+    );
+
+    await jest.advanceTimersByTimeAsync(12_500);
     await settled;
   });
 
@@ -245,7 +303,7 @@ describe("stalled pages", () => {
       consoleMessages: ["TypeError: undefined is not a function"],
     });
 
-    await jest.advanceTimersByTimeAsync(11_000);
+    await jest.advanceTimersByTimeAsync(12_500);
     await settled;
   });
 
@@ -262,7 +320,7 @@ describe("stalled pages", () => {
     } as ServerMessageRequest);
     const settled = pending.catch((error) => error);
 
-    await jest.advanceTimersByTimeAsync(11_000);
+    await jest.advanceTimersByTimeAsync(12_500);
     const error = await settled;
 
     expect(error.dialogs).toBeUndefined();
