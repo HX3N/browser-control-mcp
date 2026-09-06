@@ -397,7 +397,7 @@
       width: calc(33.333% - 2px);
     }
 
-    #container-policy:has(#container-default:checked) .seg-thumb {
+    #container-policy:has(#container-inherit:checked) .seg-thumb {
       transform: translateX(100%);
     }
 
@@ -770,7 +770,59 @@
     <div id="url-scope-hint" class="mode-hint"></div>
   </section>
   <section class="section">
+    <h2 data-i18n="popupSectionBrowser"></h2>
+    <label class="toggle" for="toggle-open-browser-tab">
+      <input type="checkbox" id="toggle-open-browser-tab" data-tool-id="open-browser-tab">
+      <span class="toggle-body">
+        <span class="toggle-name" data-i18n="popupToggleOpenTabName"></span><br>
+        <span class="toggle-hint" data-i18n="popupToggleOpenTabHint"></span>
+      </span>
+    </label>
+    <label class="toggle" for="toggle-close-browser-tabs">
+      <input type="checkbox" id="toggle-close-browser-tabs" data-tool-id="close-browser-tabs">
+      <span class="toggle-body">
+        <span class="toggle-name" data-i18n="popupToggleCloseTabsName"></span><br>
+        <span class="toggle-hint" data-i18n="popupToggleCloseTabsHint"></span>
+      </span>
+    </label>
+    <label class="toggle" for="toggle-get-list-of-open-tabs">
+      <input type="checkbox" id="toggle-get-list-of-open-tabs" data-tool-id="get-list-of-open-tabs">
+      <span class="toggle-body">
+        <span class="toggle-name" data-i18n="popupToggleTabListName"></span><br>
+        <span class="toggle-hint" data-i18n="popupToggleTabListHint"></span>
+      </span>
+    </label>
+    <label class="toggle" for="toggle-get-recent-browser-history">
+      <input type="checkbox" id="toggle-get-recent-browser-history" data-tool-id="get-recent-browser-history">
+      <span class="toggle-body">
+        <span class="toggle-name" data-i18n="popupToggleHistoryName"></span><br>
+        <span class="toggle-hint toggle-warn" data-i18n="popupToggleHistoryHint"></span>
+      </span>
+    </label>
+    <label class="toggle" for="toggle-resize-browser-window">
+      <input type="checkbox" id="toggle-resize-browser-window" data-tool-id="resize-browser-window">
+      <span class="toggle-body">
+        <span class="toggle-name" data-i18n="popupToggleResizeName"></span><br>
+        <span class="toggle-hint" data-i18n="popupToggleResizeHint"></span>
+      </span>
+    </label>
+  </section>
+  <section class="section">
     <h2 data-i18n="popupSectionInteraction"></h2>
+    <label class="toggle" for="toggle-get-tab-web-content">
+      <input type="checkbox" id="toggle-get-tab-web-content" data-tool-id="get-tab-web-content">
+      <span class="toggle-body">
+        <span class="toggle-name" data-i18n="popupToggleReadPageName"></span><br>
+        <span class="toggle-hint" data-i18n="popupToggleReadPageHint"></span>
+      </span>
+    </label>
+    <label class="toggle" for="toggle-find-highlight-in-browser-tab">
+      <input type="checkbox" id="toggle-find-highlight-in-browser-tab" data-tool-id="find-highlight-in-browser-tab">
+      <span class="toggle-body">
+        <span class="toggle-name" data-i18n="popupToggleFindHighlightName"></span><br>
+        <span class="toggle-hint" data-i18n="popupToggleFindHighlightHint"></span>
+      </span>
+    </label>
     <label class="toggle" for="toggle-capture-tab-screenshot">
       <input type="checkbox" id="toggle-capture-tab-screenshot" data-tool-id="capture-tab-screenshot">
       <span class="toggle-body">
@@ -793,6 +845,13 @@
       <span class="toggle-body">
         <span class="toggle-name" data-i18n="popupToggleHiddenName"></span><br>
         <span class="toggle-hint toggle-warn" data-i18n="popupToggleHiddenHint"></span>
+      </span>
+    </label>
+    <label class="toggle" for="toggle-get-network-requests">
+      <input type="checkbox" id="toggle-get-network-requests" data-tool-id="get-network-requests">
+      <span class="toggle-body">
+        <span class="toggle-name" data-i18n="popupToggleNetworkRequestsName"></span><br>
+        <span class="toggle-hint" data-i18n="popupToggleNetworkRequestsHint"></span>
       </span>
     </label>
     <label class="toggle" for="toggle-interact-click">
@@ -839,13 +898,13 @@
     <span class="mode-hint" data-i18n="popupContainerPolicyHint"></span>
     <div id="container-policy" class="segmented" style="margin-top: 6px;">
       <span class="seg-thumb" aria-hidden="true"></span>
+      <label class="seg" for="container-auto">
+        <input type="radio" id="container-auto" name="container-policy" value="auto">
+        <span data-i18n="popupContainerSegAuto"></span>
+      </label>
       <label class="seg" for="container-inherit">
         <input type="radio" id="container-inherit" name="container-policy" value="inherit">
         <span data-i18n="popupContainerSegInherit"></span>
-      </label>
-      <label class="seg" for="container-default">
-        <input type="radio" id="container-default" name="container-policy" value="default">
-        <span data-i18n="popupContainerSegDefault"></span>
       </label>
       <label class="seg" for="container-fixed">
         <input type="radio" id="container-fixed" name="container-policy" value="fixed">

@@ -55,8 +55,9 @@ addressed by a `ref` from a page read or by a CSS selector.
 
 - **Connection** — connected servers per port, each switchable
 - **Permission** — access scope and its site list; `+ Current tab` adds the tab in front
-- **New tabs** — which container a tab this session opens lands in
+- **Browser permissions** — opening, closing and listing tabs, browsing history, window size
 - **Interaction permissions** — one switch per capability, hidden-content reads, background work
+- **New tabs** — which container a tab this session opens lands in
 - **Display** — tab icon, aurora, action highlight, badge, region box size, tab hold time
 
 | Scope                   | Behaviour                                                              |
@@ -105,9 +106,10 @@ doubt. Experimental; use at your own risk.
 
 - Compact mode hides the toolbar: use `Alt+Shift+B`.
 - Split view puts both tabs in a screenshot.
-- Containers: a tab in the default container looks signed out, so a new tab follows the tab in
-  front by default. The popup picks that, the default container, or one pinned by name; no tool
-  parameter can overrule it.
+- Containers: a tab in the default container looks signed out. **Auto**, the default, opens in the
+  container `open-browser-tab` asks for and follows the tab in front when it asks for none.
+  **Current** always follows the tab in front, **Fixed** pins one container by name; both ignore
+  the parameter, and the answer says the container the tab landed in.
 
 ## Installation
 

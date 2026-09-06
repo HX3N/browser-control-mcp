@@ -226,10 +226,14 @@ export class BrowserAPI {
     return this.boundPort ?? undefined;
   }
 
-  async openTab(url: string): Promise<OpenedTabIdExtensionMessage> {
+  async openTab(
+    url: string,
+    cookieStoreId?: string
+  ): Promise<OpenedTabIdExtensionMessage> {
     const correlationId = this.sendMessageToExtension({
       cmd: "open-tab",
       url,
+      ...(cookieStoreId ? { cookieStoreId } : {}),
     });
     return await this.waitForResponse(
       correlationId,

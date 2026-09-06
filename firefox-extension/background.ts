@@ -15,6 +15,7 @@ import {
   isBadgeEnabled,
   isBackgroundMode,
   getContainerChoice,
+  DEFAULT_COOKIE_STORE,
   isHiddenElementsIncluded,
   getUrlScope,
   isFocusEnabled,
@@ -300,7 +301,7 @@ async function describeActiveTab(): Promise<ActiveTabStatus> {
 
 async function listKnownContainers(pinned?: string): Promise<string[]> {
   const seen = new Set<string>();
-  if (pinned) {
+  if (pinned && pinned !== DEFAULT_COOKIE_STORE) {
     seen.add(pinned);
   }
   try {
@@ -313,7 +314,7 @@ async function listKnownContainers(pinned?: string): Promise<string[]> {
   } catch (error) {
     console.error("Could not list the open tabs' containers:", error);
   }
-  return [...seen].sort();
+  return [DEFAULT_COOKIE_STORE, ...[...seen].sort()];
 }
 
 async function buildStatus(): Promise<PopupStatus> {

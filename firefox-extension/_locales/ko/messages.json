@@ -11,92 +11,47 @@
     "toolOpenBrowserTabName": {
         "message": "탭 열기"
     },
-    "toolOpenBrowserTabDescription": {
-        "message": "MCP 서버가 새 브라우저 탭을 열 수 있게 합니다"
-    },
     "toolCloseBrowserTabsName": {
         "message": "탭 닫기"
-    },
-    "toolCloseBrowserTabsDescription": {
-        "message": "MCP 서버가 브라우저 탭을 닫을 수 있게 합니다"
     },
     "toolGetListOfOpenTabsName": {
         "message": "열린 탭 보기"
     },
-    "toolGetListOfOpenTabsDescription": {
-        "message": "MCP 서버가 열려 있는 모든 탭의 목록을 가져올 수 있게 합니다"
-    },
     "toolGetRecentBrowserHistoryName": {
         "message": "방문 기록 보기"
-    },
-    "toolGetRecentBrowserHistoryDescription": {
-        "message": "MCP 서버가 최근 브라우징 기록에 접근할 수 있게 합니다"
     },
     "toolGetTabWebContentName": {
         "message": "페이지 읽기"
     },
-    "toolGetTabWebContentDescription": {
-        "message": "MCP 서버가 웹 페이지의 본문과 요소를 읽고, 텍스트를 찾고, 변화를 기다릴 수 있게 합니다"
-    },
     "toolResizeBrowserWindowName": {
         "message": "창 크기 조절"
-    },
-    "toolResizeBrowserWindowDescription": {
-        "message": "MCP 서버가 브라우저 창 크기를 바꿀 수 있게 합니다"
     },
     "toolFindHighlightInBrowserTabName": {
         "message": "페이지에서 찾기"
     },
-    "toolFindHighlightInBrowserTabDescription": {
-        "message": "MCP 서버가 웹 페이지에서 텍스트를 찾아 강조할 수 있게 합니다"
-    },
     "toolCaptureTabScreenshotName": {
         "message": "화면 캡처"
-    },
-    "toolCaptureTabScreenshotDescription": {
-        "message": "MCP 서버가 탭 화면을 캡처할 수 있게 합니다"
     },
     "toolInteractMouseName": {
         "message": "클릭·스크롤"
     },
-    "toolInteractMouseDescription": {
-        "message": "MCP 서버가 페이지의 요소를 클릭하고, 선택 항목을 고르고, 스크롤할 수 있게 합니다"
-    },
     "toolInteractKeyboardName": {
         "message": "텍스트 입력"
-    },
-    "toolInteractKeyboardDescription": {
-        "message": "MCP 서버가 입력란에 텍스트를 넣고 키를 누를 수 있게 합니다"
     },
     "toolExecuteJavascriptName": {
         "message": "JavaScript 실행"
     },
-    "toolExecuteJavascriptDescription": {
-        "message": "MCP 서버가 페이지에서 임의 스크립트를 실행할 수 있게 합니다"
-    },
     "toolGetMediaContentName": {
         "message": "이미지 읽기"
-    },
-    "toolGetMediaContentDescription": {
-        "message": "MCP 서버가 페이지 이미지를 파일 그대로 읽을 수 있게 합니다"
     },
     "toolDownloadFileName": {
         "message": "파일 다운로드"
     },
-    "toolDownloadFileDescription": {
-        "message": "MCP 서버가 파일을 다운로드 폴더에 저장할 수 있게 합니다"
-    },
     "toolUploadFilesName": {
         "message": "파일 업로드"
     },
-    "toolUploadFilesDescription": {
-        "message": "MCP 서버가 로컬 파일을 파일 입력란에 올릴 수 있게 합니다"
-    },
     "toolGetNetworkRequestsName": {
         "message": "네트워크 요청 읽기"
-    },
-    "toolGetNetworkRequestsDescription": {
-        "message": "MCP 서버가 페이지가 보낸 HTTP 요청의 메서드·상태·소요 시간을 본문 없이 읽을 수 있게 합니다"
     },
     "overlayIdle": {
         "message": "Claude 연결됨"
@@ -196,6 +151,9 @@
     },
     "popupSectionPermission": {
         "message": "권한"
+    },
+    "popupSectionBrowser": {
+        "message": "브라우저 권한"
     },
     "popupSectionInteraction": {
         "message": "상호작용 권한"
@@ -386,26 +344,23 @@
     "popupContainerPolicyHint": {
         "message": "이 세션이 여는 탭이 어느 컨테이너로 갈지"
     },
+    "popupContainerSegAuto": {
+        "message": "자율"
+    },
     "popupContainerSegInherit": {
         "message": "현재 탭"
-    },
-    "popupContainerSegDefault": {
-        "message": "기본"
     },
     "popupContainerSegFixed": {
         "message": "지정"
     },
+    "popupContainerHintAuto": {
+        "message": "요청이 오면 그 컨테이너, 아니면 $1"
+    },
     "popupContainerHintInherit": {
         "message": "지금 보는 탭을 따라 $1"
     },
-    "popupContainerHintDefault": {
-        "message": "컨테이너 없이 기본으로"
-    },
     "popupContainerHintFixed": {
         "message": "항상 $1"
-    },
-    "popupContainerHintNone": {
-        "message": "열려 있는 탭에 컨테이너가 없습니다"
     },
     "popupFeedbackContainerFixed": {
         "message": "새 탭이 항상 $1을 씁니다"
@@ -584,8 +539,8 @@
     "popupFeedbackContainerInherit": {
         "message": "새 탭이 현재 컨테이너를 씁니다"
     },
-    "popupFeedbackContainerDefault": {
-        "message": "새 탭이 기본 컨테이너를 씁니다"
+    "popupFeedbackContainerAuto": {
+        "message": "새 탭 컨테이너를 요청에 맡깁니다"
     },
     "popupFeedbackTabAllowed": {
         "message": "이 탭을 허용했습니다"
@@ -655,12 +610,6 @@
     },
     "optionsSecretCopyFailed": {
         "message": "클립보드 복사에 실패했습니다"
-    },
-    "optionsToolsHeading": {
-        "message": "도구 권한"
-    },
-    "optionsToolsLoading": {
-        "message": "도구 설정을 불러오는 중…"
     },
     "optionsAuditHeading": {
         "message": "사용 기록"
@@ -871,5 +820,53 @@
     },
     "optionsTimingHint_sweepMs": {
         "message": "스크롤 한 번이 걸리는 시간입니다. 화면 가운데의 점도 같은 시간 동안 지나갑니다."
+    },
+    "popupToggleOpenTabName": {
+        "message": "새 탭 열기"
+    },
+    "popupToggleOpenTabHint": {
+        "message": "지정한 주소로 새 탭 생성"
+    },
+    "popupToggleCloseTabsName": {
+        "message": "탭 닫기"
+    },
+    "popupToggleCloseTabsHint": {
+        "message": "열려 있는 탭 닫기"
+    },
+    "popupToggleTabListName": {
+        "message": "열린 탭 목록"
+    },
+    "popupToggleTabListHint": {
+        "message": "열려 있는 탭 전체 조회"
+    },
+    "popupToggleHistoryName": {
+        "message": "방문 기록 조회"
+    },
+    "popupToggleHistoryHint": {
+        "message": "최근 방문한 사이트 조회"
+    },
+    "popupToggleResizeName": {
+        "message": "창 크기 조절"
+    },
+    "popupToggleResizeHint": {
+        "message": "브라우저 창 크기 변경"
+    },
+    "popupToggleReadPageName": {
+        "message": "페이지 읽기"
+    },
+    "popupToggleReadPageHint": {
+        "message": "본문·요소 읽기와 변화 대기"
+    },
+    "popupToggleFindHighlightName": {
+        "message": "텍스트 찾기·강조"
+    },
+    "popupToggleFindHighlightHint": {
+        "message": "페이지에서 텍스트 찾아 강조"
+    },
+    "popupToggleNetworkRequestsName": {
+        "message": "네트워크 요청 조회"
+    },
+    "popupToggleNetworkRequestsHint": {
+        "message": "본문 없이 메서드·상태·소요 시간 확인"
     }
 }

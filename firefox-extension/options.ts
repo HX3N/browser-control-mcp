@@ -4,13 +4,9 @@
 import {
   getSecret,
   generateSecret,
-  AVAILABLE_TOOLS,
-  getAllToolSettings,
-  setToolEnabled,
   getAuditLog,
   clearAuditLog,
   getToolNameById,
-  INTERACTION_TOOL_IDS,
   DEFAULT_OVERLAY_TIMINGS,
   OVERLAY_ACCENT_KEYS,
   OVERLAY_TIMING_LIMITS,
@@ -25,10 +21,6 @@ import type { OverlayAccentKey, OverlayTimings } from "./extension-config";
 import { clamp01, hexToHsv, hsvToHex } from "./color";
 import { localizeDocument, t } from "./i18n";
 
-// The popup owns these, so listing them here as well would give the user two switches for one
-// setting.
-const POPUP_OWNED_TOOL_IDS: readonly string[] = INTERACTION_TOOL_IDS;
-
 const MASKED_SECRET = "••••••••-••••-••••-••••-••••••••••••";
 
 const secretDisplay = document.getElementById(
@@ -36,9 +28,6 @@ const secretDisplay = document.getElementById(
 ) as HTMLDivElement;
 const copyButton = document.getElementById("copy-button") as HTMLButtonElement;
 const statusElement = document.getElementById("status") as HTMLDivElement;
-const toolSettingsContainer = document.getElementById(
-  "tool-settings-container"
-) as HTMLDivElement;
 const auditLogContainer = document.getElementById("audit-log-container") as HTMLDivElement;
 const clearAuditLogButton = document.getElementById("clear-audit-log") as HTMLButtonElement;
 const auditLogStatusElement = document.getElementById("audit-log-status") as HTMLDivElement;
@@ -147,84 +136,6 @@ async function copyToClipboard(event: MouseEvent) {
       statusElement.textContent = "";
       statusElement.style.color = "";
     }, 3000);
-  }
-}
-
-/**
- * Creates the tool settings UI
- */
-async function createToolSettingsUI() {
-  const toolSettings = await getAllToolSettings();
-
-  // Clear existing content
-  toolSettingsContainer.innerHTML = "";
-
-  // Create a toggle switch for each tool
-  AVAILABLE_TOOLS.filter(
-    (tool) => !POPUP_OWNED_TOOL_IDS.includes(tool.id)
-  ).forEach((tool) => {
-    const isEnabled = toolSettings[tool.id] !== false; // Default to true if not set
-
-    const toolRow = document.createElement("div");
-    toolRow.className = "tool-row";
-
-    const labelContainer = document.createElement("div");
-    labelContainer.className = "tool-label-container";
-
-    const toolName = document.createElement("div");
-    toolName.className = "tool-name";
-    toolName.textContent = t(tool.nameKey);
-
-    const toolDescription = document.createElement("div");
-    toolDescription.className = "tool-description";
-    toolDescription.textContent = t(tool.descriptionKey);
-
-    labelContainer.appendChild(toolName);
-    labelContainer.appendChild(toolDescription);
-
-    const toggleContainer = document.createElement("label");
-    toggleContainer.className = "toggle-switch";
-
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.checked = isEnabled;
-    checkbox.dataset.toolId = tool.id;
-    checkbox.addEventListener("change", handleToolToggle);
-
-    const slider = document.createElement("span");
-    slider.className = "slider";
-
-    toggleContainer.appendChild(checkbox);
-    toggleContainer.appendChild(slider);
-
-    toolRow.appendChild(labelContainer);
-    toolRow.appendChild(toggleContainer);
-
-    toolSettingsContainer.appendChild(toolRow);
-  });
-}
-
-/**
- * Handles toggling a tool on/off
- */
-async function handleToolToggle(event: Event) {
-  const checkbox = event.target as HTMLInputElement;
-  const toolId = checkbox.dataset.toolId;
-  const isEnabled = checkbox.checked;
-
-  if (!toolId) {
-    console.error("Tool ID not found");
-    return;
-  }
-
-  try {
-    await setToolEnabled(toolId, isEnabled);
-    // No status message displayed
-  } catch (error) {
-    console.error("Error saving tool setting:", error);
-
-    // Revert the checkbox state
-    checkbox.checked = !isEnabled;
   }
 }
 
@@ -813,7 +724,6 @@ document.addEventListener("DOMContentLoaded", () => {
   localizeDocument();
   revealSecretButton.setAttribute("aria-label", t("optionsSecretShow"));
   loadSecret();
-  createToolSettingsUI();
   loadAuditLog();
   createAppearanceUI();
   createTimingUI();

@@ -397,81 +397,6 @@
       margin-bottom: 6px;
     }
 
-    .tool-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 16px;
-      padding: 11px 0;
-      border-bottom: 1px solid var(--panel-border);
-    }
-
-    .tool-row:last-child {
-      border-bottom: none;
-    }
-
-    .tool-label-container {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .tool-name {
-      font-weight: 600;
-      margin-bottom: 2px;
-    }
-
-    .tool-description {
-      font-size: 12.5px;
-      color: var(--muted);
-    }
-
-    .toggle-switch {
-      position: relative;
-      display: inline-block;
-      width: 42px;
-      height: 23px;
-      flex: 0 0 auto;
-    }
-
-    .toggle-switch input {
-      opacity: 0;
-      width: 0;
-      height: 0;
-    }
-
-    .slider {
-      position: absolute;
-      cursor: pointer;
-      inset: 0;
-      background-color: var(--panel-border);
-      transition: .25s;
-      border-radius: 23px;
-    }
-
-    .slider:before {
-      position: absolute;
-      content: "";
-      height: 17px;
-      width: 17px;
-      left: 3px;
-      bottom: 3px;
-      background-color: #fff;
-      transition: .25s;
-      border-radius: 50%;
-    }
-
-    input:checked+.slider {
-      background-color: var(--accent);
-    }
-
-    input:focus-visible+.slider {
-      box-shadow: 0 0 0 3px var(--accent-soft);
-    }
-
-    input:checked+.slider:before {
-      transform: translateX(19px);
-    }
-
     .loading {
       color: var(--muted);
       font-size: 13px;
@@ -634,16 +559,6 @@
         <div class="status" id="status"></div>
       </div>
     </div>
-
-    <div class="section-container">
-      <h2 data-i18n="optionsToolsHeading"></h2>
-      <div class="section-content">
-        <div id="tool-settings-container">
-          <div class="loading" data-i18n="optionsToolsLoading"></div>
-        </div>
-      </div>
-    </div>
-
 
 
     <div class="section-container">

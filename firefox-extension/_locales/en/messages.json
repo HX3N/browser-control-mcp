@@ -11,92 +11,47 @@
     "toolOpenBrowserTabName": {
         "message": "Open tabs"
     },
-    "toolOpenBrowserTabDescription": {
-        "message": "Lets the MCP server open new browser tabs"
-    },
     "toolCloseBrowserTabsName": {
         "message": "Close tabs"
-    },
-    "toolCloseBrowserTabsDescription": {
-        "message": "Lets the MCP server close browser tabs"
     },
     "toolGetListOfOpenTabsName": {
         "message": "List open tabs"
     },
-    "toolGetListOfOpenTabsDescription": {
-        "message": "Lets the MCP server list every open tab"
-    },
     "toolGetRecentBrowserHistoryName": {
         "message": "Read recent history"
-    },
-    "toolGetRecentBrowserHistoryDescription": {
-        "message": "Lets the MCP server reach recent browsing history"
     },
     "toolGetTabWebContentName": {
         "message": "Read page content"
     },
-    "toolGetTabWebContentDescription": {
-        "message": "Lets the MCP server read page text and elements, find text and wait for changes"
-    },
     "toolResizeBrowserWindowName": {
         "message": "Resize the window"
-    },
-    "toolResizeBrowserWindowDescription": {
-        "message": "Lets the MCP server resize the browser window"
     },
     "toolFindHighlightInBrowserTabName": {
         "message": "Find and highlight in page"
     },
-    "toolFindHighlightInBrowserTabDescription": {
-        "message": "Lets the MCP server find text in a page and highlight it"
-    },
     "toolCaptureTabScreenshotName": {
         "message": "Capture the screen"
-    },
-    "toolCaptureTabScreenshotDescription": {
-        "message": "Lets the MCP server capture the visible tab"
     },
     "toolInteractMouseName": {
         "message": "Click and scroll"
     },
-    "toolInteractMouseDescription": {
-        "message": "Lets the MCP server click elements, pick options and scroll"
-    },
     "toolInteractKeyboardName": {
         "message": "Text entry"
-    },
-    "toolInteractKeyboardDescription": {
-        "message": "Lets the MCP server enter text into fields and press keys"
     },
     "toolExecuteJavascriptName": {
         "message": "Run JavaScript"
     },
-    "toolExecuteJavascriptDescription": {
-        "message": "Lets the MCP server run arbitrary scripts in a page"
-    },
     "toolGetMediaContentName": {
         "message": "Read images"
-    },
-    "toolGetMediaContentDescription": {
-        "message": "Lets the MCP server read page images as files"
     },
     "toolDownloadFileName": {
         "message": "Download files"
     },
-    "toolDownloadFileDescription": {
-        "message": "Lets the MCP server save files to the downloads folder"
-    },
     "toolUploadFilesName": {
         "message": "Upload files"
     },
-    "toolUploadFilesDescription": {
-        "message": "Lets the MCP server put local files into a file input"
-    },
     "toolGetNetworkRequestsName": {
         "message": "Read network requests"
-    },
-    "toolGetNetworkRequestsDescription": {
-        "message": "Lets the MCP server list the HTTP requests a page made, with method, status and timing but no bodies"
     },
     "overlayIdle": {
         "message": "Claude connected"
@@ -196,6 +151,9 @@
     },
     "popupSectionPermission": {
         "message": "Permission"
+    },
+    "popupSectionBrowser": {
+        "message": "Browser permissions"
     },
     "popupSectionInteraction": {
         "message": "Interaction permissions"
@@ -386,26 +344,23 @@
     "popupContainerPolicyHint": {
         "message": "Which container a tab this session opens lands in"
     },
+    "popupContainerSegAuto": {
+        "message": "Auto"
+    },
     "popupContainerSegInherit": {
         "message": "This tab"
-    },
-    "popupContainerSegDefault": {
-        "message": "Default"
     },
     "popupContainerSegFixed": {
         "message": "Pick"
     },
+    "popupContainerHintAuto": {
+        "message": "The container the request picks, otherwise $1"
+    },
     "popupContainerHintInherit": {
         "message": "Follows the tab you are on, now $1"
     },
-    "popupContainerHintDefault": {
-        "message": "No container, the default one"
-    },
     "popupContainerHintFixed": {
         "message": "Always $1"
-    },
-    "popupContainerHintNone": {
-        "message": "No tab is open in a container"
     },
     "popupFeedbackContainerFixed": {
         "message": "New tabs always use $1"
@@ -584,8 +539,8 @@
     "popupFeedbackContainerInherit": {
         "message": "New tabs use the current container"
     },
-    "popupFeedbackContainerDefault": {
-        "message": "New tabs use the default container"
+    "popupFeedbackContainerAuto": {
+        "message": "New tabs take the container the request picks"
     },
     "popupFeedbackTabAllowed": {
         "message": "This tab is allowed"
@@ -655,12 +610,6 @@
     },
     "optionsSecretCopyFailed": {
         "message": "Could not copy to the clipboard"
-    },
-    "optionsToolsHeading": {
-        "message": "Tool permissions"
-    },
-    "optionsToolsLoading": {
-        "message": "Loading tool settings…"
     },
     "optionsAuditHeading": {
         "message": "Activity log"
@@ -871,5 +820,53 @@
     },
     "optionsTimingHint_sweepMs": {
         "message": "How long one scroll takes. The dot at the centre of the screen crosses in the same time."
+    },
+    "popupToggleOpenTabName": {
+        "message": "Open a tab"
+    },
+    "popupToggleOpenTabHint": {
+        "message": "Create a tab at a given address"
+    },
+    "popupToggleCloseTabsName": {
+        "message": "Close tabs"
+    },
+    "popupToggleCloseTabsHint": {
+        "message": "Close tabs that are open"
+    },
+    "popupToggleTabListName": {
+        "message": "Open tab list"
+    },
+    "popupToggleTabListHint": {
+        "message": "Read every open tab"
+    },
+    "popupToggleHistoryName": {
+        "message": "Browsing history"
+    },
+    "popupToggleHistoryHint": {
+        "message": "Recently visited sites are laid bare!"
+    },
+    "popupToggleResizeName": {
+        "message": "Window size"
+    },
+    "popupToggleResizeHint": {
+        "message": "Resize the browser window"
+    },
+    "popupToggleReadPageName": {
+        "message": "Read the page"
+    },
+    "popupToggleReadPageHint": {
+        "message": "Read text and elements, and wait for changes"
+    },
+    "popupToggleFindHighlightName": {
+        "message": "Find and highlight"
+    },
+    "popupToggleFindHighlightHint": {
+        "message": "Find text in the page and highlight it"
+    },
+    "popupToggleNetworkRequestsName": {
+        "message": "Network requests"
+    },
+    "popupToggleNetworkRequestsHint": {
+        "message": "Method, status and timing, without bodies"
     }
 }

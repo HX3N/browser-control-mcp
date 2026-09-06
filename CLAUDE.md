@@ -46,13 +46,16 @@ the next free port and the extension keeps one spare slot.
 - Two gates in `message-handler.ts`: tool switches (`COMMAND_TO_TOOL_ID`, `isCommandAllowed`,
   `DISABLED_BY_DEFAULT_TOOL_IDS`) and permission mode (`ensureTabAccess` on `PAGE_ACCESS_COMMANDS`).
 - A tool id is a storage key, not the MCP name; renaming a tool keeps its id.
-- `getConfig` fills `toolSettings` from defaults so popup, options and gate agree on a new tool.
+- `getConfig` fills `toolSettings` from defaults so popup and gate agree on a new tool; every
+  switch lives in the popup, none in the options page.
 - `<all_urls>` is the literal required host permission (`captureVisibleTab` compares it verbatim).
   The browser is no backstop; defaults stay locked.
-- A tab this session opens follows `containerPolicy` alone: `inherit` copies the tab in front,
-  `default` names `firefox-default` outright — Zen hands a new tab the front tab's container when
-  `tabs.create` names none — and `fixed` pins `containerFixedId`. No tool parameter overrules it.
-  The popup lists the containers seen on open tabs, so `contextualIdentities` is never asked for.
+- A tab this session opens follows `containerPolicy`: `auto`, the default, takes the container
+  `open-browser-tab` names and falls back to the tab in front when it names none; `inherit` always
+  copies the tab in front; `fixed` pins `containerFixedId` (Zen hands a new tab the front tab's
+  container when `tabs.create` names none). Only `auto` lets the tool argument choose — the other
+  two ignore it and say so in the response. The popup lists the containers seen on open tabs, so
+  `contextualIdentities` is never asked for.
 
 **Pages and refs**
 - Every injection goes through `runScript`, never `browser.tabs.executeScript` directly: a frozen

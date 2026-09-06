@@ -310,9 +310,6 @@ function renderContainerPolicy(status: PopupStatus): void {
   const { policy, cookieStoreId } = status.container;
   for (const radio of containerPolicyRadios) {
     radio.checked = radio.value === policy;
-    if (radio.value === "fixed") {
-      radio.disabled = status.containers.length === 0;
-    }
   }
 
   containerFixedSelect.replaceChildren(
@@ -332,17 +329,13 @@ function renderContainerPolicy(status: PopupStatus): void {
   }
   containerFixedSelect.classList.toggle("hidden", policy !== "fixed");
 
+  const inFront = describeContainer(status.activeTab.cookieStoreId);
   containerPolicyHint.textContent =
     policy === "fixed"
-      ? target
-        ? t("popupContainerHintFixed", describeContainer(target))
-        : t("popupContainerHintNone")
-      : policy === "default"
-      ? t("popupContainerHintDefault")
-      : t(
-          "popupContainerHintInherit",
-          describeContainer(status.activeTab.cookieStoreId)
-        );
+      ? t("popupContainerHintFixed", describeContainer(target ?? null))
+      : policy === "auto"
+      ? t("popupContainerHintAuto", inFront)
+      : t("popupContainerHintInherit", inFront);
 }
 
 async function applyContainerPolicy(policy: ContainerPolicy): Promise<void> {
@@ -354,12 +347,10 @@ async function applyContainerPolicy(policy: ContainerPolicy): Promise<void> {
   });
   showFeedback(
     policy === "fixed"
-      ? fixed
-        ? t("popupFeedbackContainerFixed", describeContainer(fixed))
-        : t("popupContainerHintNone")
+      ? t("popupFeedbackContainerFixed", describeContainer(fixed))
       : policy === "inherit"
       ? t("popupFeedbackContainerInherit")
-      : t("popupFeedbackContainerDefault")
+      : t("popupFeedbackContainerAuto")
   );
 }
 

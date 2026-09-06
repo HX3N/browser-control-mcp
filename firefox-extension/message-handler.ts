@@ -202,7 +202,6 @@ const MAX_TEXT_WAIT_TIMEOUT_MS = 180_000;
 const MAX_ADDED_TEXT_LENGTH = 20_000;
 // Zen hands a new tab the container of the tab in front when tabs.create names none, so the
 // default container has to be named outright to be reached.
-const DEFAULT_COOKIE_STORE = "firefox-default";
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -414,7 +413,7 @@ export class MessageHandler {
 
     switch (req.cmd) {
       case "open-tab":
-        await this.openUrl(req.correlationId, req.url);
+        await this.openUrl(req.correlationId, req.url, req.cookieStoreId);
         break;
       case "navigate-tab":
         await this.navigateTab(req);
@@ -545,7 +544,11 @@ export class MessageHandler {
     );
   }
 
-  private async openUrl(correlationId: string, url: string): Promise<void> {
+  private async openUrl(
+    correlationId: string,
+    url: string,
+    requested?: string
+  ): Promise<void> {
     await this.ensureUrlInScope(url);
 
     if (await isDomainInDenyList(url)) {
@@ -555,7 +558,9 @@ export class MessageHandler {
     // contentScripts.register resolves in the parent process before the content processes have
     // heard of it, so a tab created straight onto the URL can load its first document unguarded.
     // Parking on about:blank and navigating afterwards buys the registration time to spread.
-    const container = await this.resolveCookieStore();
+    const { cookieStoreId: container, ignored } = await this.resolveCookieStore(
+      requested
+    );
     const active = !(await isBackgroundMode());
     const tab = await browser.tabs.create(
       container
@@ -603,6 +608,7 @@ export class MessageHandler {
       correlationId,
       tabId: tab.id,
       cookieStoreId: tab.cookieStoreId,
+      ...(ignored ? { containerIgnored: true } : {}),
     };
     if (tab.id === undefined) {
       await this.client.sendResourceToServer(opened);
@@ -861,21 +867,24 @@ export class MessageHandler {
   }
 
   // Container tabs each keep their own cookie jar, so the one a tab opens in decides whether the
-  // page reads as signed in.
-  private async resolveCookieStore(): Promise<string | undefined> {
+  // page reads as signed in. Only the auto policy lets the command name that jar.
+  private async resolveCookieStore(
+    requested: string | undefined
+  ): Promise<{ cookieStoreId?: string; ignored: boolean }> {
     const choice = await getContainerChoice();
-    if (choice.policy === "default") {
-      return DEFAULT_COOKIE_STORE;
-    }
+    const ignored = requested !== undefined && choice.policy !== "auto";
     if (choice.policy === "fixed") {
-      return choice.cookieStoreId;
+      return { cookieStoreId: choice.cookieStoreId, ignored };
+    }
+    if (choice.policy === "auto" && requested !== undefined) {
+      return { cookieStoreId: requested, ignored };
     }
     try {
       const inFront = await this.findTabInFront();
-      return inFront?.cookieStoreId;
+      return { cookieStoreId: inFront?.cookieStoreId, ignored };
     } catch (error) {
       console.error("Could not read the active tab container:", error);
-      return undefined;
+      return { ignored };
     }
   }
 

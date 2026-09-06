@@ -18,84 +18,68 @@ const AUDIT_LOG_SIZE_LIMIT = 100; // Maximum number of audit log entries to keep
 export interface ToolInfo {
   id: string;
   nameKey: string;
-  descriptionKey: string;
 }
 
 export const AVAILABLE_TOOLS: ToolInfo[] = [
   {
     id: "open-browser-tab",
-    nameKey: "toolOpenBrowserTabName",
-    descriptionKey: "toolOpenBrowserTabDescription"
+    nameKey: "toolOpenBrowserTabName"
   },
   {
     id: "close-browser-tabs",
-    nameKey: "toolCloseBrowserTabsName",
-    descriptionKey: "toolCloseBrowserTabsDescription"
+    nameKey: "toolCloseBrowserTabsName"
   },
   {
     id: "get-list-of-open-tabs",
-    nameKey: "toolGetListOfOpenTabsName",
-    descriptionKey: "toolGetListOfOpenTabsDescription"
+    nameKey: "toolGetListOfOpenTabsName"
   },
   {
     id: "get-recent-browser-history",
-    nameKey: "toolGetRecentBrowserHistoryName",
-    descriptionKey: "toolGetRecentBrowserHistoryDescription"
+    nameKey: "toolGetRecentBrowserHistoryName"
   },
   {
     id: "get-tab-web-content",
-    nameKey: "toolGetTabWebContentName",
-    descriptionKey: "toolGetTabWebContentDescription"
+    nameKey: "toolGetTabWebContentName"
   },
   {
     id: "resize-browser-window",
-    nameKey: "toolResizeBrowserWindowName",
-    descriptionKey: "toolResizeBrowserWindowDescription"
+    nameKey: "toolResizeBrowserWindowName"
   },
   {
     id: "find-highlight-in-browser-tab",
-    nameKey: "toolFindHighlightInBrowserTabName",
-    descriptionKey: "toolFindHighlightInBrowserTabDescription"
+    nameKey: "toolFindHighlightInBrowserTabName"
   },
   {
     id: "capture-tab-screenshot",
-    nameKey: "toolCaptureTabScreenshotName",
-    descriptionKey: "toolCaptureTabScreenshotDescription"
+    nameKey: "toolCaptureTabScreenshotName"
   },
   {
     id: "interact-click",
-    nameKey: "toolInteractMouseName",
-    descriptionKey: "toolInteractMouseDescription"
+    nameKey: "toolInteractMouseName"
   },
   {
     id: "interact-type",
-    nameKey: "toolInteractKeyboardName",
-    descriptionKey: "toolInteractKeyboardDescription"
+    nameKey: "toolInteractKeyboardName"
   },
   {
     id: "execute-javascript",
-    nameKey: "toolExecuteJavascriptName",
-    descriptionKey: "toolExecuteJavascriptDescription"
+    nameKey: "toolExecuteJavascriptName"
   },
   {
     id: "get-media-content",
-    nameKey: "toolGetMediaContentName",
-    descriptionKey: "toolGetMediaContentDescription"
+    nameKey: "toolGetMediaContentName"
   },
   {
     id: "download-file",
-    nameKey: "toolDownloadFileName",
-    descriptionKey: "toolDownloadFileDescription"
+    nameKey: "toolDownloadFileName"
   },
   {
     id: "upload-files",
-    nameKey: "toolUploadFilesName",
-    descriptionKey: "toolUploadFilesDescription"
+    nameKey: "toolUploadFilesName"
   },
   {
     id: "get-network-requests",
-    nameKey: "toolGetNetworkRequestsName",
-    descriptionKey: "toolGetNetworkRequestsDescription"
+    nameKey: "toolGetNetworkRequestsName"
   }
 ];
 
@@ -185,7 +169,9 @@ function normalizePermissionMode(stored: string | undefined): PermissionMode {
 
 export type UrlScope = "https" | "loopback" | "any";
 
-export type ContainerPolicy = "inherit" | "default" | "fixed";
+export type ContainerPolicy = "auto" | "inherit" | "fixed";
+
+export const DEFAULT_COOKIE_STORE = "firefox-default";
 
 export interface ContainerChoice {
   policy: ContainerPolicy;
@@ -252,7 +238,8 @@ export interface ExtensionConfig {
   disabledPorts?: number[];
   // Retired in favour of containerPolicy; still read once, to carry an existing install over.
   inheritContainer?: boolean;
-  containerPolicy?: ContainerPolicy;
+  // "default" is retired in favour of fixed on the default jar, and read once for the same reason.
+  containerPolicy?: ContainerPolicy | "default";
   containerFixedId?: string;
   backgroundMode?: boolean;
   includeHiddenElements?: boolean;
@@ -637,10 +624,13 @@ export async function getContainerChoice(): Promise<ContainerChoice> {
   if (config.containerPolicy === "fixed" && config.containerFixedId) {
     return { policy: "fixed", cookieStoreId: config.containerFixedId };
   }
-  if (config.containerPolicy === "default" || config.containerPolicy === "inherit") {
+  if (config.containerPolicy === "auto" || config.containerPolicy === "inherit") {
     return { policy: config.containerPolicy };
   }
-  return { policy: config.inheritContainer === false ? "default" : "inherit" };
+  if (config.containerPolicy === "default" || config.inheritContainer === false) {
+    return { policy: "fixed", cookieStoreId: DEFAULT_COOKIE_STORE };
+  }
+  return { policy: config.inheritContainer ? "inherit" : "auto" };
 }
 
 export async function setContainerChoice(choice: ContainerChoice): Promise<void> {

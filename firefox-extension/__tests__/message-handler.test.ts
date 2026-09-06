@@ -347,7 +347,65 @@ describe("MessageHandler", () => {
           });
         });
 
-        it("keeps using the default container while the policy says so", async () => {
+        it("opens in the container the request names while the policy is auto", async () => {
+          (browser.tabs.query as jest.Mock).mockResolvedValue([
+            { id: 12, hidden: false, cookieStoreId: "firefox-container-1" },
+          ]);
+          (browser.tabs.create as jest.Mock).mockResolvedValue({ id: 13 });
+
+          await driveOpen(
+            {
+              cmd: "open-tab",
+              url: "https://example.com",
+              cookieStoreId: "firefox-container-6",
+              correlationId: "test-correlation-id",
+            } as ServerMessageRequest,
+            13
+          );
+
+          expect(browser.tabs.create).toHaveBeenCalledWith({
+            url: "about:blank",
+            cookieStoreId: "firefox-container-6",
+            active: false,
+          });
+          expect(mockClient.sendResourceToServer).toHaveBeenCalledWith(
+            expect.not.objectContaining({ containerIgnored: true })
+          );
+        });
+
+        it("reports the container it asked for as unused while the policy is inherit", async () => {
+          (browser.storage.local.get as jest.Mock).mockResolvedValue({
+            config: { ...defaultConfig, containerPolicy: "inherit" },
+          });
+          (browser.tabs.query as jest.Mock).mockResolvedValue([
+            { id: 12, hidden: false, cookieStoreId: "firefox-container-1" },
+          ]);
+          (browser.tabs.create as jest.Mock).mockResolvedValue({
+            id: 13,
+            cookieStoreId: "firefox-container-1",
+          });
+
+          await driveOpen(
+            {
+              cmd: "open-tab",
+              url: "https://example.com",
+              cookieStoreId: "firefox-container-6",
+              correlationId: "test-correlation-id",
+            } as ServerMessageRequest,
+            13
+          );
+
+          expect(browser.tabs.create).toHaveBeenCalledWith({
+            url: "about:blank",
+            cookieStoreId: "firefox-container-1",
+            active: false,
+          });
+          expect(mockClient.sendResourceToServer).toHaveBeenCalledWith(
+            expect.objectContaining({ containerIgnored: true })
+          );
+        });
+
+        it("carries a stored default policy over to the default jar", async () => {
           (browser.storage.local.get as jest.Mock).mockResolvedValue({
             config: { ...defaultConfig, containerPolicy: "default" },
           });
@@ -372,7 +430,32 @@ describe("MessageHandler", () => {
           });
         });
 
-        it("uses the pinned container whatever the tab in front carries", async () => {
+        it("carries the retired inheritContainer flag over to the default jar", async () => {
+          (browser.storage.local.get as jest.Mock).mockResolvedValue({
+            config: { ...defaultConfig, inheritContainer: false },
+          });
+          (browser.tabs.query as jest.Mock).mockResolvedValue([
+            { id: 12, hidden: false, cookieStoreId: "firefox-container-1" },
+          ]);
+          (browser.tabs.create as jest.Mock).mockResolvedValue({ id: 13 });
+
+          await driveOpen(
+            {
+              cmd: "open-tab",
+              url: "https://example.com",
+              correlationId: "test-correlation-id",
+            } as ServerMessageRequest,
+            13
+          );
+
+          expect(browser.tabs.create).toHaveBeenCalledWith({
+            url: "about:blank",
+            active: false,
+            cookieStoreId: "firefox-default",
+          });
+        });
+
+        it("uses the pinned container whatever the tab in front or the request carries", async () => {
           (browser.storage.local.get as jest.Mock).mockResolvedValue({
             config: {
               ...defaultConfig,
@@ -389,6 +472,7 @@ describe("MessageHandler", () => {
             {
               cmd: "open-tab",
               url: "https://example.com",
+              cookieStoreId: "firefox-container-6",
               correlationId: "test-correlation-id",
             } as ServerMessageRequest,
             13
@@ -399,6 +483,9 @@ describe("MessageHandler", () => {
             cookieStoreId: "firefox-container-7",
             active: false,
           });
+          expect(mockClient.sendResourceToServer).toHaveBeenCalledWith(
+            expect.objectContaining({ containerIgnored: true })
+          );
         });
 
         it("falls back to any active tab when the focused window reports none", async () => {

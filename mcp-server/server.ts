@@ -313,16 +313,17 @@ function elementTarget(input: {
 defineTool(
   "open-browser-tab",
   `
-    Open a new tab. Which Firefox container it lands in is the user's setting in the extension
-    popup; a tab in another container appears signed out, and the answer says which one it
-    opened in.
+    Open a new tab. container names the Firefox container to open in, spelled as list-open-tabs
+    prints it; without it the tab follows the one the user is on. The user's popup setting can
+    take that choice back, so the answer names the container the tab landed in.
   `,
   { title: "Open a new tab", readOnlyHint: false, destructiveHint: false, idempotentHint: false },
   {
     url: z.string(),
+    container: z.string().optional(),
   },
-  async ({ url }) => {
-    const opened = await browserApi.openTab(url);
+  async ({ url, container }) => {
+    const opened = await browserApi.openTab(url, container);
     if (opened.tabId !== undefined) {
       return {
         content: [
@@ -330,6 +331,8 @@ defineTool(
             type: "text",
             text: `${url} opened in tab id ${opened.tabId}${
               opened.cookieStoreId ? `, container ${opened.cookieStoreId}` : ""
+            }${
+              opened.containerIgnored ? ", the user's setting over the one asked for" : ""
             }`,
           },
           ...dialogNotice(opened),

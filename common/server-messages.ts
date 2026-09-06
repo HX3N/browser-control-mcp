@@ -5,6 +5,7 @@ export interface ServerMessageBase {
 export interface OpenTabServerMessage extends ServerMessageBase {
   cmd: "open-tab";
   url: string;
+  cookieStoreId?: string;
 }
 
 export interface NavigateTabServerMessage extends ServerMessageBase {
