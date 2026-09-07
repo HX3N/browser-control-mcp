@@ -126,6 +126,12 @@ const activeTabContainer = document.getElementById(
 const openOptionsButton = document.getElementById(
   "open-options"
 ) as HTMLButtonElement;
+const openPreviewButton = document.getElementById(
+  "open-preview"
+) as HTMLButtonElement;
+openPreviewButton.addEventListener("click", () => {
+  void browser.tabs.create({ url: browser.runtime.getURL("overlay-test.html") });
+});
 const feedback = document.getElementById("feedback") as HTMLSpanElement;
 
 const toolToggles = Array.from(

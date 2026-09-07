@@ -357,7 +357,7 @@
       text-transform: uppercase;
     }
 
-    input[type="number"] {
+    input.numeric {
       width: 116px;
       font-size: 13px;
       color: var(--text);
@@ -367,17 +367,9 @@
       padding: 7px 9px;
       text-align: right;
       flex: none;
-      appearance: textfield;
-      -moz-appearance: textfield;
     }
 
-    input[type="number"]::-webkit-inner-spin-button,
-    input[type="number"]::-webkit-outer-spin-button {
-      appearance: none;
-      margin: 0;
-    }
-
-    input[type="number"]:focus {
+    input.numeric:focus {
       outline: none;
       border-color: var(--accent);
     }
@@ -562,8 +554,8 @@
 
 
     <div class="section-container">
-      <h2 class="collapsed" role="button" aria-expanded="false" tabindex="0" id="appearance-header" data-i18n="optionsAppearanceHeading"></h2>
-      <div class="section-content collapsed" aria-labelledby="appearance-header">
+      <h2 role="button" aria-expanded="true" tabindex="0" id="appearance-header" data-i18n="optionsAppearanceHeading"></h2>
+      <div class="section-content" aria-labelledby="appearance-header">
         <p data-i18n="optionsAppearanceIntro"></p>
 
         <h3 data-i18n="optionsAppearanceAccentHeading"></h3>
@@ -583,8 +575,8 @@
     </div>
 
     <div class="section-container">
-      <h2 class="collapsed" role="button" aria-expanded="false" tabindex="0" id="timing-header" data-i18n="optionsTimingHeading"></h2>
-      <div class="section-content collapsed" aria-labelledby="timing-header">
+      <h2 role="button" aria-expanded="true" tabindex="0" id="timing-header" data-i18n="optionsTimingHeading"></h2>
+      <div class="section-content" aria-labelledby="timing-header">
         <p data-i18n="optionsTimingIntro"></p>
         <div id="timing-rows"></div>
 
@@ -596,8 +588,8 @@
     </div>
 
     <div class="section-container">
-      <h2 class="collapsed" role="button" aria-expanded="false" tabindex="0" id="audit-log-header" data-i18n="optionsAuditHeading"></h2>
-      <div class="section-content collapsed" aria-labelledby="audit-log-header">
+      <h2 role="button" aria-expanded="true" tabindex="0" id="audit-log-header" data-i18n="optionsAuditHeading"></h2>
+      <div class="section-content" aria-labelledby="audit-log-header">
         <div id="audit-log-container">
           <div class="loading" data-i18n="optionsAuditLoading"></div>
         </div>
@@ -609,8 +601,8 @@
     </div>
 
     <div class="section-container">
-      <h2 class="collapsed" data-i18n="optionsInstallHeading"></h2>
-      <div class="section-content collapsed">
+      <h2 data-i18n="optionsInstallHeading"></h2>
+      <div class="section-content">
         <p data-i18n-html="optionsInstallBody"></p>
 
         <h3>Claude Code</h3>

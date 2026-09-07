@@ -332,7 +332,7 @@ interface StoredOverlayColors {
 
 export const DEFAULT_OVERLAY_COLORS: OverlayColors = {
   accents: {
-    idle: "#d97757",
+    idle: "#b9c0cc",
     read: "#00dfd8",
     click: "#ff007f",
     type: "#a855f7",

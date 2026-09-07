@@ -54,7 +54,7 @@
         "message": "Read network requests"
     },
     "overlayIdle": {
-        "message": "Claude connected"
+        "message": "MCP connected"
     },
     "overlayReadingContent": {
         "message": "Reading the page"
@@ -150,13 +150,16 @@
         "message": "Connection"
     },
     "popupSectionPermission": {
-        "message": "Permission"
+        "message": "Access"
     },
     "popupSectionBrowser": {
-        "message": "Browser permissions"
+        "message": "Tabs and windows"
     },
-    "popupSectionInteraction": {
-        "message": "Interaction permissions"
+    "popupSectionRead": {
+        "message": "Reading"
+    },
+    "popupSectionAct": {
+        "message": "Acting"
     },
     "popupSectionBehavior": {
         "message": "Behaviour"
@@ -219,7 +222,7 @@
         "message": "How deep the boxes drawn for an outline read go (0~3)"
     },
     "popupOutlineThresholdLabel": {
-        "message": "Read mode switch"
+        "message": "Outline switch limit"
     },
     "popupOutlineThresholdHint": {
         "message": "Largest page a read returns as text before it switches to an outline"
@@ -249,7 +252,7 @@
         "message": "Keeps the focus on the current screen while acting"
     },
     "popupToggleConsoleName": {
-        "message": "Console"
+        "message": "Console messages"
     },
     "popupToggleConsoleHint": {
         "message": "Reports page errors back to the model"
@@ -762,7 +765,7 @@
         "message": "Filler text that makes the page long enough to scroll. The overlay never touches the page's DOM; it is drawn on top."
     },
     "optionsAppearancePreview": {
-        "message": "Overlay preview"
+        "message": "Preview"
     },
     "optionsAppearanceReset": {
         "message": "Restore the default colours"

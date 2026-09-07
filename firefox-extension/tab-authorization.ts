@@ -15,7 +15,7 @@
 const GRANTED_BADGE_TEXT = "✓";
 const REQUEST_BADGE_TEXT = "!";
 const GRANTED_BADGE_COLOR = "#2b8a3e";
-const REQUEST_BADGE_COLOR = "#e8590c";
+const REQUEST_BADGE_COLOR = "#6e7380";
 const GRANTED_BADGE_TIMEOUT_MS = 2500;
 
 interface TabAuthorization {

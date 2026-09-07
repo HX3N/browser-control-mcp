@@ -1,6 +1,7 @@
 import type { ElementTarget } from "@browser-control-mcp/common/server-messages";
 import { ELEMENT_RESOLVER_SOURCE, SCROLL_ANCHOR_SOURCE, jsValue, targetLiteral } from "./injected-common";
 import { overlayRuntime } from "./overlay-runtime";
+import markSvg from "./assets/claude_icon.svg";
 
 export type OverlayState = "idle" | "read" | "click" | "type" | "exec";
 
@@ -45,6 +46,7 @@ ${OVERLAY_RUNTIME_SOURCE}
     detail: ${jsValue(request.detail ?? "")},
     scriptLabel: ${jsValue(request.scriptLabel ?? "")},
     markTab: ${jsValue(request.markTab)},
+    markSvg: ${jsValue(markSvg)},
     showAurora: ${jsValue(request.showAurora)},
     showBadge: ${jsValue(request.showBadge)},
     idleStatus: ${jsValue(request.idleStatus)},

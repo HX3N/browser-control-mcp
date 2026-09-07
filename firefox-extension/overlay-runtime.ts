@@ -5,22 +5,42 @@ export function overlayRuntime() {
   var HOST_ID = 'bcm-overlay-host';
   var RAINBOW = ['#ff007f', '#7928ca', '#00dfd8', '#ffac1c'];
   var ACCENTS = {
-    idle: '#d97757',
+    idle: '#b9c0cc',
     read: '#00dfd8',
     click: '#ff007f',
     type: '#a855f7',
     exec: '#ffac1c'
   };
 
-  var MARK_SVG = (
-    '<svg width="691" height="691" viewBox="0 0 691 691" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="g" x1="283.418" y1="691" x2="283.418" y2="0" gradientUnits="userSpaceOnUse"><stop stop-color="#DC6038"/><stop offset="1" stop-color="#D97757"/></linearGradient><clipPath id="c"><rect width="691" height="691" rx="161.953" fill="white"/></clipPath></defs><g clip-path="url(#c)"><rect width="691" height="691" rx="161.953" fill="url(#g)"/><rect opacity="0.35" width="691" height="691" fill="#D97757"/><g fill="#FAF9F5" shape-rendering="crispEdges"><rect x="215.938" y="107.969" width="21.594" height="21.594"/><rect x="237.531" y="107.969" width="21.594" height="21.594"/><rect x="367.094" y="107.969" width="21.594" height="21.594"/><rect x="388.688" y="107.969" width="21.594" height="21.594"/><rect x="215.938" y="129.562" width="21.594" height="21.594"/><rect x="237.531" y="129.562" width="21.594" height="21.594"/><rect x="259.125" y="129.562" width="21.594" height="21.594"/><rect x="367.094" y="129.562" width="21.594" height="21.594"/><rect x="388.688" y="129.562" width="21.594" height="21.594"/><rect x="215.938" y="151.156" width="21.594" height="21.594"/><rect x="237.531" y="151.156" width="21.594" height="21.594"/><rect x="259.125" y="151.156" width="21.594" height="21.594"/><rect x="367.094" y="151.156" width="21.594" height="21.594"/><rect x="388.688" y="151.156" width="21.594" height="21.594"/><rect x="475.062" y="151.156" width="21.594" height="21.594"/><rect x="496.656" y="151.156" width="21.594" height="21.594"/><rect x="237.531" y="172.750" width="21.594" height="21.594"/><rect x="259.125" y="172.750" width="21.594" height="21.594"/><rect x="280.719" y="172.750" width="21.594" height="21.594"/><rect x="367.094" y="172.750" width="21.594" height="21.594"/><rect x="453.469" y="172.750" width="21.594" height="21.594"/><rect x="475.062" y="172.750" width="21.594" height="21.594"/><rect x="496.656" y="172.750" width="21.594" height="21.594"/><rect x="129.562" y="194.344" width="21.594" height="21.594"/><rect x="151.156" y="194.344" width="21.594" height="21.594"/><rect x="237.531" y="194.344" width="21.594" height="21.594"/><rect x="259.125" y="194.344" width="21.594" height="21.594"/><rect x="280.719" y="194.344" width="21.594" height="21.594"/><rect x="345.500" y="194.344" width="21.594" height="21.594"/><rect x="367.094" y="194.344" width="21.594" height="21.594"/><rect x="431.875" y="194.344" width="21.594" height="21.594"/><rect x="453.469" y="194.344" width="21.594" height="21.594"/><rect x="475.062" y="194.344" width="21.594" height="21.594"/><rect x="496.656" y="194.344" width="21.594" height="21.594"/><rect x="129.562" y="215.938" width="21.594" height="21.594"/><rect x="151.156" y="215.938" width="21.594" height="21.594"/><rect x="172.750" y="215.938" width="21.594" height="21.594"/><rect x="194.344" y="215.938" width="21.594" height="21.594"/><rect x="259.125" y="215.938" width="21.594" height="21.594"/><rect x="280.719" y="215.938" width="21.594" height="21.594"/><rect x="302.312" y="215.938" width="21.594" height="21.594"/><rect x="345.500" y="215.938" width="21.594" height="21.594"/><rect x="367.094" y="215.938" width="21.594" height="21.594"/><rect x="431.875" y="215.938" width="21.594" height="21.594"/><rect x="453.469" y="215.938" width="21.594" height="21.594"/><rect x="475.062" y="215.938" width="21.594" height="21.594"/><rect x="151.156" y="237.531" width="21.594" height="21.594"/><rect x="172.750" y="237.531" width="21.594" height="21.594"/><rect x="194.344" y="237.531" width="21.594" height="21.594"/><rect x="215.938" y="237.531" width="21.594" height="21.594"/><rect x="280.719" y="237.531" width="21.594" height="21.594"/><rect x="302.312" y="237.531" width="21.594" height="21.594"/><rect x="345.500" y="237.531" width="21.594" height="21.594"/><rect x="367.094" y="237.531" width="21.594" height="21.594"/><rect x="410.281" y="237.531" width="21.594" height="21.594"/><rect x="431.875" y="237.531" width="21.594" height="21.594"/><rect x="453.469" y="237.531" width="21.594" height="21.594"/><rect x="194.344" y="259.125" width="21.594" height="21.594"/><rect x="215.938" y="259.125" width="21.594" height="21.594"/><rect x="237.531" y="259.125" width="21.594" height="21.594"/><rect x="280.719" y="259.125" width="21.594" height="21.594"/><rect x="302.312" y="259.125" width="21.594" height="21.594"/><rect x="323.906" y="259.125" width="21.594" height="21.594"/><rect x="345.500" y="259.125" width="21.594" height="21.594"/><rect x="367.094" y="259.125" width="21.594" height="21.594"/><rect x="388.688" y="259.125" width="21.594" height="21.594"/><rect x="410.281" y="259.125" width="21.594" height="21.594"/><rect x="431.875" y="259.125" width="21.594" height="21.594"/><rect x="453.469" y="259.125" width="21.594" height="21.594"/><rect x="215.938" y="280.719" width="21.594" height="21.594"/><rect x="237.531" y="280.719" width="21.594" height="21.594"/><rect x="259.125" y="280.719" width="21.594" height="21.594"/><rect x="280.719" y="280.719" width="21.594" height="21.594"/><rect x="302.312" y="280.719" width="21.594" height="21.594"/><rect x="323.906" y="280.719" width="21.594" height="21.594"/><rect x="345.500" y="280.719" width="21.594" height="21.594"/><rect x="367.094" y="280.719" width="21.594" height="21.594"/><rect x="388.688" y="280.719" width="21.594" height="21.594"/><rect x="410.281" y="280.719" width="21.594" height="21.594"/><rect x="431.875" y="280.719" width="21.594" height="21.594"/><rect x="259.125" y="302.312" width="21.594" height="21.594"/><rect x="280.719" y="302.312" width="21.594" height="21.594"/><rect x="302.312" y="302.312" width="21.594" height="21.594"/><rect x="323.906" y="302.312" width="21.594" height="21.594"/><rect x="345.500" y="302.312" width="21.594" height="21.594"/><rect x="367.094" y="302.312" width="21.594" height="21.594"/><rect x="388.688" y="302.312" width="21.594" height="21.594"/><rect x="410.281" y="302.312" width="21.594" height="21.594"/><rect x="431.875" y="302.312" width="21.594" height="21.594"/><rect x="475.062" y="302.312" width="21.594" height="21.594"/><rect x="496.656" y="302.312" width="21.594" height="21.594"/><rect x="518.250" y="302.312" width="21.594" height="21.594"/><rect x="539.844" y="302.312" width="21.594" height="21.594"/><rect x="561.438" y="302.312" width="21.594" height="21.594"/><rect x="86.375" y="323.906" width="21.594" height="21.594"/><rect x="107.969" y="323.906" width="21.594" height="21.594"/><rect x="129.562" y="323.906" width="21.594" height="21.594"/><rect x="151.156" y="323.906" width="21.594" height="21.594"/><rect x="172.750" y="323.906" width="21.594" height="21.594"/><rect x="280.719" y="323.906" width="21.594" height="21.594"/><rect x="302.312" y="323.906" width="21.594" height="21.594"/><rect x="323.906" y="323.906" width="21.594" height="21.594"/><rect x="345.500" y="323.906" width="21.594" height="21.594"/><rect x="367.094" y="323.906" width="21.594" height="21.594"/><rect x="388.688" y="323.906" width="21.594" height="21.594"/><rect x="410.281" y="323.906" width="21.594" height="21.594"/><rect x="431.875" y="323.906" width="21.594" height="21.594"/><rect x="453.469" y="323.906" width="21.594" height="21.594"/><rect x="475.062" y="323.906" width="21.594" height="21.594"/><rect x="496.656" y="323.906" width="21.594" height="21.594"/><rect x="518.250" y="323.906" width="21.594" height="21.594"/><rect x="539.844" y="323.906" width="21.594" height="21.594"/><rect x="107.969" y="345.500" width="21.594" height="21.594"/><rect x="129.562" y="345.500" width="21.594" height="21.594"/><rect x="151.156" y="345.500" width="21.594" height="21.594"/><rect x="172.750" y="345.500" width="21.594" height="21.594"/><rect x="194.344" y="345.500" width="21.594" height="21.594"/><rect x="215.938" y="345.500" width="21.594" height="21.594"/><rect x="237.531" y="345.500" width="21.594" height="21.594"/><rect x="259.125" y="345.500" width="21.594" height="21.594"/><rect x="280.719" y="345.500" width="21.594" height="21.594"/><rect x="302.312" y="345.500" width="21.594" height="21.594"/><rect x="323.906" y="345.500" width="21.594" height="21.594"/><rect x="345.500" y="345.500" width="21.594" height="21.594"/><rect x="367.094" y="345.500" width="21.594" height="21.594"/><rect x="388.688" y="345.500" width="21.594" height="21.594"/><rect x="410.281" y="345.500" width="21.594" height="21.594"/><rect x="431.875" y="345.500" width="21.594" height="21.594"/><rect x="280.719" y="367.094" width="21.594" height="21.594"/><rect x="302.312" y="367.094" width="21.594" height="21.594"/><rect x="323.906" y="367.094" width="21.594" height="21.594"/><rect x="345.500" y="367.094" width="21.594" height="21.594"/><rect x="367.094" y="367.094" width="21.594" height="21.594"/><rect x="388.688" y="367.094" width="21.594" height="21.594"/><rect x="410.281" y="367.094" width="21.594" height="21.594"/><rect x="431.875" y="367.094" width="21.594" height="21.594"/><rect x="453.469" y="367.094" width="21.594" height="21.594"/><rect x="475.062" y="367.094" width="21.594" height="21.594"/><rect x="496.656" y="367.094" width="21.594" height="21.594"/><rect x="518.250" y="367.094" width="21.594" height="21.594"/><rect x="539.844" y="367.094" width="21.594" height="21.594"/><rect x="561.438" y="367.094" width="21.594" height="21.594"/><rect x="237.531" y="388.688" width="21.594" height="21.594"/><rect x="259.125" y="388.688" width="21.594" height="21.594"/><rect x="280.719" y="388.688" width="21.594" height="21.594"/><rect x="302.312" y="388.688" width="21.594" height="21.594"/><rect x="323.906" y="388.688" width="21.594" height="21.594"/><rect x="345.500" y="388.688" width="21.594" height="21.594"/><rect x="367.094" y="388.688" width="21.594" height="21.594"/><rect x="388.688" y="388.688" width="21.594" height="21.594"/><rect x="410.281" y="388.688" width="21.594" height="21.594"/><rect x="475.062" y="388.688" width="21.594" height="21.594"/><rect x="496.656" y="388.688" width="21.594" height="21.594"/><rect x="518.250" y="388.688" width="21.594" height="21.594"/><rect x="539.844" y="388.688" width="21.594" height="21.594"/><rect x="561.438" y="388.688" width="21.594" height="21.594"/><rect x="215.938" y="410.281" width="21.594" height="21.594"/><rect x="237.531" y="410.281" width="21.594" height="21.594"/><rect x="259.125" y="410.281" width="21.594" height="21.594"/><rect x="302.312" y="410.281" width="21.594" height="21.594"/><rect x="323.906" y="410.281" width="21.594" height="21.594"/><rect x="345.500" y="410.281" width="21.594" height="21.594"/><rect x="367.094" y="410.281" width="21.594" height="21.594"/><rect x="388.688" y="410.281" width="21.594" height="21.594"/><rect x="410.281" y="410.281" width="21.594" height="21.594"/><rect x="431.875" y="410.281" width="21.594" height="21.594"/><rect x="172.750" y="431.875" width="21.594" height="21.594"/><rect x="194.344" y="431.875" width="21.594" height="21.594"/><rect x="215.938" y="431.875" width="21.594" height="21.594"/><rect x="280.719" y="431.875" width="21.594" height="21.594"/><rect x="302.312" y="431.875" width="21.594" height="21.594"/><rect x="345.500" y="431.875" width="21.594" height="21.594"/><rect x="367.094" y="431.875" width="21.594" height="21.594"/><rect x="388.688" y="431.875" width="21.594" height="21.594"/><rect x="410.281" y="431.875" width="21.594" height="21.594"/><rect x="431.875" y="431.875" width="21.594" height="21.594"/><rect x="453.469" y="431.875" width="21.594" height="21.594"/><rect x="151.156" y="453.469" width="21.594" height="21.594"/><rect x="172.750" y="453.469" width="21.594" height="21.594"/><rect x="194.344" y="453.469" width="21.594" height="21.594"/><rect x="259.125" y="453.469" width="21.594" height="21.594"/><rect x="280.719" y="453.469" width="21.594" height="21.594"/><rect x="323.906" y="453.469" width="21.594" height="21.594"/><rect x="345.500" y="453.469" width="21.594" height="21.594"/><rect x="388.688" y="453.469" width="21.594" height="21.594"/><rect x="410.281" y="453.469" width="21.594" height="21.594"/><rect x="453.469" y="453.469" width="21.594" height="21.594"/><rect x="475.062" y="453.469" width="21.594" height="21.594"/><rect x="151.156" y="475.062" width="21.594" height="21.594"/><rect x="237.531" y="475.062" width="21.594" height="21.594"/><rect x="259.125" y="475.062" width="21.594" height="21.594"/><rect x="323.906" y="475.062" width="21.594" height="21.594"/><rect x="345.500" y="475.062" width="21.594" height="21.594"/><rect x="410.281" y="475.062" width="21.594" height="21.594"/><rect x="431.875" y="475.062" width="21.594" height="21.594"/><rect x="475.062" y="475.062" width="21.594" height="21.594"/><rect x="496.656" y="475.062" width="21.594" height="21.594"/><rect x="237.531" y="496.656" width="21.594" height="21.594"/><rect x="259.125" y="496.656" width="21.594" height="21.594"/><rect x="323.906" y="496.656" width="21.594" height="21.594"/><rect x="345.500" y="496.656" width="21.594" height="21.594"/><rect x="410.281" y="496.656" width="21.594" height="21.594"/><rect x="431.875" y="496.656" width="21.594" height="21.594"/><rect x="453.469" y="496.656" width="21.594" height="21.594"/><rect x="518.250" y="496.656" width="21.594" height="21.594"/><rect x="215.938" y="518.250" width="21.594" height="21.594"/><rect x="237.531" y="518.250" width="21.594" height="21.594"/><rect x="323.906" y="518.250" width="21.594" height="21.594"/><rect x="345.500" y="518.250" width="21.594" height="21.594"/><rect x="431.875" y="518.250" width="21.594" height="21.594"/><rect x="453.469" y="518.250" width="21.594" height="21.594"/><rect x="194.344" y="539.844" width="21.594" height="21.594"/><rect x="215.938" y="539.844" width="21.594" height="21.594"/><rect x="323.906" y="539.844" width="21.594" height="21.594"/><rect x="453.469" y="539.844" width="21.594" height="21.594"/><rect x="302.312" y="561.438" width="21.594" height="21.594"/><rect x="323.906" y="561.438" width="21.594" height="21.594"/><rect x="323.906" y="583.031" width="21.594" height="21.594"/></g></g></svg>'
-  );
-  var MARK_ICON = 'data:image/svg+xml,' + encodeURIComponent(MARK_SVG);
-  var REST_ICON = 'data:image/svg+xml,' + encodeURIComponent(
-    MARK_SVG
-      .replace('<defs>', '<defs><filter id="r"><feColorMatrix type="saturate" values="0"/></filter>')
-      .replace('<g clip-path="url(#c)">', '<g clip-path="url(#c)" filter="url(#r)" opacity="0.7">')
-  );
+  var REST_OPACITY = '0.4';
+  var DOT_RING = '#15151A';
+  var DOT_CENTER = 505;
+  var DOT_RING_R = 158;
+  var DOT_R = 112;
+  var iconCache = {};
+  var markSvg = '';
+
+  function buildIcon(color, dim) {
+    if (!markSvg) { return ''; }
+    var key = color + '|' + (dim ? '1' : '0');
+    if (iconCache[key]) { return iconCache[key]; }
+    var body = dim
+      ? markSvg.replace('<g clip-path="url(#c)">', '<g clip-path="url(#c)" opacity="' + REST_OPACITY + '">')
+      : markSvg;
+    if (!color) {
+      iconCache[key] = 'data:image/svg+xml,' + encodeURIComponent(body);
+      return iconCache[key];
+    }
+    var dot =
+      '<g' + (dim ? ' opacity="' + REST_OPACITY + '"' : '') + '>' +
+      '<circle cx="' + DOT_CENTER + '" cy="' + DOT_CENTER + '" r="' + DOT_RING_R + '" fill="' + DOT_RING + '"/>' +
+      '<circle cx="' + DOT_CENTER + '" cy="' + DOT_CENTER + '" r="' + DOT_R + '" fill="' + color + '"/>' +
+      '</g>';
+    // The dot goes in after the clipped group, so the icon's rounded corners never cut it.
+    var url = 'data:image/svg+xml,' + encodeURIComponent(body.replace('</svg>', dot + '</svg>'));
+    iconCache[key] = url;
+    return url;
+  }
 
   var host = null;
   var aurora = null;
@@ -44,6 +64,8 @@ export function overlayRuntime() {
   var dragFrom = null;
   var dragTo = null;
   var resting = false;
+  var iconState = 'idle';
+  var iconHold = false;
   var motionTimer = null;
   var SWEEP_MS = 2000;
   var sweepMs = SWEEP_MS;
@@ -102,12 +124,12 @@ export function overlayRuntime() {
       '@property --bcm-accent {',
       '  syntax: "<color>";',
       '  inherits: true;',
-      '  initial-value: #d97757;',
+      '  initial-value: #b9c0cc;',
       '}',
       '@property --bcm-focus-color {',
       '  syntax: "<color>";',
       '  inherits: true;',
-      '  initial-value: #d97757;',
+      '  initial-value: #b9c0cc;',
       '}',
       ':host {',
       '  all: initial;',
@@ -216,16 +238,17 @@ export function overlayRuntime() {
       '  display: flex; align-items: center; gap: 7px;',
       '  font: 600 12.5px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", sans-serif;',
       '  color: var(--bcm-accent);',
-      '  background: rgba(9, 9, 14, 0.86);',
+      '  background: rgba(16, 16, 22, 0.58);',
       '  border: 1px solid color-mix(in srgb, var(--bcm-accent) 55%, transparent);',
       '  padding: 7px 13px 7px 10px; border-radius: 999px;',
       '  white-space: nowrap; letter-spacing: 0.01em;',
-      '  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5),',
+      '  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14),',
+      '    0 4px 20px rgba(0, 0, 0, 0.5),',
       '    0 0 22px color-mix(in srgb, var(--bcm-accent) 30%, transparent);',
       '  opacity: 0;',
       '  transition: opacity 0.45s ease, transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),',
       '    color 0.45s ease, border-color 0.45s ease, box-shadow 0.45s ease;',
-      '  backdrop-filter: blur(6px);',
+      '  backdrop-filter: blur(22px) saturate(1.4);',
       '}',
       '.bcm-badge.is-active { opacity: 1; transform: translateX(-50%) translateY(0); }',
       '.bcm-pip {',
@@ -254,10 +277,11 @@ export function overlayRuntime() {
       '  position: relative; box-sizing: border-box;',
       '  border: 1px solid color-mix(in srgb, var(--bcm-code-color) 55%, transparent);',
       '  border-radius: 14px;',
-      '  background: rgba(9, 9, 14, 0.72);',
-      '  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55),',
+      '  background: rgba(16, 16, 22, 0.55);',
+      '  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14),',
+      '    0 12px 40px rgba(0, 0, 0, 0.55),',
       '    0 0 30px color-mix(in srgb, var(--bcm-code-color) 25%, transparent);',
-      '  backdrop-filter: blur(14px) saturate(1.2);',
+      '  backdrop-filter: blur(26px) saturate(1.4);',
       '  transition: border-color 0.45s ease, box-shadow 0.45s ease;',
       '}',
       '.bcm-code-block.is-error { --bcm-code-color: ' + ERROR_COLOR + '; }',
@@ -398,6 +422,10 @@ export function overlayRuntime() {
     // only on a panel a script already opened.
     if (!panel.classList.contains('is-active')) { return false; }
     fillCodeBlock(resultBlock, label, text, isError);
+    if (isError) {
+      iconState = 'error';
+      refreshIcon();
+    }
     return true;
   }
 
@@ -500,7 +528,13 @@ export function overlayRuntime() {
   }
 
   function currentIcon() {
-    return resting ? REST_ICON : MARK_ICON;
+    var color = iconState === 'error' ? ERROR_COLOR : (iconState === 'idle' ? '' : ACCENTS[iconState]);
+    return buildIcon(color || '', resting);
+  }
+
+  function refreshIcon() {
+    if (iconHold) { return; }
+    if (injectedIcon && injectedIcon.getAttribute('href') !== currentIcon()) { claimIcon(true); }
   }
 
   function claimIcon(force) {
@@ -530,6 +564,7 @@ export function overlayRuntime() {
   }
 
   function applyTabMark() {
+    if (!markSvg) { return; }
     claimIcon();
 
     // Sites re-write their icon link on route changes, and a later link wins over ours, so the
@@ -562,6 +597,8 @@ export function overlayRuntime() {
   }
 
   function setStatus(label, state, detail) {
+    iconState = state || 'idle';
+    refreshIcon();
     if (!host || !host.isConnected) { return; }
     host.style.setProperty('--bcm-accent', ACCENTS[state] || ACCENTS.idle);
     var text = host.shadowRoot.querySelector('.bcm-text');
@@ -584,7 +621,7 @@ export function overlayRuntime() {
   function setResting(flag) {
     resting = !!flag;
     if (host && host.isConnected) { host.classList.toggle('is-resting', resting); }
-    if (injectedIcon && injectedIcon.getAttribute('href') !== currentIcon()) { claimIcon(true); }
+    refreshIcon();
   }
 
   function rest() {
@@ -603,8 +640,16 @@ export function overlayRuntime() {
     }
 
     scriptLabel = options.scriptLabel || '';
+    if (options.markSvg && options.markSvg !== markSvg) {
+      markSvg = options.markSvg;
+      iconCache = {};
+    }
+    // State and resting both feed the icon; holding the refresh keeps one attach to one swap.
+    iconHold = true;
     setStatus(options.showBadge ? options.status : '', options.state, options.showBadge ? options.detail : '');
     setResting(options.resting);
+    iconHold = false;
+    refreshIcon();
     sweepMs = options.sweepMs > 0 ? Math.round(options.sweepMs) : SWEEP_MS;
     clearSwipe();
     pendingSwipe = options.swipe || null;

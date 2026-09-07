@@ -3,6 +3,7 @@ import type { OverlayState } from "./highlight-overlay";
 import { formatScript } from "./format-script";
 import { localizeDocument, t } from "./i18n";
 import { overlayRuntime } from "./overlay-runtime";
+import markSvg from "./assets/claude_icon.svg";
 import { sweepEase } from "./sweep-ease";
 
 declare global {
@@ -46,6 +47,7 @@ async function attach(state: OverlayState, status: string, extra: Record<string,
     state,
     detail: "",
     markTab: true,
+    markSvg,
     showAurora: true,
     showBadge: true,
     idleStatus: t("overlayIdle"),

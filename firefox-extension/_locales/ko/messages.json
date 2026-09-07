@@ -54,7 +54,7 @@
         "message": "네트워크 요청 읽기"
     },
     "overlayIdle": {
-        "message": "Claude 연결됨"
+        "message": "MCP 연결됨"
     },
     "overlayReadingContent": {
         "message": "본문 읽는 중"
@@ -150,13 +150,16 @@
         "message": "연결 상태"
     },
     "popupSectionPermission": {
-        "message": "권한"
+        "message": "접근 권한"
     },
     "popupSectionBrowser": {
-        "message": "브라우저 권한"
+        "message": "탭과 창"
     },
-    "popupSectionInteraction": {
-        "message": "상호작용 권한"
+    "popupSectionRead": {
+        "message": "읽기"
+    },
+    "popupSectionAct": {
+        "message": "조작"
     },
     "popupSectionBehavior": {
         "message": "동작 방식"
@@ -219,7 +222,7 @@
         "message": "개요 읽기에서 상자로 그릴 구역의 계층 깊이 (0~3)"
     },
     "popupOutlineThresholdLabel": {
-        "message": "읽기 모드 전환"
+        "message": "개요 전환 상한"
     },
     "popupOutlineThresholdHint": {
         "message": "본문 대신 계층 목록으로 전환하는 상한"
@@ -243,13 +246,13 @@
         "message": "프롬프트 인젝션 공격에 취약해질 수 있습니다!"
     },
     "popupToggleBackgroundName": {
-        "message": "백그라운드에서 작업"
+        "message": "백그라운드 작업"
     },
     "popupToggleBackgroundHint": {
         "message": "동작 중 현재 화면 유지"
     },
     "popupToggleConsoleName": {
-        "message": "콘솔"
+        "message": "콘솔 메시지"
     },
     "popupToggleConsoleHint": {
         "message": "페이지 오류를 모델에게 전달"
@@ -762,7 +765,7 @@
         "message": "스크롤 효과를 볼 수 있도록 페이지를 길게 만드는 본문입니다. 오버레이는 페이지의 DOM을 건드리지 않고 그 위에 겹쳐 그려집니다."
     },
     "optionsAppearancePreview": {
-        "message": "오버레이 미리보기"
+        "message": "미리보기"
     },
     "optionsAppearanceReset": {
         "message": "기본 색으로 되돌리기"
