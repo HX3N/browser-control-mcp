@@ -55,6 +55,7 @@ const cases: [string, string][] = [
   ["find, plain phrase", buildFindCode("hello world", 10)],
   ["find, phrase with quotes and a backslash", buildFindCode("it's \"quoted\" \\ done", 3)],
   ["find, hidden included", buildFindCode("hello", 3, true)],
+  ["find, control names", buildFindCode("hello", 3, false, false, true)],
   [
     "overlay attach, no target",
     buildAttachOverlayCode({
@@ -400,7 +401,7 @@ describe("injected source contracts", () => {
 
   it("outlines a large page only when the read is neither scoped nor forced full", () => {
     const whole = buildSnapshotCode({ maxElements: 200, includeHidden: false });
-    expect(whole).toContain("outline = __bcmOutline(");
+    expect(whole).toContain("var outlined = __bcmOutline(");
     expect(whole).toContain("var full = false");
     expect(buildSnapshotCode({ maxElements: 200, includeHidden: false, full: true })).toContain("var full = true");
     expect(buildSnapshotCode({ maxElements: 200, includeHidden: false, target })).toContain("if (!scopeRoot && !full");

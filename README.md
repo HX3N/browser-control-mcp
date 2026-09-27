@@ -139,8 +139,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1
 ```
 
 Install that zip from `about:addons`, copy the Secret Key from its preferences, then hand it to
-the clients. `sync-secret.ps1` registers with Claude Code and Claude Desktop, closing Claude
-Desktop before writing its config. Run it again whenever the key changes.
+the clients. `sync-secret.ps1` registers with Claude Code, Codex and Claude Desktop, whichever
+are installed, closing Claude Desktop before writing its config. Run it again whenever the key
+changes.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\sync-secret.ps1
@@ -150,6 +151,14 @@ By hand, for Claude Code:
 
 ```
 claude mcp add browser-control \
+  --env EXTENSION_SECRET=<SECRET KEY> \
+  -- node /path/to/repo/mcp-server/dist/server.js
+```
+
+For Codex:
+
+```
+codex mcp add browser-control \
   --env EXTENSION_SECRET=<SECRET KEY> \
   -- node /path/to/repo/mcp-server/dist/server.js
 ```

@@ -248,7 +248,7 @@ describe("text and elements interleaved", () => {
     expect(lines(runSnapshot({}))).toEqual([
       "## Comments",
       "First comment by",
-      '[e1] link "alice" - href: /alice',
+      '[e1] link "alice" href="/alice"',
       '[e2] button "Edit"',
       "Second comment",
       '[e3] button "Edit"',
@@ -263,7 +263,7 @@ describe("text and elements interleaved", () => {
     `;
 
     expect(lines(runSnapshot({ controlsOnly: true }))).toEqual([
-      '[e1] link "alice" - href: /alice',
+      '[e1] link "alice" href="/alice"',
       '[e2] button "Edit"',
     ]);
   });
@@ -273,7 +273,7 @@ describe("text and elements interleaved", () => {
 
     expect(lines(runSnapshot({}))).toEqual([
       "Go",
-      '[e1] link "there" - href: /x',
+      '[e1] link "there" href="/x"',
       "now",
     ]);
   });
@@ -294,7 +294,7 @@ describe("text and elements interleaved", () => {
 
     expect(lines(runSnapshot({}))).toEqual([
       "# Home",
-      '[e1] link "Home" - href: /',
+      '[e1] link "Home" href="/"',
     ]);
   });
 
@@ -321,12 +321,12 @@ describe("text and elements interleaved", () => {
     const result = runSnapshot({});
 
     expect(lines(result)).toEqual([
-      '[e2] link "alice" - href: /alice',
+      '[e2] link "alice" href="/alice"',
       "commented",
-      '[e3] button ""',
-      '[e4] link "elsewhere" - href: https://other.example/x',
-      '[e6] link "first commit" - href: /c/1',
-      '[e7] link "" - href: /only-icon',
+      '[e3] button',
+      '[e4] link "elsewhere" href="https://other.example/x"',
+      '[e6] link "first commit" href="/c/1"',
+      '[e7] link href="/only-icon"',
     ]);
     expect(result.totalElements).toBe(5);
     expect(document.querySelectorAll(`[${REF_ATTRIBUTE}]`)).toHaveLength(5);
@@ -342,10 +342,10 @@ describe("text and elements interleaved", () => {
     `;
 
     expect(lines(runSnapshot({}))).toEqual([
-      '[e1] link "here" - href: #c-1',
-      '[e2] link "commit" - href: /commits/abc',
-      '[e3] link "other pull" - href: /owner/repo/pull/71',
-      '[e4] link "self" - href: /',
+      '[e1] link "here" href="#c-1"',
+      '[e2] link "commit" href="/commits/abc"',
+      '[e3] link "other pull" href="/owner/repo/pull/71"',
+      '[e4] link "self" href="/"',
     ]);
     window.history.replaceState(null, "", "/");
   });
@@ -456,6 +456,8 @@ describe("sensitive fields", () => {
         <option value="jp">Japan</option>
       </select>`);
 
-    expect(element.options).toEqual(["kr | Korea", "jp | Japan"]);
+    expect(element.options).toEqual(["Korea", "Japan"]);
+    expect(element.optionValues).toEqual(["kr", "jp"]);
+    expect(element.selectedValues).toEqual(["kr"]);
   });
 });

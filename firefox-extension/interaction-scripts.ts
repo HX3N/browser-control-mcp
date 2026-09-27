@@ -11,6 +11,7 @@ import type {
   TypeTextServerMessage,
   ElementWaitState,
 } from "@browser-control-mcp/common/server-messages";
+import { CAPTURE, CLICK_COUNT, KEY_REPEAT } from "@browser-control-mcp/common/limits";
 import {
   ELEMENT_RESOLVER_SOURCE,
   PAGE_READ_SOURCE,
@@ -74,7 +75,6 @@ export interface MediaFetchResult {
 }
 
 export const CAPTURE_PADDING_PX = 8;
-export const MAX_CAPTURE_HEIGHT_PX = 2000;
 
 const VALUE_SETTER_SOURCE = `
 function __bcmSetValue(el, value) {
@@ -478,7 +478,7 @@ function __bcmDispatchClick(el, buttonIndex, clickCount, modifiers) {
 export function buildClickCode(request: ClickElementServerMessage): string {
   const button = request.button ?? "left";
   const buttonIndex = button === "middle" ? 1 : button === "right" ? 2 : 0;
-  const clickCount = Math.max(1, Math.min(3, request.clickCount ?? 1));
+  const clickCount = Math.max(1, Math.min(CLICK_COUNT.max, request.clickCount ?? CLICK_COUNT.default));
   const modifiers = request.modifiers ?? [];
   const combo = modifiers.length ? `${modifiers.join("+")}+` : "";
 
@@ -647,7 +647,7 @@ ${UPLOAD_DECODE_SOURCE}
   var el = __bcmResolve(${targetLiteral(request)});
   var label = __bcmLabel(el);
   if (!(el.tagName && el.tagName.toLowerCase() === 'input' && el.type === 'file')) {
-    throw new Error('The element ' + label + ' is not an <input type="file">, so no file can be attached to it. Find the file input with list-page-elements (it may be hidden) and pass its ref.');
+    throw new Error('The element ' + label + ' is not an <input type="file">, so no file can be attached to it. Find the file input with read-page (it may be hidden) and pass its ref.');
   }
   if (el.disabled) {
     throw new Error('The file input is disabled');
@@ -783,7 +783,7 @@ ${KEY_DEFAULT_ACTION_SOURCE}
     try { el.focus({ preventScroll: true }); } catch (err) { /* focus is best effort */ }
   }
 
-  var repeat = ${jsValue(Math.max(1, Math.min(100, request.repeat ?? 1)))};
+  var repeat = ${jsValue(Math.max(1, Math.min(KEY_REPEAT.max, request.repeat ?? KEY_REPEAT.default)))};
   var allowed = true;
   var submitted = false;
   var performed = [];
@@ -1166,7 +1166,6 @@ const TEXT_SCOPE_SOURCE = (target: ElementTarget | undefined) =>
     ? `__bcmResolve(${targetLiteral(target!)})`
     : "document.body";
 
-export const DEFAULT_TEXT_SETTLE_MS = 800;
 export const TEXT_STABLE_SAMPLES = 3;
 
 export function buildTextWatchCode(
@@ -1314,7 +1313,6 @@ export interface FindMatchResult {
   moreControls?: number;
 }
 
-export const MAX_FIND_MATCHES = 20;
 const FIND_CONTEXT_CHARS = 120;
 const MAX_FIND_CONTROLS = 12;
 
@@ -1326,7 +1324,8 @@ export function buildFindCode(
   phrase: string,
   maxMatches: number,
   includeHidden = false,
-  caseSensitive = false
+  caseSensitive = false,
+  byName = false
 ): string {
   return `(function () {
 ${ELEMENT_RESOLVER_SOURCE}
@@ -1335,6 +1334,7 @@ ${VISIBILITY_SOURCE}
   var maxMatches = ${jsValue(maxMatches)};
   var includeHidden = ${jsValue(includeHidden)};
   var caseSensitive = ${jsValue(caseSensitive)};
+  var byName = ${jsValue(byName)};
   var needle = caseSensitive ? phrase : phrase.toLowerCase();
   var nameAttributes = ${jsValue(FIND_NAME_ATTRIBUTES)};
   var blockTags = ${jsValue(BLOCK_TAGS)};
@@ -1354,7 +1354,10 @@ ${VISIBILITY_SOURCE}
 
   function container(node) {
     var el = node.parentElement;
-    while (el && blockTags.indexOf(el.tagName.toLowerCase()) === -1 && el.parentElement) { el = el.parentElement; }
+    while (el && blockTags.indexOf(el.tagName.toLowerCase()) === -1 && el.parentElement) {
+      if (el.matches(interactive) || (el.tagName.toLowerCase() === 'label' && el.control)) { return el; }
+      el = el.parentElement;
+    }
     return el || node.parentElement;
   }
   function stamp(el) {
@@ -1368,7 +1371,8 @@ ${VISIBILITY_SOURCE}
   function controls(block) {
     var found = [];
     var hiddenFound = [];
-    var inner = block.querySelectorAll(interactive);
+    if (block.matches(interactive)) { return { controls: [], more: 0 }; }
+    var inner = block.tagName.toLowerCase() === 'label' && block.control ? [block.control] : block.querySelectorAll(interactive);
     for (var i = 0; i < inner.length; i++) {
       if (__bcmVisible(inner[i])) { found.push(inner[i]); }
       else if (includeHidden) { hiddenFound.push(inner[i]); }
@@ -1381,6 +1385,37 @@ ${VISIBILITY_SOURCE}
       listed.push(control);
     }
     return { controls: listed, more: all.length - listed.length };
+  }
+
+  var more = false;
+  if (byName) {
+    var namedRoots = __bcmRoots();
+    for (var nr = 0; nr < namedRoots.length && !more; nr++) {
+      if (!namedRoots[nr].querySelectorAll) { continue; }
+      var namedFrame = __bcmFrameLabel(namedRoots[nr]);
+      var candidates = namedRoots[nr].querySelectorAll(interactive);
+      for (var nc = 0; nc < candidates.length && !more; nc++) {
+        var candidate = candidates[nc];
+        var candidateVisible = __bcmVisible(candidate);
+        if (!candidateVisible && !includeHidden) { continue; }
+        var hit = '';
+        for (var na = 0; na < nameAttributes.length; na++) {
+          var attribute = candidate.getAttribute(nameAttributes[na]);
+          if (!attribute) { continue; }
+          var attributeHay = caseSensitive ? attribute : attribute.toLowerCase();
+          if (attributeHay.indexOf(needle) === -1) { continue; }
+          hit = nameAttributes[na] + '="' + attribute.replace(/\\s+/g, ' ').trim().slice(0, 120) + '"';
+          break;
+        }
+        if (!hit) { continue; }
+        if (matches.length >= maxMatches) { more = true; break; }
+        var named = { ref: stamp(candidate), tag: candidate.tagName.toLowerCase(), context: hit };
+        if (namedFrame) { named.frame = namedFrame; }
+        if (!candidateVisible) { named.hidden = true; }
+        matches.push(named);
+      }
+    }
+    return { matches: matches, more: more };
   }
 
   var visibleGroups = [];
@@ -1415,11 +1450,12 @@ ${VISIBILITY_SOURCE}
   }
 
   var groups = visibleGroups.concat(hiddenGroups);
-  for (var g = 0; g < groups.length && matches.length < maxMatches; g++) {
+  for (var g = 0; g < groups.length && !more; g++) {
     var text = groups[g].text.replace(/\\s+/g, ' ');
     var hay = caseSensitive ? text : text.toLowerCase();
     var at = hay.indexOf(needle);
-    while (at !== -1 && matches.length < maxMatches) {
+    while (at !== -1) {
+      if (matches.length >= maxMatches) { more = true; break; }
       var from = Math.max(0, at - ${FIND_CONTEXT_CHARS});
       var to = Math.min(text.length, at + phrase.length + ${FIND_CONTEXT_CHARS});
       var entry = {
@@ -1436,35 +1472,7 @@ ${VISIBILITY_SOURCE}
       at = hay.indexOf(needle, at + needle.length);
     }
   }
-  if (matches.length === 0) {
-    var namedRoots = __bcmRoots();
-    for (var nr = 0; nr < namedRoots.length && matches.length < maxMatches; nr++) {
-      if (!namedRoots[nr].querySelectorAll) { continue; }
-      var namedFrame = __bcmFrameLabel(namedRoots[nr]);
-      var candidates = namedRoots[nr].querySelectorAll(interactive);
-      for (var nc = 0; nc < candidates.length && matches.length < maxMatches; nc++) {
-        var candidate = candidates[nc];
-        var candidateVisible = __bcmVisible(candidate);
-        if (!candidateVisible && !includeHidden) { continue; }
-        var hit = '';
-        for (var na = 0; na < nameAttributes.length; na++) {
-          var attribute = candidate.getAttribute(nameAttributes[na]);
-          if (!attribute) { continue; }
-          var attributeHay = caseSensitive ? attribute : attribute.toLowerCase();
-          if (attributeHay.indexOf(needle) === -1) { continue; }
-          hit = nameAttributes[na] + '="' + attribute.replace(/\\s+/g, ' ').trim().slice(0, 120) + '"';
-          break;
-        }
-        if (!hit) { continue; }
-        var named = { ref: stamp(candidate), tag: candidate.tagName.toLowerCase(), context: hit };
-        if (namedFrame) { named.frame = namedFrame; }
-        if (!candidateVisible) { named.hidden = true; }
-        matches.push(named);
-      }
-    }
-  }
-
-  return { matches: matches };
+  return { matches: matches, more: more };
 })();`;
 }
 
@@ -1491,7 +1499,7 @@ ${ELEMENT_RESOLVER_SOURCE}
 
   var el = ${resolver};
   var pad = ${jsValue(CAPTURE_PADDING_PX)};
-  var maxHeight = ${jsValue(MAX_CAPTURE_HEIGHT_PX)};
+  var maxHeight = ${jsValue(CAPTURE.sliceHeightPx)};
 
   var box = __bcmRect(el);
   if (box.width <= 0 || box.height <= 0) {

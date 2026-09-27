@@ -6,9 +6,10 @@ function find(
   phrase: string,
   max = 10,
   includeHidden = false,
-  caseSensitive = false
+  caseSensitive = false,
+  byName = false
 ): FindMatchResult[] {
-  const code = buildFindCode(phrase, max, includeHidden, caseSensitive);
+  const code = buildFindCode(phrase, max, includeHidden, caseSensitive, byName);
   return (new Function(`return ${code}`)() as { matches: FindMatchResult[] })
     .matches;
 }
@@ -165,13 +166,13 @@ describe("find script", () => {
     expect(find("Looks good", 10, false, true)).toHaveLength(1);
   });
 
-  it("falls back to control names when no rendered text matches", () => {
+  it("matches control names in the name pass", () => {
     document.body.innerHTML = `
       <input id="q" placeholder="Search the archive">
       <button id="go" aria-label="Start the search">Go</button>
     `;
 
-    const matches = find("search");
+    const matches = find("search", 10, false, false, true);
 
     expect(matches).toHaveLength(2);
     expect(matches[0].context).toBe('placeholder="Search the archive"');
@@ -184,11 +185,11 @@ describe("find script", () => {
       <input id="q" placeholder="Search the archive">
     `;
 
-    expect(find("search", 10, false, true)).toHaveLength(0);
-    expect(find("Search", 10, false, true)).toHaveLength(1);
+    expect(find("search", 10, false, true, true)).toHaveLength(0);
+    expect(find("Search", 10, false, true, true)).toHaveLength(1);
   });
 
-  it("prefers rendered text and never falls back once it has a match", () => {
+  it("matches rendered text alone in the text pass", () => {
     document.body.innerHTML = `
       <p>Thanks for the report</p>
       <input id="q" placeholder="Thanks">

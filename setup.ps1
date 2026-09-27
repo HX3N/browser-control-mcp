@@ -41,7 +41,7 @@ $Strings = Merge-Strings @{
         NextHeading      = "  Next"
         NextStep1        = "  1. Install or update that zip from about:addons."
         NextStep2        = "  2. Copy the Secret Key from the extension preferences."
-        NextStep3        = "  3. Run this to hand that key to Claude Code and Claude Desktop:"
+        NextStep3        = "  3. Run this to hand that key to Claude Code, Codex and Claude Desktop:"
         NextStep4        = "     powershell -NoProfile -ExecutionPolicy Bypass -File .\sync-secret.ps1"
     }
     ko = @{
@@ -81,7 +81,7 @@ $Strings = Merge-Strings @{
         NextHeading      = "  다음 순서"
         NextStep1        = "  1. about:addons 에서 이 zip 을 설치(또는 갱신)합니다."
         NextStep2        = "  2. 확장 설정에서 Secret Key 를 복사합니다."
-        NextStep3        = "  3. 아래를 실행해 그 키를 Claude Code 와 Claude Desktop 에 넘깁니다."
+        NextStep3        = "  3. 아래를 실행해 그 키를 Claude Code, Codex, Claude Desktop 에 넘깁니다."
         NextStep4        = "     powershell -NoProfile -ExecutionPolicy Bypass -File .\sync-secret.ps1"
     }
 }

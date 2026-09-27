@@ -1,3 +1,5 @@
+// A copy of common/limits.ts: the server resolves common only at compile time, so a value import
+// would fail at runtime. limits-mirror.test.ts fails when the two differ.
 export const IMAGE_LIMIT_MB_RANGE = { min: 1, max: 256 };
 export const FIND_MATCHES = { default: 10, max: 50 };
 export const CLICK_COUNT = { default: 1, max: 3 };

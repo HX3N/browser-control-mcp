@@ -1,6 +1,5 @@
 import type { NetworkRequestRecord } from "@browser-control-mcp/common";
-
-const MAX_REQUESTS_PER_TAB = 300;
+import { NETWORK_REQUESTS } from "@browser-control-mcp/common/limits";
 
 interface OpenRequest {
   record: NetworkRequestRecord;
@@ -13,7 +12,7 @@ const openByRequestId = new Map<string, OpenRequest>();
 function remember(tabId: number, record: NetworkRequestRecord): void {
   const records = byTabId.get(tabId) ?? [];
   records.push(record);
-  while (records.length > MAX_REQUESTS_PER_TAB) {
+  while (records.length > NETWORK_REQUESTS.max) {
     records.shift();
   }
   byTabId.set(tabId, records);
@@ -79,7 +78,7 @@ export function readNetworkLog(
   const matching = options.urlPattern
     ? all.filter((record) => record.url.includes(options.urlPattern!))
     : all;
-  const limit = Math.max(1, options.limit ?? 100);
+  const limit = Math.max(1, options.limit ?? NETWORK_REQUESTS.default);
   const requests = matching.slice(-limit).map((record) => ({ ...record }));
   if (options.clear) {
     if (options.urlPattern) {

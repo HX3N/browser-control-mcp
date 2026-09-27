@@ -203,10 +203,32 @@ function __bcmRect(el) {
   return { top: top, left: left, width: r.width, height: r.height };
 }
 
+function __bcmLabelText(label) {
+  var copy = label.cloneNode(true);
+  var fields = copy.querySelectorAll('input, select, textarea');
+  for (var i = 0; i < fields.length; i++) { fields[i].remove(); }
+  return (copy.textContent || '').replace(/\\s+/g, ' ').trim();
+}
+
+function __bcmLabelledBy(el) {
+  var ids = (el.getAttribute('aria-labelledby') || '').split(/\\s+/);
+  var root = el.getRootNode();
+  var parts = [];
+  for (var i = 0; i < ids.length; i++) {
+    var named = ids[i] && root.getElementById ? root.getElementById(ids[i]) : null;
+    if (named) { parts.push((named.textContent || '').trim()); }
+  }
+  return parts.join(' ');
+}
+
 function __bcmLabel(el) {
-  var text = (el.getAttribute('aria-label') || el.getAttribute('title') || el.getAttribute('placeholder') || (el.innerText || '').trim() || el.getAttribute('name') || el.getAttribute('value') || '').replace(/\\s+/g, ' ');
-  if (text.length > 60) { text = text.slice(0, 60) + '...'; }
   var tag = el.tagName.toLowerCase();
+  var labels = el.labels || [];
+  var buttonValue = tag === 'input' && /^(submit|button|reset)$/i.test(el.getAttribute('type') || '') ? el.value : '';
+  var text = (el.getAttribute('aria-label') || __bcmLabelledBy(el) || (labels.length ? __bcmLabelText(labels[0]) : '') ||
+    el.getAttribute('title') || el.getAttribute('placeholder') || el.getAttribute('alt') || (el.innerText || '').trim() ||
+    buttonValue || el.getAttribute('name') || '').replace(/\\s+/g, ' ').trim();
+  if (text.length > 60) { text = text.slice(0, 60) + '...'; }
   return text ? tag + ' "' + text + '"' : tag;
 }
 
