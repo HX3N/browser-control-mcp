@@ -55,6 +55,7 @@ const cases: [string, string][] = [
   ["find, plain phrase", buildFindCode("hello world", 10)],
   ["find, phrase with quotes and a backslash", buildFindCode("it's \"quoted\" \\ done", 3)],
   ["find, hidden included", buildFindCode("hello", 3, true)],
+  ["find, control names", buildFindCode("hello", 3, false, false, true)],
   [
     "overlay attach, no target",
     buildAttachOverlayCode({

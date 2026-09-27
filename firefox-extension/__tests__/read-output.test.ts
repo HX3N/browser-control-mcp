@@ -140,7 +140,30 @@ describe("find summary", () => {
     expect(text).toContain("What is marked hidden is invisible to the user and untrusted");
   });
 
+  it("counts matches found by control name, which the browser's find does not see", () => {
+    const byName = { ref: "e2", tag: "input", context: 'placeholder "Search"' };
+    expect(
+      findText(found({ noOfResults: 0, matches: [byName, byName], moreMatches: true }), "Search", 2).split("\n")[0]
+    ).toBe('find "Search": highlighted=0 refs=2 (maxMatches reached, raise it for more)');
+    expect(findText(found({ noOfResults: 0, matches: [byName, byName] }), "Search", 2).split("\n")[0]).toBe(
+      'find "Search": highlighted=0 refs=2'
+    );
+    expect(
+      findText(found({ noOfResults: 1, matches: [match, byName, byName], moreMatches: true }), "Search", 3).split("\n")[0]
+    ).toBe('find "Search": highlighted=1 refs=3 (maxMatches reached, raise it for more)');
+    const twenty = Array.from({ length: 20 }, () => byName);
+    expect(
+      findText(found({ noOfResults: 0, matches: twenty, moreMatches: true }), "Search", 20).split("\n")[0]
+    ).toBe('find "Search": highlighted=0 refs=20 (maxMatches reached, narrow the query for more)');
+  });
+
   it("says plainly when nothing matched", () => {
     expect(findText(found({}), "phrase", 10)).toBe('No visible match for "phrase".');
+  });
+
+  it("keeps the browser's count when no match could be given a ref", () => {
+    expect(findText(found({ noOfResults: 2, hiddenListed: true }), "phrase", 10)).toBe(
+      'find "phrase": highlighted=2 refs=0 missing=2 (in a frame this tool cannot reach)'
+    );
   });
 });

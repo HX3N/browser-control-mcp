@@ -1326,7 +1326,8 @@ export function buildFindCode(
   phrase: string,
   maxMatches: number,
   includeHidden = false,
-  caseSensitive = false
+  caseSensitive = false,
+  byName = false
 ): string {
   return `(function () {
 ${ELEMENT_RESOLVER_SOURCE}
@@ -1335,6 +1336,7 @@ ${VISIBILITY_SOURCE}
   var maxMatches = ${jsValue(maxMatches)};
   var includeHidden = ${jsValue(includeHidden)};
   var caseSensitive = ${jsValue(caseSensitive)};
+  var byName = ${jsValue(byName)};
   var needle = caseSensitive ? phrase : phrase.toLowerCase();
   var nameAttributes = ${jsValue(FIND_NAME_ATTRIBUTES)};
   var blockTags = ${jsValue(BLOCK_TAGS)};
@@ -1387,6 +1389,37 @@ ${VISIBILITY_SOURCE}
     return { controls: listed, more: all.length - listed.length };
   }
 
+  var more = false;
+  if (byName) {
+    var namedRoots = __bcmRoots();
+    for (var nr = 0; nr < namedRoots.length && !more; nr++) {
+      if (!namedRoots[nr].querySelectorAll) { continue; }
+      var namedFrame = __bcmFrameLabel(namedRoots[nr]);
+      var candidates = namedRoots[nr].querySelectorAll(interactive);
+      for (var nc = 0; nc < candidates.length && !more; nc++) {
+        var candidate = candidates[nc];
+        var candidateVisible = __bcmVisible(candidate);
+        if (!candidateVisible && !includeHidden) { continue; }
+        var hit = '';
+        for (var na = 0; na < nameAttributes.length; na++) {
+          var attribute = candidate.getAttribute(nameAttributes[na]);
+          if (!attribute) { continue; }
+          var attributeHay = caseSensitive ? attribute : attribute.toLowerCase();
+          if (attributeHay.indexOf(needle) === -1) { continue; }
+          hit = nameAttributes[na] + '="' + attribute.replace(/\\s+/g, ' ').trim().slice(0, 120) + '"';
+          break;
+        }
+        if (!hit) { continue; }
+        if (matches.length >= maxMatches) { more = true; break; }
+        var named = { ref: stamp(candidate), tag: candidate.tagName.toLowerCase(), context: hit };
+        if (namedFrame) { named.frame = namedFrame; }
+        if (!candidateVisible) { named.hidden = true; }
+        matches.push(named);
+      }
+    }
+    return { matches: matches, more: more };
+  }
+
   var visibleGroups = [];
   var hiddenGroups = [];
   var roots = __bcmRoots(null);
@@ -1419,11 +1452,12 @@ ${VISIBILITY_SOURCE}
   }
 
   var groups = visibleGroups.concat(hiddenGroups);
-  for (var g = 0; g < groups.length && matches.length < maxMatches; g++) {
+  for (var g = 0; g < groups.length && !more; g++) {
     var text = groups[g].text.replace(/\\s+/g, ' ');
     var hay = caseSensitive ? text : text.toLowerCase();
     var at = hay.indexOf(needle);
-    while (at !== -1 && matches.length < maxMatches) {
+    while (at !== -1) {
+      if (matches.length >= maxMatches) { more = true; break; }
       var from = Math.max(0, at - ${FIND_CONTEXT_CHARS});
       var to = Math.min(text.length, at + phrase.length + ${FIND_CONTEXT_CHARS});
       var entry = {
@@ -1440,35 +1474,7 @@ ${VISIBILITY_SOURCE}
       at = hay.indexOf(needle, at + needle.length);
     }
   }
-  if (matches.length === 0) {
-    var namedRoots = __bcmRoots();
-    for (var nr = 0; nr < namedRoots.length && matches.length < maxMatches; nr++) {
-      if (!namedRoots[nr].querySelectorAll) { continue; }
-      var namedFrame = __bcmFrameLabel(namedRoots[nr]);
-      var candidates = namedRoots[nr].querySelectorAll(interactive);
-      for (var nc = 0; nc < candidates.length && matches.length < maxMatches; nc++) {
-        var candidate = candidates[nc];
-        var candidateVisible = __bcmVisible(candidate);
-        if (!candidateVisible && !includeHidden) { continue; }
-        var hit = '';
-        for (var na = 0; na < nameAttributes.length; na++) {
-          var attribute = candidate.getAttribute(nameAttributes[na]);
-          if (!attribute) { continue; }
-          var attributeHay = caseSensitive ? attribute : attribute.toLowerCase();
-          if (attributeHay.indexOf(needle) === -1) { continue; }
-          hit = nameAttributes[na] + '="' + attribute.replace(/\\s+/g, ' ').trim().slice(0, 120) + '"';
-          break;
-        }
-        if (!hit) { continue; }
-        var named = { ref: stamp(candidate), tag: candidate.tagName.toLowerCase(), context: hit };
-        if (namedFrame) { named.frame = namedFrame; }
-        if (!candidateVisible) { named.hidden = true; }
-        matches.push(named);
-      }
-    }
-  }
-
-  return { matches: matches };
+  return { matches: matches, more: more };
 })();`;
 }
 

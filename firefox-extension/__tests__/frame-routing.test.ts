@@ -252,4 +252,85 @@ describe("frame routing", () => {
       })
     ).rejects.toThrow("different frames");
   });
+
+  describe("find across documents", () => {
+    type FindAnswer = { matches: { ref: string; tag: string; context: string }[]; more?: boolean };
+
+    function answerFind(answer: (byName: boolean, frameId: number | undefined, code: string) => FindAnswer) {
+      (browser.find.find as jest.Mock).mockResolvedValue({ count: 0 });
+      (browser.tabs.executeScript as jest.Mock).mockImplementation(
+        async (_tabId: number, details: { code?: string; frameId?: number }) => {
+          const code = details.code ?? "";
+          if (code.includes("win !== window.top")) {
+            return [{ reachable: false, url: "https://other.test/inner.html" }];
+          }
+          if (code.includes("var nameAttributes")) {
+            return [answer(code.includes("var byName = true"), details.frameId, code)];
+          }
+          return [true];
+        }
+      );
+    }
+
+    async function find(maxMatches?: number) {
+      await messageHandler.handleDecodedMessage({
+        cmd: "find-highlight",
+        tabId: 123,
+        queryPhrase: "Search",
+        maxMatches,
+        correlationId: "find-1",
+      });
+      return mockClient.sendResourceToServer.mock.calls[0][0] as { matches: { ref: string }[]; moreMatches?: boolean };
+    }
+
+    it("reads text in a frame before falling back to control names anywhere", async () => {
+      const passes: string[] = [];
+      answerFind((byName, frameId) => {
+        passes.push(`${byName ? "names" : "text"}:${frameId ?? 0}`);
+        if (byName) {
+          return { matches: [{ ref: "e9", tag: "input", context: 'placeholder="Search"' }] };
+        }
+        return { matches: frameId === 4 ? [{ ref: "e1", tag: "p", context: "Search here" }] : [] };
+      });
+
+      const sent = await find();
+
+      expect(sent.matches.map((match) => match.ref)).toEqual(["f4e1"]);
+      expect(passes).toEqual(["text:0", "text:4"]);
+    });
+
+    it("does not run the name pass in a frame the text pass could not reach", async () => {
+      const passes: string[] = [];
+      answerFind((byName, frameId) => {
+        passes.push(`${byName ? "names" : "text"}:${frameId ?? 0}`);
+        if (frameId === 4) {
+          throw new Error("stalled");
+        }
+        return { matches: byName ? [{ ref: "e9", tag: "input", context: 'placeholder="Search"' }] : [] };
+      });
+
+      const sent = await find();
+
+      expect(sent.matches.map((match) => match.ref)).toEqual(["e9"]);
+      expect(passes).toEqual(["text:0", "text:4", "names:0"]);
+    });
+
+    it("says more exist when a frame past a full budget still holds a match", async () => {
+      const name = { ref: "e9", tag: "input", context: 'placeholder="Search"' };
+      answerFind((byName, frameId, code) => {
+        if (!byName) {
+          return { matches: [] };
+        }
+        if (frameId === 4) {
+          return code.includes("var maxMatches = 0") ? { matches: [], more: true } : { matches: [name] };
+        }
+        return { matches: [name, name] };
+      });
+
+      const sent = await find(2);
+
+      expect(sent.matches).toHaveLength(2);
+      expect(sent.moreMatches).toBe(true);
+    });
+  });
 });

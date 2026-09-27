@@ -117,6 +117,8 @@ export function frameNotice(frames?: UnreachableFrame[]): string | null {
   );
 }
 
+const MAX_FIND_MATCHES = 20;
+
 export function findText(
   found: FindHighlightExtensionMessage,
   queryPhrase: string,
@@ -140,21 +142,25 @@ export function findText(
   const shown = found.matches.length - hiddenShown;
   const total = found.noOfResults;
   const fields = [`find ${JSON.stringify(queryPhrase)}: highlighted=${total} refs=${shown}`];
+  const widen = maxMatches < MAX_FIND_MATCHES ? "raise it" : "narrow the query";
   if (shown < total) {
     // A full page of matches is read as truncation, though some of the rest may be unreachable
     // too: the two causes are indistinguishable once the walker has dropped what it cannot address.
     const reason =
       found.matches.length === maxMatches
-        ? "past maxMatches, raise it to reach them"
+        ? `past maxMatches, ${widen} to reach them`
         : found.hiddenListed
           ? "in a frame this tool cannot reach"
           : 'hidden from the user, which the "Read hidden elements" popup switch would list, or in a frame this tool cannot reach';
     fields.push(`missing=${total - shown} (${reason})`);
+  } else if (found.moreMatches) {
+    fields.push(`(maxMatches reached, ${widen} for more)`);
   }
   if (hiddenShown > 0) {
     fields.push(`hidden=${hiddenShown} (not highlighted)`);
   }
-  const summary = total === 0 && hiddenShown === 0 ? `No visible match for ${JSON.stringify(queryPhrase)}.` : fields.join(" ");
+  const summary =
+    found.matches.length === 0 && total === 0 ? `No visible match for ${JSON.stringify(queryPhrase)}.` : fields.join(" ");
   const warning =
     hiddenShown > 0 || found.matches.some((match) => match.controls?.some((control) => control.hidden))
       ? `\nWhat is marked hidden is ${HIDDEN_WARNING}.`

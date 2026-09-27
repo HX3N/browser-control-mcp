@@ -1213,46 +1213,60 @@ export class MessageHandler {
     }
 
     await this.guardDialogs(tabId);
-    const located = await this.runScript(
-      tabId,
-      {
-        code: buildFindCode(
-          queryPhrase,
-          Math.max(1, Math.min(MAX_FIND_MATCHES, req.maxMatches ?? MAX_FIND_MATCHES)),
-          includeHidden,
-          caseSensitive
-        ),
-      },
-      LONG_SCRIPT_STALL_MS
-    );
-    const matches = (located[0] as { matches: FindMatchResult[] }).matches;
-
     const budget = Math.max(1, Math.min(MAX_FIND_MATCHES, req.maxMatches ?? MAX_FIND_MATCHES));
-    for (const frame of await this.detachedFrames(tabId)) {
-      if (matches.length >= budget) {
+    const frames = await this.detachedFrames(tabId);
+    const pass = (byName: boolean, reach: DetachedFrame[]) =>
+      this.findInDocuments(tabId, reach, budget, (maxMatches) =>
+        buildFindCode(queryPhrase, maxMatches, includeHidden, caseSensitive, byName)
+      );
+    let found = await pass(false, frames);
+    if (found.matches.length === 0) {
+      found = await pass(true, found.answered);
+    }
+
+    await this.sendResource(
+      {
+        resource: "find-highlight-result",
+        correlationId,
+        noOfResults: findResults.count,
+        matches: found.matches,
+        hiddenListed: includeHidden,
+        ...(found.more ? { moreMatches: true } : {}),
+      },
+      tabId
+    );
+  }
+
+  private async findInDocuments(
+    tabId: number,
+    frames: DetachedFrame[],
+    budget: number,
+    code: (maxMatches: number) => string
+  ): Promise<{ matches: FindMatchResult[]; more: boolean; answered: DetachedFrame[] }> {
+    const located = await this.runScript(tabId, { code: code(budget) }, LONG_SCRIPT_STALL_MS);
+    const top = located[0] as { matches: FindMatchResult[]; more?: boolean };
+    const matches = top.matches;
+    let more = top.more === true;
+    const answered: DetachedFrame[] = [];
+    // A frame past the budget still runs with none left, so a match there reports that more exist.
+    for (const frame of frames) {
+      if (more) {
         break;
       }
-      let found: FindMatchResult[] | undefined;
+      let inFrame: { matches: FindMatchResult[]; more?: boolean } | undefined;
       try {
-        const inFrame = await this.runScript(
+        const result = await this.runScript(
           tabId,
-          {
-            code: buildFindCode(
-              queryPhrase,
-              budget - matches.length,
-              includeHidden,
-              caseSensitive
-            ),
-            frameId: frame.frameId,
-            matchAboutBlank: true,
-          },
+          { code: code(budget - matches.length), frameId: frame.frameId, matchAboutBlank: true },
           LONG_SCRIPT_STALL_MS
         );
-        found = (inFrame?.[0] as { matches: FindMatchResult[] } | undefined)?.matches;
+        inFrame = result?.[0] as typeof inFrame;
       } catch (error) {
         continue;
       }
-      for (const match of found ?? []) {
+      answered.push(frame);
+      more = inFrame?.more === true;
+      for (const match of inFrame?.matches ?? []) {
         match.ref = stampFrameRef(match.ref, frame.frameId);
         match.frame = match.frame ?? frameHeading(frame);
         for (const control of match.controls ?? []) {
@@ -1261,17 +1275,7 @@ export class MessageHandler {
         matches.push(match);
       }
     }
-
-    await this.sendResource(
-      {
-        resource: "find-highlight-result",
-        correlationId,
-        noOfResults: findResults.count,
-        matches,
-        hiddenListed: includeHidden,
-      },
-      tabId
-    );
+    return { matches, more, answered };
   }
 
   private async captureScreenshot(

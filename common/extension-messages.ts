@@ -147,6 +147,7 @@ export interface FindHighlightExtensionMessage extends ExtensionMessageBase {
   noOfResults: number;
   matches: FindMatch[];
   hiddenListed: boolean;
+  moreMatches?: boolean;
 }
 
 export interface TabsClosedExtensionMessage extends ExtensionMessageBase {
