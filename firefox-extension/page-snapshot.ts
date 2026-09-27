@@ -167,13 +167,6 @@ function __bcmName(el) {
   return __bcmTrim(fallback, 120);
 }
 
-function __bcmLabelText(label) {
-  var copy = label.cloneNode(true);
-  var fields = copy.querySelectorAll('input, select, textarea');
-  for (var i = 0; i < fields.length; i++) { fields[i].remove(); }
-  return (copy.textContent || '').replace(/\\s+/g, ' ').trim();
-}
-
 function __bcmNamedByContent(el) {
   var tag = el.tagName.toLowerCase();
   if (tag === 'input' || tag === 'select' || tag === 'textarea') { return false; }

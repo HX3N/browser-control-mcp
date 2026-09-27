@@ -1354,7 +1354,10 @@ ${VISIBILITY_SOURCE}
 
   function container(node) {
     var el = node.parentElement;
-    while (el && blockTags.indexOf(el.tagName.toLowerCase()) === -1 && el.parentElement) { el = el.parentElement; }
+    while (el && blockTags.indexOf(el.tagName.toLowerCase()) === -1 && el.parentElement) {
+      if (el.matches(interactive) || (el.tagName.toLowerCase() === 'label' && el.control)) { return el; }
+      el = el.parentElement;
+    }
     return el || node.parentElement;
   }
   function stamp(el) {
@@ -1368,7 +1371,8 @@ ${VISIBILITY_SOURCE}
   function controls(block) {
     var found = [];
     var hiddenFound = [];
-    var inner = block.querySelectorAll(interactive);
+    if (block.matches(interactive)) { return { controls: [], more: 0 }; }
+    var inner = block.tagName.toLowerCase() === 'label' && block.control ? [block.control] : block.querySelectorAll(interactive);
     for (var i = 0; i < inner.length; i++) {
       if (__bcmVisible(inner[i])) { found.push(inner[i]); }
       else if (includeHidden) { hiddenFound.push(inner[i]); }
