@@ -647,7 +647,7 @@ ${UPLOAD_DECODE_SOURCE}
   var el = __bcmResolve(${targetLiteral(request)});
   var label = __bcmLabel(el);
   if (!(el.tagName && el.tagName.toLowerCase() === 'input' && el.type === 'file')) {
-    throw new Error('The element ' + label + ' is not an <input type="file">, so no file can be attached to it. Find the file input with list-page-elements (it may be hidden) and pass its ref.');
+    throw new Error('The element ' + label + ' is not an <input type="file">, so no file can be attached to it. Find the file input with read-page (it may be hidden) and pass its ref.');
   }
   if (el.disabled) {
     throw new Error('The file input is disabled');
