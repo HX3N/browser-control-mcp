@@ -270,7 +270,8 @@ function __bcmDescribe(el, ref, hidden, frame) {
   if (frame) { entry.frame = frame; }
 
   var toggle = tag === 'input' && (el.type === 'checkbox' || el.type === 'radio');
-  if ((tag === 'input' && !toggle) || tag === 'textarea' || (tag === 'select' && __bcmSensitive(el))) {
+  var telling = !toggle || (el.value !== 'on' && el.value !== entry.name);
+  if ((tag === 'input' && telling) || tag === 'textarea' || (tag === 'select' && __bcmSensitive(el))) {
     if (typeof el.value === 'string' && el.value) {
       entry.value = __bcmSensitive(el)
         ? '(' + el.value.length + ' characters, not shown)'

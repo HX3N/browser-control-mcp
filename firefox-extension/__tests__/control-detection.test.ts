@@ -510,4 +510,18 @@ describe("a field and its label", () => {
       '[e3] checkbox "I agree" unchecked',
     ]);
   });
+
+  it("tells unlabelled radios apart by their value, and leaves out a value that says nothing", () => {
+    document.body.innerHTML = `
+      <input type="radio" name="plan" value="basic"><input type="radio" name="plan" value="pro">
+      <label><input type="radio" name="size" value="Large">Large</label>
+      <input id="agree" type="checkbox"><label for="agree">I agree</label>
+    `;
+    expect(elements(read()).map((item) => item.value)).toEqual(["basic", "pro", undefined, undefined]);
+  });
+
+  it("masks the value of a checkbox or radio marked as a one-time code", () => {
+    document.body.innerHTML = `<input type="radio" autocomplete="one-time-code" value="123456" aria-label="Saved code">`;
+    expect(elements(read())[0].value).toBe("(6 characters, not shown)");
+  });
 });
