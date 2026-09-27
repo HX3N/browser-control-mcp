@@ -19,6 +19,19 @@ const WIDGET_ROLES = [
 
 const CONTAINER_ROLES = ["grid", "tree", "treegrid", "menu", "menubar", "tablist", "radiogroup"];
 
+const ARIA_ROLES = [
+  "alert", "alertdialog", "application", "article", "banner", "blockquote", "button", "caption",
+  "cell", "checkbox", "code", "columnheader", "combobox", "comment", "complementary", "contentinfo",
+  "definition", "deletion", "dialog", "directory", "document", "emphasis", "feed", "figure", "form",
+  "generic", "grid", "gridcell", "group", "heading", "img", "insertion", "link", "list", "listbox",
+  "listitem", "log", "main", "mark", "marquee", "math", "menu", "menubar", "menuitem",
+  "menuitemcheckbox", "menuitemradio", "meter", "navigation", "none", "note", "option", "paragraph",
+  "presentation", "progressbar", "radio", "radiogroup", "region", "row", "rowgroup", "rowheader",
+  "scrollbar", "search", "searchbox", "separator", "slider", "spinbutton", "status", "strong",
+  "subscript", "suggestion", "superscript", "switch", "tab", "table", "tablist", "tabpanel", "term", "textbox",
+  "time", "timer", "toolbar", "tooltip", "tree", "treegrid", "treeitem",
+];
+
 export const INTERACTIVE_SELECTOR = [
   "a[href]",
   "area[href]",
@@ -186,8 +199,10 @@ function __bcmInnerEditable(el) {
 }
 
 function __bcmRole(el) {
-  var explicit = (el.getAttribute('role') || '').trim().split(/\\s+/)[0];
-  if (explicit) { return explicit; }
+  var tokens = (el.getAttribute('role') || '').trim().split(/\\s+/);
+  for (var t = 0; t < tokens.length; t++) {
+    if (${jsValue(ARIA_ROLES)}.indexOf(tokens[t]) !== -1) { return tokens[t]; }
+  }
 
   var tag = el.tagName.toLowerCase();
   if (tag === 'a' || tag === 'area') { return el.hasAttribute('href') ? 'link' : 'generic'; }

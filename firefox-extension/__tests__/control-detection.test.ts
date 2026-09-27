@@ -205,6 +205,20 @@ describe("controls a read lists", () => {
     expect(items).toHaveLength(0);
   });
 
+  it("takes the first role token ARIA knows, passing over one it does not", () => {
+    const items = listed(`
+      <div role="unknown button">Save</div>
+      <div role="dialog button" aria-haspopup="true">Confirm</div>
+      <div role="suggestion button" aria-haspopup="true">Edit</div>
+    `);
+    expect(items.map((item) => item.role)).toEqual(["button", "dialog", "suggestion"]);
+  });
+
+  it("falls back to the native role when no role token is one ARIA knows", () => {
+    const items = listed(`<button role="fancy">Go</button>`);
+    expect(byName(items, "Go")?.role).toBe("button");
+  });
+
   it("lists a tree or grid container that says it is expanded, beside its items", () => {
     const items = listed(`<div role="tree" aria-expanded="true" aria-label="Files"><div role="treeitem">A</div></div>`);
     expect(items.map((item) => item.role)).toEqual(["tree", "treeitem"]);
