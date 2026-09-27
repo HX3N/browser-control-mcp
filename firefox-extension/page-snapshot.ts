@@ -821,8 +821,9 @@ ${OUTLINE_SOURCE}
   }
 
   function walkOwned(root, frame) {
+    var OWNER = '[aria-owns],[aria-expanded=true][aria-controls]';
     var walked = [root];
-    var owners = [root].concat(Array.prototype.slice.call(root.querySelectorAll('[aria-owns],[aria-expanded=true][aria-controls]')));
+    var owners = [root].concat(Array.prototype.slice.call(root.querySelectorAll(OWNER)));
     for (var o = 0; o < owners.length; o++) {
       var owner = owners[o];
       var ids = (owner.getAttribute('aria-owns') || '') + ' ' +
@@ -835,8 +836,16 @@ ${OUTLINE_SOURCE}
         walked.push(target);
         flush();
         var outerStyle = target.parentElement ? __bcmStyle(target.parentElement) : null;
-        walk({ childNodes: [target] }, frame, false, outerStyle ? outerStyle.cursor : '');
+        var hiddenAbove = false;
+        for (var up = target.parentNode; up && !hiddenAbove; up = up.parentNode || up.host) {
+          var upStyle = up.nodeType === 1 ? __bcmStyle(up) : null;
+          hiddenAbove = !!upStyle && upStyle.display === 'none';
+        }
+        if (hiddenAbove) { hiddenDepth++; }
+        walk({ childNodes: [target] }, frame, hiddenAbove, outerStyle ? outerStyle.cursor : '');
+        if (hiddenAbove) { hiddenDepth--; }
         flush();
+        owners = owners.concat(target.matches(OWNER) ? [target] : [], Array.prototype.slice.call(target.querySelectorAll(OWNER)));
       }
     }
   }

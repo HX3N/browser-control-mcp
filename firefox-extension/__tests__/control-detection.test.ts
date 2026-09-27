@@ -240,6 +240,42 @@ describe("controls a read lists", () => {
     expect(listedRoles).toEqual(["combobox City", "listbox ", "option Seoul", "option Busan"]);
     expect(JSON.stringify(result.items)).not.toContain("Unrelated");
   });
+
+  it("keeps a popup rendered elsewhere hidden when a parent of it is hidden", () => {
+    document.body.innerHTML = `
+      <div id="field"><input role="combobox" aria-expanded="true" aria-controls="pop" aria-label="City"></div>
+      <div style="display: none"><div id="pop" role="dialog">Secret text <button>Go</button></div></div>
+    `;
+    const result = read({ target: { selector: "#field" } });
+
+    expect(JSON.stringify(result.items)).not.toContain("Secret");
+    expect(elements(result).map((item) => item.name)).toEqual(["City"]);
+    expect(result.hiddenElements).toBe(1);
+  });
+
+  it("reads a popup that makes itself visible inside a parent hidden by visibility", () => {
+    document.body.innerHTML = `
+      <div id="field"><input role="combobox" aria-expanded="true" aria-controls="pop" aria-label="City"></div>
+      <div style="visibility: hidden"><ul id="pop" role="listbox" style="visibility: visible"><li role="option">Seoul</li></ul></div>
+    `;
+    const result = read({ target: { selector: "#field" } });
+
+    expect(elements(result).map((item) => item.name)).toContain("Seoul");
+    expect(result.hiddenElements).toBe(0);
+  });
+
+  it("follows a popup that opens another popup rendered elsewhere", () => {
+    document.body.innerHTML = `
+      <div id="field"><button aria-haspopup="menu" aria-expanded="true" aria-controls="menu1">Actions</button></div>
+      <p>Unrelated text</p>
+      <div id="menu1" role="menu"><div role="menuitem" aria-haspopup="menu" aria-expanded="true" aria-controls="menu2">More</div></div>
+      <div id="menu2" role="menu"><div role="menuitem">Archive</div></div>
+    `;
+    const names = elements(read({ target: { selector: "#field" } })).map((item) => item.name);
+
+    expect(names).toContain("More");
+    expect(names).toContain("Archive");
+  });
 });
 
 describe("outline keeps an open popup", () => {
