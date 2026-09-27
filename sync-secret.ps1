@@ -12,6 +12,14 @@ $Strings = Merge-Strings @{
         CodePending      = "  Claude Code      the MCP server is not registered yet, it will be added"
         DesktopReg       = "  Claude Desktop   the MCP server is registered, its Secret Key will be refreshed"
         DesktopPending   = "  Claude Desktop   the app is there but the MCP server is not registered, it will be added"
+        CodexRegistered  = "  Codex            the MCP server is registered, its Secret Key will be refreshed"
+        CodexPending     = "  Codex            the MCP server is not registered yet, it will be added"
+        CodexMissing     = "  Codex            the CLI is not on PATH"
+        StatusCodexNone  = "  Codex            not available, it will be skipped"
+        NoticeCodexOpen  = "  Codex sessions that are already open keep their old settings too. Open a new one."
+        CodexHeading     = "  Codex"
+        NothingToDo      = "  No client is available, so there is nothing to register."
+        NothingHint      = "  Install Claude Code, Codex or Claude Desktop first, then run this again."
         NoticeHeading    = "  What happens after the Secret Key"
         NoticeDeskKill   = "  Claude Desktop will be closed by force. It reads this config only at startup"
         NoticeDeskKill2  = "  and rewrites the file on exit, so it cannot be running while the file is written."
@@ -60,6 +68,13 @@ $Strings = Merge-Strings @{
         CodePending      = "  Claude Code      MCP 서버가 등록돼 있지 않습니다, 새로 등록합니다"
         DesktopReg       = "  Claude Desktop   MCP 서버가 등록돼 있습니다, Secret Key 를 갱신합니다"
         DesktopPending   = "  Claude Desktop   앱은 있으나 MCP 서버가 등록돼 있지 않습니다, 새로 등록합니다"
+        CodexRegistered  = "  Codex            MCP 서버가 등록돼 있습니다, Secret Key 를 갱신합니다"
+        CodexPending     = "  Codex            MCP 서버가 등록돼 있지 않습니다, 새로 등록합니다"
+        CodexMissing     = "  Codex            CLI 를 PATH 에서 찾지 못했습니다"
+        StatusCodexNone  = "  Codex            쓸 수 없어 건너뜁니다"
+        NoticeCodexOpen  = "  이미 열려 있는 Codex 세션도 예전 설정을 그대로 씁니다. 새 세션을 열어야 반영됩니다."
+        CodexHeading     = "  Codex"
+        NothingHint      = "  Claude Code, Codex, Claude Desktop 중 하나를 먼저 설치한 뒤 다시 실행하세요."
         NoticeHeading    = "  Secret Key 다음에 일어나는 일"
         NoticeDeskKill   = "  Claude Desktop 을 강제로 종료합니다. 이 설정은 앱이 켜질 때만 읽히고 종료할 때"
         NoticeDeskKill2  = "  앱이 파일을 다시 쓰기 때문에, 살아 있는 앱에는 쓸 수 없습니다."
@@ -148,6 +163,16 @@ else {
     Write-Host $T.CodeMissing -ForegroundColor Yellow
 }
 
+$wantsCodex = [bool](Get-Command codex -ErrorAction SilentlyContinue)
+$codexRegistered = $false
+
+if ($wantsCodex) {
+    $codexRegistered = (Invoke-Native "codex" @("mcp", "get", "browser-control") -Quiet) -eq 0
+}
+else {
+    Write-Host $T.CodexMissing -ForegroundColor Yellow
+}
+
 $desktopPaths = Resolve-DesktopPaths
 $desktopConfigPath = $desktopPaths.Config
 $desktopConfig = $null
@@ -198,6 +223,18 @@ else {
     Write-Host $T.StatusCodeNone -ForegroundColor DarkGray
 }
 
+if ($wantsCodex) {
+    if ($codexRegistered) {
+        Write-Host $T.CodexRegistered -ForegroundColor Green
+    }
+    else {
+        Write-Host $T.CodexPending -ForegroundColor Green
+    }
+}
+else {
+    Write-Host $T.StatusCodexNone -ForegroundColor DarkGray
+}
+
 if ($wantsDesktop) {
     if ($desktopRegistered) {
         Write-Host $T.DesktopReg -ForegroundColor Green
@@ -214,7 +251,7 @@ else {
     Write-Host $T.StatusDeskNone -ForegroundColor DarkGray
 }
 
-if (-not $wantsCode -and -not $wantsDesktop) {
+if (-not $wantsCode -and -not $wantsCodex -and -not $wantsDesktop) {
     Write-Host ""
     Write-Rule
     Write-Host $T.NothingToDo -ForegroundColor Yellow
@@ -242,6 +279,10 @@ if ($wantsDesktop) {
 if ($wantsCode) {
     Write-Host $T.NoticeCodeOpen
     Write-Host $T.NoticeCodeOpen2
+}
+
+if ($wantsCodex) {
+    Write-Host $T.NoticeCodexOpen
 }
 
 Write-Host ""
@@ -410,11 +451,35 @@ if ($wantsDesktop) {
     }
 }
 
+if ($wantsCodex) {
+    Write-Host ""
+    Write-Rule
+    Write-Host $T.CodexHeading -ForegroundColor Cyan
+    Write-Rule
+
+    Write-Host $T.CodeAdding
+
+    $added = Invoke-Native "codex" @(
+        "mcp", "add", "browser-control",
+        "--env", "EXTENSION_SECRET=$secret",
+        "--", "node", $serverArg
+    ) -Redact $secret
+    if ($added -ne 0) {
+        Write-Host ""
+        Write-Host $T.CodeFailed -ForegroundColor Red
+        Exit-With 1
+    }
+
+    Write-Host ""
+    Write-Host $T.CodeVerify
+    Invoke-Native "codex" @("mcp", "get", "browser-control") -Redact $secret | Out-Null
+}
+
 Write-Host ""
 Write-Rule
 Write-Host $T.DoneHeading -ForegroundColor Green
 Write-Host ""
-if ($wantsCode) {
+if ($wantsCode -or $wantsCodex) {
     Write-Host $T.DoneBody1
     Write-Host $T.DoneBody2
     Write-Host ""

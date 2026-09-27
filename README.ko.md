@@ -135,8 +135,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1
 ```
 
 그 zip을 `about:addons`에서 설치하고 설정에서 비밀 키를 복사한 뒤 클라이언트에 넘깁니다.
-`sync-secret.ps1`이 Claude Code와 Claude Desktop에 등록하며, Desktop 설정을 쓰기 전에 앱을
-닫습니다. 키가 바뀔 때마다 이것만 다시 실행하면 됩니다.
+`sync-secret.ps1`이 Claude Code, Codex, Claude Desktop 중 설치된 곳에 등록하며, Desktop
+설정을 쓰기 전에 앱을 닫습니다. 키가 바뀔 때마다 이것만 다시 실행하면 됩니다.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\sync-secret.ps1
@@ -146,6 +146,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\sync-secret.ps1
 
 ```
 claude mcp add browser-control \
+  --env EXTENSION_SECRET=<SECRET KEY> \
+  -- node /path/to/repo/mcp-server/dist/server.js
+```
+
+Codex:
+
+```
+codex mcp add browser-control \
   --env EXTENSION_SECRET=<SECRET KEY> \
   -- node /path/to/repo/mcp-server/dist/server.js
 ```
