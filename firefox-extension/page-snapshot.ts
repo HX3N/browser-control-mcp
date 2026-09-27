@@ -616,11 +616,19 @@ function __bcmRendered(el) {
 function __bcmStandIn(el) {
   var tag = el.tagName.toLowerCase();
   if (tag !== 'input' && tag !== 'select' && tag !== 'textarea') { return false; }
-  if (!__bcmRendered(el) || el.closest('[hidden],[inert],[aria-hidden=true]')) { return false; }
-  var labels = el.labels || [];
-  for (var i = 0; i < labels.length; i++) {
-    if (__bcmVisible(labels[i])) { return true; }
+  var labelDriven = tag === 'input' && (el.type === 'checkbox' || el.type === 'radio' || el.type === 'file');
+  if (labelDriven && !el.closest('[inert],[aria-hidden=true]')) {
+    var shownAbove = true;
+    for (var up = el.parentElement; up && shownAbove; up = up.parentElement) {
+      var upStyle = __bcmStyle(up);
+      shownAbove = !up.hasAttribute('hidden') && !(upStyle && upStyle.display === 'none');
+    }
+    var labels = shownAbove ? el.labels || [] : [];
+    for (var i = 0; i < labels.length; i++) {
+      if (__bcmVisible(labels[i])) { return true; }
+    }
   }
+  if (!__bcmRendered(el) || el.closest('[hidden],[inert],[aria-hidden=true]')) { return false; }
   var box = el.getBoundingClientRect();
   var overlay = tag === 'select' || (tag === 'input' && el.type === 'file');
   if (!overlay || box.width < 4 || box.height < 4) { return false; }

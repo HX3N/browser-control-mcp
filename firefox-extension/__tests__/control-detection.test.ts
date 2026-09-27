@@ -157,6 +157,40 @@ describe("controls a read lists", () => {
     expect(items).toHaveLength(0);
   });
 
+  it("keeps a text field parked off the page hidden even when its label shows", () => {
+    boxes = { trap: { left: -9999 } };
+    const items = listed(`<label for="trap">Website</label><input id="trap">`);
+    expect(items).toHaveLength(0);
+  });
+
+  it("lists a checkbox parked off the page whose label the user sees", () => {
+    boxes = { tick: { left: -9999 } };
+    const items = listed(`<input id="tick" type="checkbox"><label for="tick">Remember me</label>`);
+    expect(byName(items, "Remember me")).toMatchObject({ role: "checkbox" });
+  });
+
+  it("lists a control taken out of the layout behind a label the user sees", () => {
+    const items = listed(`
+      <label for="upload">Upload</label><input id="upload" type="file" style="display: none">
+      <input id="dark" type="checkbox" hidden disabled><label for="dark">Dark mode</label>
+      <input id="size" type="radio" style="visibility: hidden"><label for="size">Large</label>
+    `);
+    expect(byName(items, "Upload")).toMatchObject({ tag: "input" });
+    expect(byName(items, "Upload")?.hidden).toBeUndefined();
+    expect(byName(items, "Dark mode")).toMatchObject({ role: "checkbox", disabled: true });
+    expect(byName(items, "Large")).toMatchObject({ role: "radio" });
+  });
+
+  it("keeps a label-driven control hidden when an ancestor hides it or no label shows", () => {
+    const items = listed(`
+      <div style="display: none"><input id="a" type="file"></div><label for="a">Upload A</label>
+      <input id="b" type="file" style="display: none" aria-hidden="true"><label for="b">Upload B</label>
+      <input id="c" type="checkbox" style="display: none"><label for="c" style="display: none">Hidden label</label>
+      <input id="d" type="text" style="display: none"><label for="d">Website</label>
+    `);
+    expect(items).toHaveLength(0);
+  });
+
   it("keeps a field inside a hidden widget hidden", () => {
     boxes = { closed: { width: 0, height: 0 }, secret: { width: 0, height: 0 } };
     const items = listed(
