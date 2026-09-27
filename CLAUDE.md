@@ -17,13 +17,15 @@ cd mcp-server && npm run pack-dxt      # Claude Desktop only
 ## Structure
 
 `mcp-server` (MCP over stdio, WebSocket to the extension) · `firefox-extension` (MV2, runs every
-action) · `common` (shared message types). Frames are HMAC-signed; each session's server takes
-the next free port and the extension keeps one spare slot.
+action) · `common` (shared message types and limits). Frames are HMAC-signed; each session's
+server takes the next free port and the extension keeps one spare slot.
 
 | File | Role |
 | --- | --- |
 | `common/server-messages.ts`, `common/extension-messages.ts` | Command and response types |
+| `common/limits.ts`, `mcp-server/limits.ts` | Limits both sides apply, and the server's copy of them |
 | `mcp-server/server.ts`, `mcp-server/browser-api.ts` | Tool definitions, round trip |
+| `mcp-server/read-output.ts` | Text of read-page and find-text-in-page answers: header, outline, notices, find summary |
 | `firefox-extension/background.ts` | Entry, WebSocket clients, popup channel, storage watchers |
 | `firefox-extension/message-handler.ts` | Executes every command; both permission gates |
 | `firefox-extension/extension-config.ts` | Tool registry, permission mode, overlay settings, storage |
@@ -57,6 +59,11 @@ the next free port and the extension keeps one spare slot.
   two ignore it and say so in the response. The popup lists the containers seen on open tabs, so
   `contextualIdentities` is never asked for.
 
+**Limits**
+- A bound the server's schema and the extension both apply lives in `common/limits.ts`. The
+  server resolves `common` only at compile time, so `mcp-server/limits.ts` repeats it, and
+  `limits-mirror.test.ts` fails when the two differ: change both.
+
 **Pages and refs**
 - Every injection goes through `runScript`, never `browser.tabs.executeScript` directly: a frozen
   page never settles, so the stall timer is the only way out.
@@ -87,17 +94,34 @@ the next free port and the extension keeps one spare slot.
   the outermost document that can be walked, since nothing in the top viewport places that
   element's own box.
 - Hidden elements are listed only with the popup switch on, after the visible ones, marked
-  hidden and untrusted. Off-document boxes count as hidden (`__bcmWithinPage`).
+  hidden and untrusted. Off-document boxes count as hidden (`__bcmWithinPage`). A shown label
+  stands in for a hidden control only when clicking it operates the control (checkbox, radio,
+  file), even one its own `display:none` or `hidden` takes out, but not one an ancestor hides:
+  a text field parked off the page is a trap even when its label shows.
 - `__bcmSensitive` decides what is masked: `password`/`hidden` inputs and the `autocomplete`
-  tokens for passwords, one-time codes and card numbers. A masked field reports length, never
-  value, lends no own text to its name, and a masked `<select>` lists no options.
+  tokens for passwords, one-time codes and card numbers. A masked field, checkbox and radio
+  included, reports length, never value, lends no own text to its name, and a masked `<select>`
+  lists no options.
 - An unscoped read past the popup's outline thresholds returns an outline; `full: true` or
-  `offset > 0` reads whole. Region refs number above `__bcmHighestRef()`.
+  `offset > 0` reads whole. Region refs number above `__bcmHighestRef()`. Of the controls, only
+  popup triggers become regions (`aria-haspopup`, or `aria-expanded` with `aria-controls` or
+  `aria-owns`): tabs naming their panels would use up the region limit. A region's control count
+  takes in visible pointer-only controls. Slots go to shallow regions first and the list stays in
+  document order, so triggers inside a region never push out a later top region; `outlineOmitted`
+  counts what did not fit.
+- A read follows what `aria-owns` or an expanded `aria-controls` points at wherever it is
+  rendered, and the popups that popup opens in turn. The popup counts as hidden when an ancestor
+  is `display:none`; ancestors' `visibility` is not judged, since a descendant can turn it back.
 - `controlsOnly` drops text items in `pushItem`, not in `flush`: a heading never reaches `flush`.
   That mode builds no outline.
 - `find-text-in-page` matches case-insensitively unless asked otherwise, and falls back to control
-  names (`FIND_NAME_ATTRIBUTES`) only when the rendered text matched nothing; the script therefore
-  runs even when `browser.find.find` counted zero.
+  names (`FIND_NAME_ATTRIBUTES`) only when the rendered text matched nothing in the top document
+  and every detached frame: the text pass covers them all before the name pass starts. The script
+  therefore runs even when `browser.find.find` counted zero. A frame past a full budget still
+  runs with none left, so a match there reports that more exist. The summary keeps the browser's
+  count when no match got a ref, and says "for more" only when a document reports a match left
+  past `maxMatches` (`moreMatches`): raise it, or narrow the query once it is at
+  `FIND_MATCHES.max`.
 - A read reports collapsed content by label and size only, never its text.
 - Scroll positions are reported against `scrollMax`, not `scrollHeight`.
 - A synthetic Enter submits in a single-line field and inserts a line break in a multiline one
@@ -144,7 +168,8 @@ the next free port and the extension keeps one spare slot.
 
 `common/server-messages.ts` → `common/extension-messages.ts` → `extension-config.ts`
 (`COMMAND_TO_TOOL_ID`, `PAGE_ACCESS_COMMANDS`) → `message-handler.ts` → `mcp-server/browser-api.ts`
-→ `mcp-server/server.ts` → `mcp-server/manifest.json`.
+→ `mcp-server/server.ts` → `mcp-server/manifest.json`. A numeric bound both sides apply goes in
+`common/limits.ts` and `mcp-server/limits.ts`.
 
 Injected scripts are strings in template literals: escape backslashes (`\\s`), embed values
 through `jsValue()`. Add a case to `__tests__/injected-parse.test.ts` when a builder gains an
@@ -164,6 +189,7 @@ option.
   split view puts both tabs in `captureVisibleTab`.
 - `default_popup` means `browserAction.onClicked` never fires.
 - `setup.ps1` installs, builds and packages the zip, then stops: the secret key does not exist
-  until the extension is installed. `sync-secret.ps1` takes that key and registers both clients,
-  closing Claude Desktop before writing its config, resolving the MSIX path first. Shared
+  until the extension is installed. `sync-secret.ps1` takes that key and registers Claude Code,
+  Codex and Claude Desktop, whichever are installed, closing Claude Desktop before writing its
+  config, resolving the MSIX path first. Shared
   helpers, paths and strings live in `setup-common.ps1`, dot-sourced by both.
