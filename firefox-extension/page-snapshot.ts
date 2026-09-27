@@ -11,30 +11,57 @@ import {
   targetLiteral,
 } from "./injected-common";
 
+const WIDGET_ROLES = [
+  "button", "link", "checkbox", "radio", "switch", "tab", "menuitem", "menuitemcheckbox",
+  "menuitemradio", "option", "combobox", "textbox", "searchbox", "slider", "listbox", "treeitem",
+  "spinbutton", "gridcell", "scrollbar",
+];
+
 export const INTERACTIVE_SELECTOR = [
   "a[href]",
+  "area[href]",
   "button",
   "input:not([type=hidden])",
   "select",
   "textarea",
   "summary",
-  "[contenteditable=true]",
-  "[role=button]",
-  "[role=link]",
-  "[role=checkbox]",
-  "[role=radio]",
-  "[role=switch]",
-  "[role=tab]",
-  "[role=menuitem]",
-  "[role=menuitemcheckbox]",
-  "[role=menuitemradio]",
-  "[role=option]",
-  "[role=combobox]",
-  "[role=textbox]",
-  "[role=searchbox]",
-  "[role=slider]",
+  "[contenteditable]:not([contenteditable=false])",
+  ...WIDGET_ROLES.map((role) => `[role~=${role}]`),
+  "[role~=rowheader][aria-sort]",
+  "[role~=columnheader][aria-sort]",
+  "[aria-activedescendant]",
+  "[aria-haspopup]:not([aria-haspopup=false])",
+  "[onclick]",
   "[tabindex]:not([tabindex='-1'])",
 ].join(",");
+
+const LOOSE_CONTROL_SELECTOR = "[aria-expanded],[aria-controls],[aria-owns]";
+
+const CONTENT_NAMED_NOT = [
+  "combobox", "listbox", "tree", "treegrid", "grid", "menu", "menubar", "tablist", "radiogroup",
+  "textbox", "searchbox", "spinbutton", "slider", "scrollbar",
+];
+
+const POPUP_ROLES = ["listbox", "menu", "tree", "grid", "treegrid"];
+
+const IMPLIED_TAGS: Record<string, string[]> = {
+  link: ["a", "area"],
+  button: ["button", "input"],
+  textbox: ["input"],
+  checkbox: ["input"],
+  radio: ["input"],
+  slider: ["input"],
+  searchbox: ["input"],
+  spinbutton: ["input"],
+  combobox: ["select", "input"],
+  listbox: ["select"],
+};
+
+const MAX_SELECT_OPTIONS = 200;
+
+const SELF_EVIDENT_INPUT_TYPES = [
+  "text", "checkbox", "radio", "submit", "button", "reset", "image", "range", "number", "search",
+];
 
 // Computed display is not consulted for this: it costs a style flush per element.
 export const BLOCK_TAGS = [
@@ -128,7 +155,7 @@ function __bcmName(el) {
     }
   }
 
-  if (!__bcmSensitive(el)) {
+  if (!__bcmSensitive(el) && __bcmNamedByContent(el)) {
     var own = __bcmText(el);
     if (own) { return __bcmTrim(own, 120); }
   }
@@ -137,14 +164,27 @@ function __bcmName(el) {
   return __bcmTrim(fallback, 120);
 }
 
+function __bcmNamedByContent(el) {
+  var tag = el.tagName.toLowerCase();
+  if (tag === 'input' || tag === 'select' || tag === 'textarea') { return false; }
+  return ${jsValue(CONTENT_NAMED_NOT)}.indexOf(__bcmRole(el)) === -1;
+}
+
+function __bcmEditingHost(el) {
+  var flag = el.getAttribute('contenteditable');
+  if (flag === null || flag.toLowerCase() === 'false') { return false; }
+  var parent = el.parentElement;
+  return !(parent && parent.isContentEditable);
+}
+
 function __bcmRole(el) {
-  var explicit = el.getAttribute('role');
+  var explicit = (el.getAttribute('role') || '').trim().split(/\\s+/)[0];
   if (explicit) { return explicit; }
 
   var tag = el.tagName.toLowerCase();
-  if (tag === 'a') { return el.hasAttribute('href') ? 'link' : 'generic'; }
+  if (tag === 'a' || tag === 'area') { return el.hasAttribute('href') ? 'link' : 'generic'; }
   if (tag === 'button' || tag === 'summary') { return 'button'; }
-  if (tag === 'select') { return el.multiple ? 'listbox' : 'combobox'; }
+  if (tag === 'select') { return el.multiple || el.size > 1 ? 'listbox' : 'combobox'; }
   if (tag === 'textarea') { return 'textbox'; }
   if (tag === 'input') {
     var type = (el.getAttribute('type') || 'text').toLowerCase();
@@ -152,11 +192,13 @@ function __bcmRole(el) {
     if (type === 'radio') { return 'radio'; }
     if (type === 'submit' || type === 'button' || type === 'reset' || type === 'image') { return 'button'; }
     if (type === 'range') { return 'slider'; }
+    if (type === 'number') { return 'spinbutton'; }
+    if (el.hasAttribute('list')) { return 'combobox'; }
     if (type === 'search') { return 'searchbox'; }
     return 'textbox';
   }
   if (/^h[1-6]$/.test(tag)) { return 'heading'; }
-  if (el.isContentEditable) { return 'textbox'; }
+  if (__bcmEditingHost(el)) { return 'textbox'; }
   return 'generic';
 }
 
@@ -218,18 +260,39 @@ function __bcmDescribe(el, ref, hidden, frame) {
   if (hidden) { entry.hidden = true; }
   if (frame) { entry.frame = frame; }
 
-  if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+  if (tag === 'input' || tag === 'textarea' || (tag === 'select' && __bcmSensitive(el))) {
     if (typeof el.value === 'string' && el.value) {
       entry.value = __bcmSensitive(el)
         ? '(' + el.value.length + ' characters, not shown)'
         : __bcmTrim(el.value, 120);
     }
-    if (el.disabled) { entry.disabled = true; }
+  } else if (tag !== 'select' && entry.role === 'textbox' && !__bcmSensitive(el)) {
+    var typed = __bcmText(el);
+    if (typed) { entry.value = __bcmTrim(typed, 120); }
+  } else if (entry.role === 'slider' || entry.role === 'spinbutton') {
+    var spoken = el.getAttribute('aria-valuetext') || el.getAttribute('aria-valuenow');
+    if (spoken) { entry.value = __bcmTrim(spoken, 120); }
   }
+  if (tag === 'input') {
+    var inputType = (el.getAttribute('type') || 'text').toLowerCase();
+    if (${jsValue(SELF_EVIDENT_INPUT_TYPES)}.indexOf(inputType) === -1) { entry.type = inputType; }
+  }
+  if (el.disabled === true || el.getAttribute('aria-disabled') === 'true') { entry.disabled = true; }
+  if (el.readOnly === true || el.getAttribute('aria-readonly') === 'true') { entry.readonly = true; }
   var placeholder = el.getAttribute('placeholder');
   if (placeholder) { entry.placeholder = __bcmTrim(placeholder, 80); }
-  if (tag === 'a' && el.href) { entry.href = __bcmShortHref(el.href); }
-  if (typeof el.checked === 'boolean' && (el.type === 'checkbox' || el.type === 'radio')) { entry.checked = el.checked; }
+  if ((tag === 'a' || tag === 'area') && el.href) { entry.href = __bcmShortHref(el.href); }
+
+  if (typeof el.checked === 'boolean' && (el.type === 'checkbox' || el.type === 'radio')) {
+    entry.checked = el.indeterminate ? 'mixed' : el.checked;
+  } else {
+    var ariaChecked = __bcmTristate(el.getAttribute('aria-checked'));
+    if (ariaChecked !== undefined) { entry.checked = ariaChecked; }
+  }
+  var pressed = __bcmTristate(el.getAttribute('aria-pressed'));
+  if (pressed !== undefined) { entry.pressed = pressed; }
+  var selected = el.getAttribute('aria-selected');
+  if (selected === 'true' || selected === 'false') { entry.selected = selected === 'true'; }
 
   var expanded = el.getAttribute('aria-expanded');
   if (expanded === 'true' || expanded === 'false') { entry.expanded = expanded === 'true'; }
@@ -238,14 +301,33 @@ function __bcmDescribe(el, ref, hidden, frame) {
   }
 
   if (tag === 'select' && !__bcmSensitive(el)) {
-    var options = [];
-    for (var i = 0; i < el.options.length && i < 40; i++) {
-      options.push(el.options[i].value + (el.options[i].text ? ' | ' + __bcmText(el.options[i]) : ''));
+    var labels = [];
+    var values = [];
+    var chosen = [];
+    var differs = false;
+    for (var i = 0; i < el.options.length; i++) {
+      var option = el.options[i];
+      if (i >= ${MAX_SELECT_OPTIONS} && !option.selected) { continue; }
+      var text = __bcmText(option);
+      labels.push(text);
+      values.push(option.value);
+      if (option.value !== text) { differs = true; }
+      if (option.selected) { chosen.push(option.value); }
     }
-    entry.options = options;
+    entry.options = labels;
+    if (differs) { entry.optionValues = values; }
+    entry.selectedValues = chosen;
+    if (el.options.length > labels.length) { entry.moreOptions = el.options.length - labels.length; }
   }
 
   return entry;
+}
+
+function __bcmTristate(value) {
+  if (value === 'true') { return true; }
+  if (value === 'false') { return false; }
+  if (value === 'mixed') { return 'mixed'; }
+  return undefined;
 }
 `;
 
@@ -268,10 +350,17 @@ export interface PageElementItem {
   href?: string;
   hidden?: boolean;
   frame?: string;
+  type?: string;
   disabled?: boolean;
-  checked?: boolean;
+  readonly?: boolean;
+  checked?: boolean | "mixed";
+  pressed?: boolean | "mixed";
+  selected?: boolean;
   expanded?: boolean;
   options?: string[];
+  optionValues?: string[];
+  selectedValues?: string[];
+  moreOptions?: number;
 }
 
 export type PageItem = PageTextItem | PageElementItem;
@@ -357,10 +446,21 @@ function __bcmOutline(body, interactive) {
     if (el.shadowRoot) { measureChildren(el.shadowRoot, m); }
     return m;
   }
+  var popups = new Set();
+  var triggers = __bcmQueryAll('[aria-expanded=true][aria-controls],[aria-expanded=true][aria-owns]');
+  for (var p = 0; p < triggers.length; p++) {
+    var named = ((triggers[p].getAttribute('aria-controls') || '') + ' ' + (triggers[p].getAttribute('aria-owns') || '')).split(/\\s+/);
+    var home = triggers[p].getRootNode();
+    for (var q = 0; q < named.length; q++) {
+      var panel = named[q] && home.getElementById ? home.getElementById(named[q]) : null;
+      if (panel) { popups.add(panel); }
+    }
+  }
   function isLandmark(el) {
     if (${jsValue(LANDMARK_TAGS)}.indexOf(el.tagName.toLowerCase()) !== -1) { return true; }
-    var role = el.getAttribute('role');
-    return !!role && ${jsValue(LANDMARK_ROLES)}.indexOf(role) !== -1;
+    if (popups.has(el)) { return true; }
+    var role = __bcmRole(el);
+    return ${jsValue(LANDMARK_ROLES)}.indexOf(role) !== -1 || ${jsValue(POPUP_ROLES)}.indexOf(role) !== -1;
   }
   var total = measure(body);
   var minChars = Math.max(200, Math.floor(total.chars * ${jsValue(OUTLINE_MIN_SHARE)}));
@@ -379,7 +479,7 @@ function __bcmOutline(body, interactive) {
         var k = kids[i];
         var tag = k.tagName.toLowerCase();
         if (__bcmIsSkipped(tag) || tag === 'iframe' || tag === 'frame' || !__bcmRendered(k)) { continue; }
-        if (k.matches(interactive)) { continue; }
+        if (k.matches(interactive) && !isLandmark(k)) { continue; }
         if (qualifies(k)) { out.push(k); }
       }
     }
@@ -476,10 +576,36 @@ function __bcmHeadingLevel(el, tag) {
   }
   return 0;
 }
-function __bcmRendered(el) {
+function __bcmStyle(el) {
   var view = el.ownerDocument && el.ownerDocument.defaultView;
-  var style = view ? view.getComputedStyle(el) : null;
+  return view ? view.getComputedStyle(el) : null;
+}
+function __bcmShown(style) {
   return !style || (style.display !== 'none' && style.visibility !== 'hidden');
+}
+function __bcmRendered(el) {
+  return __bcmShown(__bcmStyle(el));
+}
+function __bcmStandIn(el) {
+  var tag = el.tagName.toLowerCase();
+  if (tag !== 'input' && tag !== 'select' && tag !== 'textarea') { return false; }
+  if (!__bcmRendered(el) || el.closest('[hidden],[inert],[aria-hidden=true]')) { return false; }
+  var labels = el.labels || [];
+  for (var i = 0; i < labels.length; i++) {
+    if (__bcmVisible(labels[i])) { return true; }
+  }
+  var host = el.parentElement;
+  while (host) {
+    var size = host.getBoundingClientRect();
+    if (size.width > 0 && size.height > 0) { break; }
+    host = host.parentElement;
+  }
+  if (!host || !__bcmVisible(host)) { return false; }
+  var outer = host.getBoundingClientRect();
+  var box = el.getBoundingClientRect();
+  return box.left >= outer.left - 1 && box.top >= outer.top - 1 &&
+    box.left + box.width <= outer.left + outer.width + 1 &&
+    box.top + box.height <= outer.top + outer.height + 1;
 }
 function __bcmSwallows(tag) {
   return tag === 'a' || tag === 'button' || tag === 'input' || tag === 'select' ||
@@ -547,8 +673,8 @@ ${OUTLINE_SOURCE}
   }
 
   var hiddenDepth = 0;
-  function emitElement(el, frame) {
-    var visible = hiddenDepth === 0 && __bcmVisible(el);
+  function emitElement(el, frame, guessed) {
+    var visible = hiddenDepth === 0 && (__bcmVisible(el) || __bcmStandIn(el));
     totalElements++;
     if (!visible) {
       hiddenElements++;
@@ -561,12 +687,20 @@ ${OUTLINE_SOURCE}
     __bcmRemember(ref, el);
     listedElements++;
     var entry = __bcmDescribe(el, ref, !visible, frame);
+    if (guessed && entry.role === 'generic') { entry.role = 'clickable'; }
     entry.kind = 'element';
     items.push(entry);
     chars += entry.name.length + 24;
   }
 
-  function walk(node, frame, suppressText) {
+  function looseControl(el, tag, style, parentCursor) {
+    if (tag === 'body' || (tag === 'label' && el.control)) { return false; }
+    var pointer = !!style && style.cursor === 'pointer' && parentCursor !== 'pointer';
+    if (!pointer && !el.matches(${jsValue(LOOSE_CONTROL_SELECTOR)})) { return false; }
+    return !el.querySelector(interactive) && !!__bcmName(el);
+  }
+
+  function walk(node, frame, suppressText, cursor) {
     var children = node.childNodes;
     for (var i = 0; i < children.length; i++) {
       var child = children[i];
@@ -587,7 +721,7 @@ ${OUTLINE_SOURCE}
           var outerFrame = bufferFrame;
           bufferFrame = label;
           pushItem({ kind: 'text', text: '[' + label + ']', frame: label });
-          walk(inner.body, label, suppressText);
+          walk(inner.body, label, suppressText, '');
           flush();
           bufferFrame = outerFrame;
         }
@@ -598,14 +732,18 @@ ${OUTLINE_SOURCE}
         emitElement(child, frame);
         // A container made focusable by tabindex or a role still holds real controls.
         if (__bcmSwallows(tag) || !child.querySelector(interactive)) { continue; }
-        walk(child, frame, true);
-        if (child.shadowRoot) { walk(child.shadowRoot, 'shadow:' + tag, true); }
+        var within = __bcmStyle(child);
+        var withinCursor = within ? within.cursor : '';
+        walk(child, frame, true, withinCursor);
+        if (child.shadowRoot) { walk(child.shadowRoot, 'shadow:' + tag, true, withinCursor); }
         continue;
       }
 
-      if (!__bcmRendered(child)) {
+      var style = __bcmStyle(child);
+      var ownCursor = style ? style.cursor : '';
+      if (!__bcmShown(style)) {
         hiddenDepth++;
-        walk(child, frame, true);
+        walk(child, frame, true, ownCursor);
         hiddenDepth--;
         continue;
       }
@@ -622,17 +760,47 @@ ${OUTLINE_SOURCE}
         flush();
         var heading = __bcmText(child);
         if (heading) { pushItem({ kind: 'text', text: heading, level: level }); }
-        walk(child, frame, true);
+        walk(child, frame, true, ownCursor);
         continue;
+      }
+
+      if (hiddenDepth === 0 && looseControl(child, tag, style, cursor)) {
+        emitElement(child, frame, true);
+        // A clickable card holds more text than its name carries, so that text is still read.
+        if (__bcmText(child).length <= 120) { continue; }
       }
 
       var block = __bcmIsBlock(tag);
       if (block) { flush(); }
       if ((tag === 'td' || tag === 'th') && buffer.trim()) { buffer += ' | '; }
       if (tag === 'img' && child.alt && hiddenDepth === 0) { buffer += ' ' + child.alt + ' '; }
-      walk(child, frame, suppressText);
-      if (child.shadowRoot) { walk(child.shadowRoot, 'shadow:' + tag, suppressText); }
+      walk(child, frame, suppressText, ownCursor);
+      if (child.shadowRoot) { walk(child.shadowRoot, 'shadow:' + tag, suppressText, ownCursor); }
       if (block) { flush(); }
+    }
+  }
+
+  function walkOwned(root, frame) {
+    var walked = [root];
+    var owners = [root].concat(Array.prototype.slice.call(root.querySelectorAll('[aria-owns],[aria-expanded=true][aria-controls]')));
+    for (var o = 0; o < owners.length; o++) {
+      var owner = owners[o];
+      var ids = (owner.getAttribute('aria-owns') || '') + ' ' +
+        (owner.getAttribute('aria-expanded') === 'true' ? owner.getAttribute('aria-controls') || '' : '');
+      var list = ids.split(/\\s+/);
+      var home = owner.getRootNode();
+      for (var d = 0; d < list.length; d++) {
+        var target = list[d] && home.getElementById ? home.getElementById(list[d]) : null;
+        if (!target || walked.some(function (seen) { return seen.contains(target); })) { continue; }
+        walked.push(target);
+        flush();
+        var targetStyle = __bcmStyle(target);
+        var shown = __bcmShown(targetStyle);
+        if (!shown) { hiddenDepth++; }
+        walk(target, frame, false, targetStyle ? targetStyle.cursor : '');
+        if (!shown) { hiddenDepth--; }
+        flush();
+      }
     }
   }
 
@@ -644,13 +812,16 @@ ${OUTLINE_SOURCE}
   }
   if (start) {
     var startFrame = __bcmFrameLabel(start);
+    var startStyle = start.tagName === 'IFRAME' || start.tagName === 'FRAME' ? null : __bcmStyle(start);
+    var startCursor = startStyle ? startStyle.cursor : '';
     if (scopeRoot && scopeRoot.matches && scopeRoot.matches(interactive)) {
       emitElement(scopeRoot, startFrame);
-      if (!__bcmSwallows(scopeRoot.tagName.toLowerCase())) { walk(start, startFrame, true); }
+      if (!__bcmSwallows(scopeRoot.tagName.toLowerCase())) { walk(start, startFrame, true, startCursor); }
     } else {
-      walk(start, startFrame, false);
+      walk(start, startFrame, false, startCursor);
     }
-    if (start.shadowRoot) { walk(start.shadowRoot, 'shadow:' + start.tagName.toLowerCase(), false); }
+    if (start.shadowRoot) { walk(start.shadowRoot, 'shadow:' + start.tagName.toLowerCase(), false, startCursor); }
+    if (scopeRoot) { walkOwned(start, startFrame); }
   }
   flush();
 

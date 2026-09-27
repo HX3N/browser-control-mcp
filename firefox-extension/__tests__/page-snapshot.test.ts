@@ -456,6 +456,8 @@ describe("sensitive fields", () => {
         <option value="jp">Japan</option>
       </select>`);
 
-    expect(element.options).toEqual(["kr | Korea", "jp | Japan"]);
+    expect(element.options).toEqual(["Korea", "Japan"]);
+    expect(element.optionValues).toEqual(["kr", "jp"]);
+    expect(element.selectedValues).toEqual(["kr"]);
   });
 });
