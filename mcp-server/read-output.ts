@@ -69,6 +69,9 @@ export function outlineText(page: PageExtensionMessage): string {
     scrollField(page),
     "",
     ...regions,
+    ...(page.outlineOmitted
+      ? ["", `${page.outlineOmitted} more region(s) did not fit; read a region above by its ref to see inside it.`]
+      : []),
   ].join("\n");
 }
 

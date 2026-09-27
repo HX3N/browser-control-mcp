@@ -1089,6 +1089,7 @@ export class MessageHandler {
         unreachableFrames: page.unreachableFrames,
         scope: page.scope,
         outline: page.outline,
+        outlineOmitted: page.outlineOmitted,
       },
       tabId
     );

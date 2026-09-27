@@ -457,7 +457,8 @@ defineTool(
     text as plain lines, each control as one line with a ref the interaction tools accept:
     [e12] role, its <tag> unless the role implies it, "name", then states (checked, collapsed,
     disabled...) and key="value" pairs, e.g. [e7] combobox "Country" options=["Korea","Japan"]
-    values=["kr","jp"] selected=["kr"]. "clickable" is a control told only by its cursor or handler.
+    values=["kr","jp"] selected=["kr"]. "clickable" is a control told by its handler or focusability
+    alone; "clickable?" is a guess from the pointer cursor.
     "ref" or "selector" reads one element only; refs outside the scope survive and new ones are
     numbered above them. Frames and shadow roots are included; a cross-origin frame follows the
     page under a "## frame host/path" heading and its refs read f3e12.

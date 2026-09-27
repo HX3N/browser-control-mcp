@@ -121,7 +121,7 @@ describe("controls a read lists", () => {
       <label for="agree" style="cursor: pointer">Agree</label><input id="agree" type="checkbox">
     `);
 
-    expect(items.filter((item) => item.role === "clickable").map((item) => item.name)).toEqual([
+    expect(items.filter((item) => item.role === "clickable?").map((item) => item.name)).toEqual([
       "Seoul",
       "Busan",
     ]);
@@ -255,6 +255,16 @@ describe("outline keeps an open popup", () => {
     Element.prototype.getBoundingClientRect = originalRect;
   });
 
+  it("keeps the trigger of a popup as a region, so it can be opened from the outline", () => {
+    const links = Array.from({ length: 150 }, (_, i) => `<a href="/l/${i}">Link ${i}</a>`).join("");
+    document.body.innerHTML = `
+      <main><button id="city" aria-haspopup="listbox" aria-expanded="false">City: none</button><p>${links}</p></main>
+    `;
+    const result = read();
+
+    expect(result.outline?.some((region) => region.tag === "button" && region.name === "City: none")).toBe(true);
+  });
+
   it("makes a small listbox at the end of the body a region of its own", () => {
     const links = Array.from({ length: 150 }, (_, i) => `<a href="/l/${i}">Link ${i}</a>`).join("");
     document.body.innerHTML = `
@@ -265,6 +275,48 @@ describe("outline keeps an open popup", () => {
 
     expect(result.outline).toBeDefined();
     expect(result.outline!.some((region) => region.role === "listbox")).toBe(true);
+  });
+
+  it("does not spend the outline on tabs that only name their panel", () => {
+    const tabs = Array.from({ length: 45 }, (_, i) => `<div role="tab" aria-controls="p${i}">Tab ${i}</div>`).join("");
+    const links = Array.from({ length: 150 }, (_, i) => `<a href="/l/${i}">Link ${i}</a>`).join("");
+    document.body.innerHTML = `<header><div>${tabs}</div></header><main><p>${links}</p></main>`;
+    const result = read();
+
+    expect(result.outline?.some((region) => region.tag === "main")).toBe(true);
+    expect(result.outline?.some((region) => region.role === "tab")).toBe(false);
+  });
+
+  it("lists every top region before the popup triggers inside one, and counts what did not fit", () => {
+    const menus = Array.from({ length: 45 }, (_, i) => `<button aria-haspopup="menu">Menu ${i}</button>`).join("");
+    const links = Array.from({ length: 150 }, (_, i) => `<a href="/l/${i}">Link ${i}</a>`).join("");
+    document.body.innerHTML = `<nav>${menus}</nav><main><p>${links}</p></main>`;
+    const result = read();
+
+    expect(result.outline?.map((region) => region.tag).slice(0, 2)).toEqual(["nav", "button"]);
+    expect(result.outline?.[result.outline.length - 1].tag).toBe("main");
+    expect(result.outline).toHaveLength(40);
+    expect(result.outlineOmitted).toBe(7);
+  });
+
+  it("counts controls known only by their pointer among a region's controls", () => {
+    const items = Array.from({ length: 120 }, (_, i) => `<div style="cursor: pointer">Item ${i}</div>`).join("");
+    document.body.innerHTML = `<main>${items}</main>`;
+    const result = read();
+
+    expect(result.outline?.find((region) => region.tag === "main")?.controls).toBe(120);
+  });
+
+  it("does not count pointer-only controls the user cannot see", () => {
+    const items = Array.from({ length: 120 }, (_, i) => `<div style="cursor: pointer">Item ${i}</div>`).join("");
+    const unseen = Array.from(
+      { length: 120 },
+      (_, i) => `<div aria-hidden="true" style="cursor: pointer">Unseen ${i}</div>`
+    ).join("");
+    document.body.innerHTML = `<main>${items}</main><aside>${unseen}</aside>`;
+    const result = read();
+
+    expect(result.outline?.find((region) => region.tag === "aside")?.controls ?? 0).toBe(0);
   });
 });
 
@@ -281,6 +333,48 @@ describe("the line a control is written as", () => {
     expect(line({ role: "textbox", tag: "textarea", name: "Notes" })).toBe('[e1] textbox <textarea> "Notes"');
     expect(line({ role: "button", tag: "div", name: "Menu" })).toBe('[e1] button <div> "Menu"');
     expect(line({ role: "button", tag: "input", name: "Run", explicitRole: true })).toBe('[e1] button <input> "Run"');
+  });
+
+  it("puts punctuation left between inline controls on the line before it", () => {
+    const text = formatPageItems(
+      [
+        { kind: "text", text: "See" },
+        { kind: "element", ref: "e1", role: "link", name: "Help", tag: "a", selector: "a" },
+        { kind: "text", text: "," },
+        { kind: "element", ref: "e2", role: "link", name: "Terms", tag: "a", selector: "a" },
+        { kind: "text", text: "." },
+      ],
+      { includeSelectors: false, includeHrefs: false }
+    );
+    expect(text).toBe('See\n[e1] link "Help",\n[e2] link "Terms".');
+  });
+
+  it("folds a straight quote only when closing punctuation comes with it", () => {
+    const link = { kind: "element", role: "link", tag: "a", selector: "a" } as const;
+    const text = formatPageItems(
+      [
+        { ...link, ref: "e1", name: "Help" },
+        { kind: "text", text: '".' },
+        { ...link, ref: "e2", name: "Terms" },
+        { kind: "text", text: '"' },
+      ],
+      { includeSelectors: false, includeHrefs: false }
+    );
+    expect(text).toBe('[e1] link "Help"".\n[e2] link "Terms"\n"');
+  });
+
+  it("leaves a line of dashes or stars on a line of its own", () => {
+    const text = formatPageItems(
+      [
+        { kind: "text", text: "Hello" },
+        { kind: "text", text: "---" },
+        { kind: "text", text: "***" },
+        { kind: "text", text: "World" },
+        { kind: "text", text: ")." },
+      ],
+      { includeSelectors: false, includeHrefs: false }
+    );
+    expect(text).toBe("Hello\n---\n***\nWorld).");
   });
 
   it("drops an empty name and a placeholder that only repeats the name", () => {

@@ -398,6 +398,7 @@ export interface PageReadResult {
   }[];
   scopeUnreachableFrame?: { src: string };
   outline?: PageRegion[];
+  outlineOmitted?: number;
 }
 
 export const MAX_READ_TEXT_CHARS = 400_000;
@@ -430,7 +431,7 @@ function __bcmHighestRef() {
   return highest;
 }
 
-function __bcmOutline(body, interactive) {
+function __bcmOutline(body, interactive, counted) {
   var measures = new Map();
   function measureChildren(node, m) {
     var kids = node.childNodes;
@@ -452,7 +453,7 @@ function __bcmOutline(body, interactive) {
     measures.set(el, m);
     var tag = el.tagName.toLowerCase();
     if (__bcmIsSkipped(tag) || tag === 'iframe' || tag === 'frame' || !__bcmRendered(el)) { return m; }
-    if (el.matches(interactive)) { m.controls++; }
+    if (el.matches(interactive) || counted.has(el)) { m.controls++; }
     measureChildren(el, m);
     if (el.shadowRoot) { measureChildren(el.shadowRoot, m); }
     return m;
@@ -470,6 +471,9 @@ function __bcmOutline(body, interactive) {
   function isLandmark(el) {
     if (${jsValue(LANDMARK_TAGS)}.indexOf(el.tagName.toLowerCase()) !== -1) { return true; }
     if (popups.has(el)) { return true; }
+    var popup = el.getAttribute('aria-haspopup');
+    if (el.matches(interactive) && ((popup !== null && popup !== 'false') ||
+        (el.hasAttribute('aria-expanded') && (el.hasAttribute('aria-controls') || el.hasAttribute('aria-owns'))))) { return true; }
     var role = __bcmRole(el);
     return ${jsValue(LANDMARK_ROLES)}.indexOf(role) !== -1 || ${jsValue(POPUP_ROLES)}.indexOf(role) !== -1;
   }
@@ -547,31 +551,43 @@ function __bcmOutline(body, interactive) {
     }
     return visibleText(el);
   }
+  var start = unwrap(body);
+  var top = regionChildren(start);
+  if (!top.length) { top = [start]; }
+  var roots = [];
+  var queue = [];
+  for (var t = 0; t < top.length; t++) { queue.push({ el: unwrap(top[t]), depth: 0, into: roots }); }
+  var chosen = 0;
+  var omitted = 0;
+  for (var h = 0; h < queue.length; h++) {
+    var node = queue[h];
+    if (chosen < ${jsValue(MAX_OUTLINE_REGIONS)}) {
+      chosen++;
+      node.into.push(node);
+    } else {
+      omitted++;
+    }
+    node.children = [];
+    if (node.depth >= ${jsValue(OUTLINE_MAX_DEPTH)}) { continue; }
+    var inner = innerRegions(node.el);
+    for (var i = 0; i < inner.length; i++) { queue.push({ el: unwrap(inner[i]), depth: node.depth + 1, into: node.children }); }
+  }
   var regions = [];
-  function emit(el, depth) {
-    if (regions.length >= ${jsValue(MAX_OUTLINE_REGIONS)}) { return; }
-    el = unwrap(el);
+  function emit(node) {
+    var el = node.el;
     var m = measure(el);
     var ref = __bcmRefFor(el) || __bcmMintRef();
     el.setAttribute('${REF_ATTRIBUTE}', ref);
     __bcmRemember(ref, el);
-    var entry = { ref: ref, tag: el.tagName.toLowerCase(), name: __bcmTrim(label(el), 80), depth: depth, chars: m.chars, controls: m.controls };
+    var entry = { ref: ref, tag: el.tagName.toLowerCase(), name: __bcmTrim(label(el), 80), depth: node.depth, chars: m.chars, controls: m.controls };
     var role = el.getAttribute('role');
     if (role) { entry.role = role; }
     if (el.id) { entry.id = el.id; }
     regions.push(entry);
-    if (depth >= ${jsValue(OUTLINE_MAX_DEPTH)}) { return; }
-    var kids = innerRegions(el);
-    for (var i = 0; i < kids.length; i++) { emit(kids[i], depth + 1); }
+    for (var i = 0; i < node.children.length; i++) { emit(node.children[i]); }
   }
-  var start = unwrap(body);
-  var top = regionChildren(start);
-  if (top.length) {
-    for (var t = 0; t < top.length; t++) { emit(top[t], 0); }
-  } else {
-    emit(start, 0);
-  }
-  return regions;
+  for (var r = 0; r < roots.length; r++) { emit(roots[r]); }
+  return { regions: regions, omitted: omitted };
 }
 `;
 
@@ -656,6 +672,7 @@ ${OUTLINE_SOURCE}
   __bcmSeedRefs(__bcmHighestRef());
 
   var interactive = ${jsValue(INTERACTIVE_SELECTOR)};
+  var LOOSE_CONTROL = ${jsValue(LOOSE_CONTROL_SELECTOR)};
   var includeHidden = ${jsValue(options.includeHidden)};
   var maxElements = ${jsValue(options.maxElements)};
   var maxChars = ${jsValue(MAX_READ_TEXT_CHARS)};
@@ -686,9 +703,11 @@ ${OUTLINE_SOURCE}
   }
 
   var hiddenDepth = 0;
-  function emitElement(el, frame) {
+  var counted = new Set();
+  function emitElement(el, frame, guessed) {
     var visible = hiddenDepth === 0 && (__bcmVisible(el) || __bcmStandIn(el));
     totalElements++;
+    if (visible) { counted.add(el); }
     if (!visible) {
       hiddenElements++;
       if (!includeHidden) { return; }
@@ -700,7 +719,7 @@ ${OUTLINE_SOURCE}
     __bcmRemember(ref, el);
     listedElements++;
     var entry = __bcmDescribe(el, ref, !visible, frame);
-    if (entry.role === 'generic') { entry.role = 'clickable'; }
+    if (entry.role === 'generic') { entry.role = guessed ? 'clickable?' : 'clickable'; }
     entry.kind = 'element';
     items.push(entry);
     chars += entry.name.length + 24;
@@ -709,7 +728,7 @@ ${OUTLINE_SOURCE}
   function looseControl(el, tag, style, parentCursor) {
     if (tag === 'body' || (tag === 'label' && el.control)) { return false; }
     var pointer = !!style && style.cursor === 'pointer' && parentCursor !== 'pointer';
-    if (!pointer && !el.matches(${jsValue(LOOSE_CONTROL_SELECTOR)})) { return false; }
+    if (!pointer && !el.matches(LOOSE_CONTROL)) { return false; }
     return !el.querySelector(interactive) && !!__bcmName(el);
   }
 
@@ -786,7 +805,7 @@ ${OUTLINE_SOURCE}
       }
 
       if (hiddenDepth === 0 && looseControl(child, tag, style, cursor)) {
-        emitElement(child, frame);
+        emitElement(child, frame, !child.matches(LOOSE_CONTROL));
         // A clickable card holds more text than its name carries, so that text is still read.
         if (__bcmText(child).length <= 120) { continue; }
       }
@@ -864,9 +883,12 @@ ${OUTLINE_SOURCE}
   items = kept;
 
   var outline;
+  var outlineOmitted;
   if (!scopeRoot && !full && !controlsOnly && document.body &&
       (chars > ${jsValue(options.outlineChars ?? DEFAULT_OUTLINE_CHAR_THRESHOLD)} || totalElements > ${jsValue(options.outlineElements ?? DEFAULT_OUTLINE_ELEMENT_THRESHOLD)})) {
-    outline = __bcmOutline(document.body, interactive);
+    var outlined = __bcmOutline(document.body, interactive, counted);
+    outline = outlined.regions;
+    if (outlined.omitted) { outlineOmitted = outlined.omitted; }
   }
 
   __bcmSweepRefs();
@@ -887,7 +909,8 @@ ${OUTLINE_SOURCE}
     collapsed: __bcmCollapsed(start || document.body, ${jsValue(MAX_COLLAPSED_SECTIONS)}),
     unreachableFrames: __bcmUnreachableFrames(scopeRoot),
     scopeUnreachableFrame: scopeFrameSrc === null ? undefined : { src: scopeFrameSrc },
-    outline: outline
+    outline: outline,
+    outlineOmitted: outlineOmitted
   };
 })();`;
 }
@@ -964,12 +987,20 @@ export function formatPageItems(
   items: PageItem[],
   options: { includeSelectors: boolean; includeHrefs: boolean }
 ): string {
-  return items
-    .map((item) => {
-      if (item.kind === "text") {
-        return item.level ? `${"#".repeat(item.level)} ${item.text}` : item.text;
-      }
-      return formatElement(item, options);
-    })
-    .join("\n");
+  const lines: string[] = [];
+  for (const item of items) {
+    if (item.kind === "element") {
+      lines.push(formatElement(item, options));
+    } else if (
+      !item.level &&
+      lines.length &&
+      /^[\p{Pe}\p{Pf},.;:!?…、。，．！？：；"']+$/u.test(item.text) &&
+      /[^"']/.test(item.text)
+    ) {
+      lines[lines.length - 1] += item.text;
+    } else {
+      lines.push(item.level ? `${"#".repeat(item.level)} ${item.text}` : item.text);
+    }
+  }
+  return lines.join("\n");
 }

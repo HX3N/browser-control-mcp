@@ -25,6 +25,7 @@ export interface PageExtensionMessage extends ExtensionMessageBase {
   unreachableFrames?: UnreachableFrame[];
   scope?: ScopeElement;
   outline?: PageRegion[];
+  outlineOmitted?: number;
 }
 
 export interface PageRegion {

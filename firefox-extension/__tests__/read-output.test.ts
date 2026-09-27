@@ -94,6 +94,12 @@ describe("outline and notices", () => {
     ]);
   });
 
+  it("says how many regions did not fit, and nothing when all did", () => {
+    const region = { ref: "e1", tag: "nav", name: "Site", depth: 0, chars: 120, controls: 30 };
+    expect(outlineText(page({ outline: [region], outlineOmitted: 7 }))).toMatch(/7 more region\(s\) did not fit/);
+    expect(outlineText(page({ outline: [region] }))).not.toContain("did not fit");
+  });
+
   it("groups repeated collapsed sections and says nothing when there are none", () => {
     expect(collapsedNotice([])).toBeNull();
     const text = collapsedNotice([

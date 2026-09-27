@@ -400,7 +400,7 @@ describe("injected source contracts", () => {
 
   it("outlines a large page only when the read is neither scoped nor forced full", () => {
     const whole = buildSnapshotCode({ maxElements: 200, includeHidden: false });
-    expect(whole).toContain("outline = __bcmOutline(");
+    expect(whole).toContain("var outlined = __bcmOutline(");
     expect(whole).toContain("var full = false");
     expect(buildSnapshotCode({ maxElements: 200, includeHidden: false, full: true })).toContain("var full = true");
     expect(buildSnapshotCode({ maxElements: 200, includeHidden: false, target })).toContain("if (!scopeRoot && !full");
