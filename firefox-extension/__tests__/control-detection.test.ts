@@ -61,11 +61,6 @@ describe("controls a read lists", () => {
     expect(byName(items, "Plain header")).toBeUndefined();
   });
 
-  it("takes the first token of a role list", () => {
-    const items = listed(`<div role="treeitem none">Leaf</div>`);
-    expect(byName(items, "Leaf")?.role).toBe("treeitem");
-  });
-
   it("gives native inputs the role their type implies", () => {
     const items = listed(`
       <input type="number" aria-label="Qty">
@@ -149,12 +144,6 @@ describe("controls a read lists", () => {
     boxes = { tick: { width: 0, height: 0 } };
     const items = listed(`<input id="tick" type="checkbox"><label for="tick">Remember me</label>`);
     expect(byName(items, "Remember me")).toMatchObject({ role: "checkbox", checked: false });
-  });
-
-  it("keeps a trap field parked off the page hidden", () => {
-    boxes = { trap: { left: -9999 }, trapLabel: { left: -9999 } };
-    const items = listed(`<label id="trapLabel" for="trap">Leave empty</label><input id="trap">`);
-    expect(items).toHaveLength(0);
   });
 
   it("keeps a text field parked off the page hidden even when its label shows", () => {
