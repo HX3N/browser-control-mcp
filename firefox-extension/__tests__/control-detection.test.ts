@@ -1,5 +1,6 @@
 import {
   buildSnapshotCode,
+  formatPageItems,
   PageElementItem,
   PageReadResult,
 } from "../page-snapshot";
@@ -233,5 +234,84 @@ describe("outline keeps an open popup", () => {
 
     expect(result.outline).toBeDefined();
     expect(result.outline!.some((region) => region.role === "listbox")).toBe(true);
+  });
+});
+
+describe("the line a control is written as", () => {
+  function line(item: Partial<PageElementItem>): string {
+    return formatPageItems(
+      [{ kind: "element", ref: "e1", role: "textbox", name: "", tag: "input", selector: "input", ...item }],
+      { includeSelectors: false, includeHrefs: true }
+    );
+  }
+
+  it("leaves out a tag the role implies and keeps one it does not", () => {
+    expect(line({ role: "textbox", tag: "input", name: "Email" })).toBe('[e1] textbox "Email"');
+    expect(line({ role: "textbox", tag: "textarea", name: "Notes" })).toBe('[e1] textbox <textarea> "Notes"');
+    expect(line({ role: "button", tag: "div", name: "Menu" })).toBe('[e1] button <div> "Menu"');
+  });
+
+  it("drops an empty name and a placeholder that only repeats the name", () => {
+    expect(line({ role: "button", tag: "button" })).toBe("[e1] button");
+    expect(line({ name: "Search", placeholder: "Search" })).toBe('[e1] textbox "Search"');
+  });
+
+  it("escapes values so quotes and separators stay unambiguous", () => {
+    expect(line({ name: 'Say "hi"', value: "a / b | c" })).toBe(
+      '[e1] textbox "Say \\"hi\\"" value="a / b | c"'
+    );
+  });
+
+  it("writes states as words", () => {
+    expect(line({ role: "checkbox", checked: "mixed", disabled: true })).toBe("[e1] checkbox disabled mixed");
+    expect(line({ role: "button", tag: "button", pressed: false, expanded: true })).toBe(
+      "[e1] button unpressed expanded"
+    );
+    expect(line({ role: "tab", tag: "div", selected: false })).toBe("[e1] tab <div>");
+  });
+
+  it("lists options by label, adding values only where one differs", () => {
+    expect(
+      line({ role: "combobox", tag: "select", options: ["S", "M"], selectedValues: ["M"] })
+    ).toBe('[e1] combobox options=["S","M"] selected=["M"]');
+    expect(
+      line({
+        role: "combobox",
+        tag: "select",
+        options: ["Korea"],
+        optionValues: ["kr"],
+        selectedValues: ["kr"],
+        moreOptions: 3,
+      })
+    ).toBe('[e1] combobox options=["Korea"] values=["kr"] selected=["kr"] (+3 more)');
+  });
+});
+
+describe("a field and its label", () => {
+  const originalRect = Element.prototype.getBoundingClientRect;
+
+  beforeAll(() => {
+    Element.prototype.getBoundingClientRect = function () {
+      return { left: 0, top: 0, width: 100, height: 20 } as DOMRect;
+    };
+  });
+
+  afterAll(() => {
+    Element.prototype.getBoundingClientRect = originalRect;
+  });
+
+  it("names the field after the label alone and does not repeat the label as text", () => {
+    document.body.innerHTML = `
+      <label>Country <select><option value="kr">Korea</option><option value="jp">Japan</option></select></label>
+      <label>Notes <textarea>Hello</textarea></label>
+      <label for="agree">I agree</label><input id="agree" type="checkbox">
+    `;
+    const text = formatPageItems(read().items, { includeSelectors: false, includeHrefs: false });
+
+    expect(text.split("\n")).toEqual([
+      '[e1] combobox "Country" options=["Korea","Japan"] values=["kr","jp"] selected=["kr"]',
+      '[e2] textbox <textarea> "Notes" value="Hello"',
+      '[e3] checkbox "I agree" unchecked',
+    ]);
   });
 });

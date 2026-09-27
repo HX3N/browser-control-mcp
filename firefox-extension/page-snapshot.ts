@@ -142,7 +142,7 @@ function __bcmName(el) {
   if (el.id) {
     var explicitLabel = scope.querySelector('label[for="' + el.id.replace(/"/g, '') + '"]');
     if (explicitLabel) {
-      var explicitText = __bcmText(explicitLabel);
+      var explicitText = __bcmLabelText(explicitLabel);
       if (explicitText) { return __bcmTrim(explicitText, 120); }
     }
   }
@@ -150,7 +150,7 @@ function __bcmName(el) {
   if (el.closest) {
     var wrappingLabel = el.closest('label');
     if (wrappingLabel && wrappingLabel !== el) {
-      var wrappingText = __bcmText(wrappingLabel);
+      var wrappingText = __bcmLabelText(wrappingLabel);
       if (wrappingText) { return __bcmTrim(wrappingText, 120); }
     }
   }
@@ -162,6 +162,13 @@ function __bcmName(el) {
 
   var fallback = el.getAttribute('title') || el.getAttribute('placeholder') || el.getAttribute('alt') || el.getAttribute('name') || '';
   return __bcmTrim(fallback, 120);
+}
+
+function __bcmLabelText(label) {
+  var copy = label.cloneNode(true);
+  var fields = copy.querySelectorAll('input, select, textarea');
+  for (var i = 0; i < fields.length; i++) { fields[i].remove(); }
+  return (copy.textContent || '').replace(/\\s+/g, ' ').trim();
 }
 
 function __bcmNamedByContent(el) {
@@ -260,7 +267,8 @@ function __bcmDescribe(el, ref, hidden, frame) {
   if (hidden) { entry.hidden = true; }
   if (frame) { entry.frame = frame; }
 
-  if (tag === 'input' || tag === 'textarea' || (tag === 'select' && __bcmSensitive(el))) {
+  var toggle = tag === 'input' && (el.type === 'checkbox' || el.type === 'radio');
+  if ((tag === 'input' && !toggle) || tag === 'textarea' || (tag === 'select' && __bcmSensitive(el))) {
     if (typeof el.value === 'string' && el.value) {
       entry.value = __bcmSensitive(el)
         ? '(' + el.value.length + ' characters, not shown)'
@@ -673,7 +681,7 @@ ${OUTLINE_SOURCE}
   }
 
   var hiddenDepth = 0;
-  function emitElement(el, frame, guessed) {
+  function emitElement(el, frame) {
     var visible = hiddenDepth === 0 && (__bcmVisible(el) || __bcmStandIn(el));
     totalElements++;
     if (!visible) {
@@ -687,7 +695,7 @@ ${OUTLINE_SOURCE}
     __bcmRemember(ref, el);
     listedElements++;
     var entry = __bcmDescribe(el, ref, !visible, frame);
-    if (guessed && entry.role === 'generic') { entry.role = 'clickable'; }
+    if (entry.role === 'generic') { entry.role = 'clickable'; }
     entry.kind = 'element';
     items.push(entry);
     chars += entry.name.length + 24;
@@ -755,6 +763,12 @@ ${OUTLINE_SOURCE}
         continue;
       }
 
+      if (tag === 'label' && hiddenDepth === 0 && child.control && child.control.matches(interactive) &&
+          (__bcmVisible(child.control) || __bcmStandIn(child.control))) {
+        walk(child, frame, true, ownCursor);
+        continue;
+      }
+
       var level = __bcmHeadingLevel(child, tag);
       if (level && hiddenDepth === 0) {
         flush();
@@ -765,7 +779,7 @@ ${OUTLINE_SOURCE}
       }
 
       if (hiddenDepth === 0 && looseControl(child, tag, style, cursor)) {
-        emitElement(child, frame, true);
+        emitElement(child, frame);
         // A clickable card holds more text than its name carries, so that text is still read.
         if (__bcmText(child).length <= 120) { continue; }
       }
@@ -874,6 +888,74 @@ ${OUTLINE_SOURCE}
 })();`;
 }
 
+function tristateWord(
+  value: boolean | "mixed" | undefined,
+  on: string,
+  off: string,
+  mixed: string
+): string | null {
+  if (value === undefined) {
+    return null;
+  }
+  return value === "mixed" ? mixed : value ? on : off;
+}
+
+function formatElement(
+  item: PageElementItem,
+  options: { includeSelectors: boolean; includeHrefs: boolean }
+): string {
+  const implied = IMPLIED_TAGS[item.role]?.includes(item.tag);
+  const parts = [`[${item.ref}] ${item.role}${implied ? "" : ` <${item.tag}>`}`];
+  if (item.name) {
+    parts.push(JSON.stringify(item.name));
+  }
+  if (options.includeSelectors) {
+    parts.push(`selector=${JSON.stringify(item.selector)}`);
+  }
+  if (item.type) {
+    parts.push(`type=${item.type}`);
+  }
+  if (item.value) {
+    parts.push(`value=${JSON.stringify(item.value)}`);
+  }
+  if (item.placeholder && item.placeholder !== item.name) {
+    parts.push(`placeholder=${JSON.stringify(item.placeholder)}`);
+  }
+  if (item.href && options.includeHrefs) {
+    parts.push(`href=${JSON.stringify(item.href)}`);
+  }
+  const states = [
+    item.disabled ? "disabled" : null,
+    item.readonly ? "readonly" : null,
+    tristateWord(item.checked, "checked", "unchecked", "mixed"),
+    tristateWord(item.pressed, "pressed", "unpressed", "pressed=mixed"),
+    item.selected ? "selected" : null,
+    tristateWord(item.expanded, "expanded", "collapsed", ""),
+  ];
+  for (const state of states) {
+    if (state) {
+      parts.push(state);
+    }
+  }
+  if (item.options?.length) {
+    parts.push(`options=${JSON.stringify(item.options)}`);
+    if (item.optionValues) {
+      parts.push(`values=${JSON.stringify(item.optionValues)}`);
+    }
+    parts.push(`selected=${JSON.stringify(item.selectedValues ?? [])}`);
+    if (item.moreOptions) {
+      parts.push(`(+${item.moreOptions} more)`);
+    }
+  }
+  if (item.frame) {
+    parts.push(item.frame);
+  }
+  if (item.hidden) {
+    parts.push("hidden");
+  }
+  return parts.join(" ");
+}
+
 export function formatPageItems(
   items: PageItem[],
   options: { includeSelectors: boolean; includeHrefs: boolean }
@@ -883,43 +965,7 @@ export function formatPageItems(
       if (item.kind === "text") {
         return item.level ? `${"#".repeat(item.level)} ${item.text}` : item.text;
       }
-      const attributes: string[] = options.includeSelectors
-        ? [`selector: ${item.selector}`]
-        : [];
-      if (item.value) {
-        attributes.push(`value: ${item.value}`);
-      }
-      if (item.placeholder) {
-        attributes.push(`placeholder: ${item.placeholder}`);
-      }
-      if (item.href && options.includeHrefs) {
-        attributes.push(`href: ${item.href}`);
-      }
-      if (item.disabled) {
-        attributes.push("disabled");
-      }
-      if (item.checked !== undefined) {
-        attributes.push(`checked: ${item.checked}`);
-      }
-      if (item.expanded !== undefined) {
-        attributes.push(`expanded: ${item.expanded}`);
-      }
-      if (item.options?.length) {
-        attributes.push(`options: ${item.options.join(" / ")}`);
-      }
-      if (item.frame) {
-        attributes.push(item.frame);
-      }
-      if (item.hidden) {
-        attributes.push("hidden");
-      }
-      const suffix = attributes.length ? ` - ${attributes.join(", ")}` : "";
-      const tag =
-        (item.role === "link" && item.tag === "a") ||
-        (item.role === "button" && item.tag === "button")
-          ? ""
-          : ` <${item.tag}>`;
-      return `[${item.ref}] ${item.role}${tag} "${item.name}"${suffix}`;
+      return formatElement(item, options);
     })
     .join("\n");
 }
