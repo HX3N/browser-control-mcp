@@ -157,6 +157,37 @@ describe("controls a read lists", () => {
     expect(items).toHaveLength(0);
   });
 
+  it("keeps a field inside a hidden widget hidden", () => {
+    boxes = { closed: { width: 0, height: 0 }, secret: { width: 0, height: 0 } };
+    const items = listed(
+      `<div id="closed" role="listbox" style="display: none"><select id="secret" style="opacity: 0" aria-label="Secret"></select></div>`
+    );
+    expect(items).toHaveLength(0);
+  });
+
+  it("does not take a see-through trap input for an overlay", () => {
+    boxes = { trap: { width: 1, height: 1 } };
+    const items = listed(`<form><input id="trap" name="website" style="opacity: 0"></form>`);
+    expect(items).toHaveLength(0);
+  });
+
+  it("lists a tree or grid container that says it is expanded, beside its items", () => {
+    const items = listed(`<div role="tree" aria-expanded="true" aria-label="Files"><div role="treeitem">A</div></div>`);
+    expect(items.map((item) => item.role)).toEqual(["tree", "treeitem"]);
+  });
+
+  it("does not list an editable span inside an editing host as a control of its own", () => {
+    const items = listed(`<div contenteditable="true" aria-label="Body">x <span contenteditable="true">inner</span></div>`);
+    expect(items.map((item) => item.name)).toEqual(["Body"]);
+  });
+
+  it("keeps a long label as text, since the name carries only its start", () => {
+    const terms = "I have read the terms of service and agree to all of them, including the parts about data, billing and the arbitration clause at the end.";
+    document.body.innerHTML = `<label for="agree">${terms}</label><input id="agree" type="checkbox">`;
+    const text = formatPageItems(read().items, { includeSelectors: false, includeHrefs: false });
+    expect(text).toContain("arbitration clause at the end.");
+  });
+
   it("reports the states a model needs before acting", () => {
     const items = listed(`
       <button disabled>Save</button>
@@ -204,9 +235,9 @@ describe("controls a read lists", () => {
       <ul id="pop" role="listbox"><li role="option">Seoul</li><li role="option">Busan</li></ul>
     `;
     const result = read({ target: { selector: "#field" } });
-    const names = elements(result).map((item) => item.name);
+    const listedRoles = elements(result).map((item) => `${item.role} ${item.name}`);
 
-    expect(names).toEqual(["City", "Seoul", "Busan"]);
+    expect(listedRoles).toEqual(["combobox City", "listbox ", "option Seoul", "option Busan"]);
     expect(JSON.stringify(result.items)).not.toContain("Unrelated");
   });
 });
@@ -249,6 +280,7 @@ describe("the line a control is written as", () => {
     expect(line({ role: "textbox", tag: "input", name: "Email" })).toBe('[e1] textbox "Email"');
     expect(line({ role: "textbox", tag: "textarea", name: "Notes" })).toBe('[e1] textbox <textarea> "Notes"');
     expect(line({ role: "button", tag: "div", name: "Menu" })).toBe('[e1] button <div> "Menu"');
+    expect(line({ role: "button", tag: "input", name: "Run", explicitRole: true })).toBe('[e1] button <input> "Run"');
   });
 
   it("drops an empty name and a placeholder that only repeats the name", () => {

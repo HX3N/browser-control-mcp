@@ -17,6 +17,8 @@ const WIDGET_ROLES = [
   "spinbutton", "gridcell", "scrollbar",
 ];
 
+const CONTAINER_ROLES = ["grid", "tree", "treegrid", "menu", "menubar", "tablist", "radiogroup"];
+
 export const INTERACTIVE_SELECTOR = [
   "a[href]",
   "area[href]",
@@ -29,6 +31,7 @@ export const INTERACTIVE_SELECTOR = [
   ...WIDGET_ROLES.map((role) => `[role~=${role}]`),
   "[role~=rowheader][aria-sort]",
   "[role~=columnheader][aria-sort]",
+  ...CONTAINER_ROLES.map((role) => `[role~=${role}][aria-expanded]`),
   "[aria-activedescendant]",
   "[aria-haspopup]:not([aria-haspopup=false])",
   "[onclick]",
@@ -180,8 +183,13 @@ function __bcmNamedByContent(el) {
 function __bcmEditingHost(el) {
   var flag = el.getAttribute('contenteditable');
   if (flag === null || flag.toLowerCase() === 'false') { return false; }
-  var parent = el.parentElement;
-  return !(parent && parent.isContentEditable);
+  var above = el.parentElement ? el.parentElement.closest('[contenteditable]') : null;
+  return !above || (above.getAttribute('contenteditable') || '').toLowerCase() === 'false';
+}
+
+function __bcmInnerEditable(el) {
+  var flag = el.getAttribute('contenteditable');
+  return flag !== null && flag.toLowerCase() !== 'false' && !el.hasAttribute('role') && !__bcmEditingHost(el);
 }
 
 function __bcmRole(el) {
@@ -264,6 +272,7 @@ function __bcmDescribe(el, ref, hidden, frame) {
     selector: __bcmSelector(el)
   };
 
+  if ((el.getAttribute('role') || '').trim()) { entry.explicitRole = true; }
   if (hidden) { entry.hidden = true; }
   if (frame) { entry.frame = frame; }
 
@@ -356,6 +365,7 @@ export interface PageElementItem {
   value?: string;
   placeholder?: string;
   href?: string;
+  explicitRole?: boolean;
   hidden?: boolean;
   frame?: string;
   type?: string;
@@ -602,6 +612,9 @@ function __bcmStandIn(el) {
   for (var i = 0; i < labels.length; i++) {
     if (__bcmVisible(labels[i])) { return true; }
   }
+  var box = el.getBoundingClientRect();
+  var overlay = tag === 'select' || (tag === 'input' && el.type === 'file');
+  if (!overlay || box.width < 4 || box.height < 4) { return false; }
   var host = el.parentElement;
   while (host) {
     var size = host.getBoundingClientRect();
@@ -610,7 +623,6 @@ function __bcmStandIn(el) {
   }
   if (!host || !__bcmVisible(host)) { return false; }
   var outer = host.getBoundingClientRect();
-  var box = el.getBoundingClientRect();
   return box.left >= outer.left - 1 && box.top >= outer.top - 1 &&
     box.left + box.width <= outer.left + outer.width + 1 &&
     box.top + box.height <= outer.top + outer.height + 1;
@@ -736,14 +748,16 @@ ${OUTLINE_SOURCE}
         continue;
       }
 
-      if (child.matches(interactive)) {
+      if (child.matches(interactive) && !__bcmInnerEditable(child)) {
         emitElement(child, frame);
         // A container made focusable by tabindex or a role still holds real controls.
         if (__bcmSwallows(tag) || !child.querySelector(interactive)) { continue; }
         var within = __bcmStyle(child);
-        var withinCursor = within ? within.cursor : '';
-        walk(child, frame, true, withinCursor);
-        if (child.shadowRoot) { walk(child.shadowRoot, 'shadow:' + tag, true, withinCursor); }
+        var withinShown = __bcmShown(within);
+        if (!withinShown) { hiddenDepth++; }
+        walk(child, frame, true, within ? within.cursor : '');
+        if (child.shadowRoot) { walk(child.shadowRoot, 'shadow:' + tag, true, within ? within.cursor : ''); }
+        if (!withinShown) { hiddenDepth--; }
         continue;
       }
 
@@ -764,7 +778,7 @@ ${OUTLINE_SOURCE}
       }
 
       if (tag === 'label' && hiddenDepth === 0 && child.control && child.control.matches(interactive) &&
-          (__bcmVisible(child.control) || __bcmStandIn(child.control))) {
+          (__bcmVisible(child.control) || __bcmStandIn(child.control)) && __bcmLabelText(child).length <= 120) {
         walk(child, frame, true, ownCursor);
         continue;
       }
@@ -808,11 +822,8 @@ ${OUTLINE_SOURCE}
         if (!target || walked.some(function (seen) { return seen.contains(target); })) { continue; }
         walked.push(target);
         flush();
-        var targetStyle = __bcmStyle(target);
-        var shown = __bcmShown(targetStyle);
-        if (!shown) { hiddenDepth++; }
-        walk(target, frame, false, targetStyle ? targetStyle.cursor : '');
-        if (!shown) { hiddenDepth--; }
+        var outerStyle = target.parentElement ? __bcmStyle(target.parentElement) : null;
+        walk({ childNodes: [target] }, frame, false, outerStyle ? outerStyle.cursor : '');
         flush();
       }
     }
@@ -904,7 +915,7 @@ function formatElement(
   item: PageElementItem,
   options: { includeSelectors: boolean; includeHrefs: boolean }
 ): string {
-  const implied = IMPLIED_TAGS[item.role]?.includes(item.tag);
+  const implied = !item.explicitRole && IMPLIED_TAGS[item.role]?.includes(item.tag);
   const parts = [`[${item.ref}] ${item.role}${implied ? "" : ` <${item.tag}>`}`];
   if (item.name) {
     parts.push(JSON.stringify(item.name));
