@@ -26,6 +26,13 @@ import type {
   InteractionResultExtensionMessage,
   PageRegion,
 } from "@browser-control-mcp/common";
+import {
+  CAPTURE,
+  FIND_MATCHES,
+  READ_ELEMENTS_DEFAULT,
+  TEXT_SETTLE_MS,
+  WAIT_TIMEOUT_MS,
+} from "@browser-control-mcp/common/limits";
 import { WebsocketClient } from "./client";
 import { t } from "./i18n";
 import {
@@ -116,10 +123,8 @@ import {
   buildDragCode,
   buildFindCode,
   FindMatchResult,
-  MAX_FIND_MATCHES,
   buildMediaFetchCode,
   buildMediaListCode,
-  MAX_CAPTURE_HEIGHT_PX,
   MediaFetchResult,
   MediaListResult,
   buildPressKeyCode,
@@ -130,7 +135,6 @@ import {
   buildSelectOptionCode,
   buildTextResultCode,
   buildTextWatchCode,
-  DEFAULT_TEXT_SETTLE_MS,
   buildTypeCode,
   buildUploadFilesCode,
   buildWaitProbeCode,
@@ -177,12 +181,8 @@ interface CommitWatch {
   cancel: () => void;
 }
 
-const DEFAULT_ELEMENT_LIMIT = 500;
 const MAX_PAGE_TEXT_LENGTH = 50_000;
 const MAX_SCRIPT_RESULT_LENGTH = 20_000;
-const DEFAULT_WAIT_TIMEOUT_MS = 5_000;
-const MAX_WAIT_TIMEOUT_MS = 60_000;
-const MAX_CAPTURE_SLICES = 8;
 const SLICE_OVERLAP_PX = 80;
 // A fetch spends real network time, so it gets a longer leash than an in-page script.
 const MEDIA_FETCH_STALL_MS = 60_000;
@@ -196,9 +196,6 @@ const MEDIA_IMAGE_TYPES = new Set([
   "image/webp",
 ]);
 const WAIT_POLL_INTERVAL_MS = 200;
-const DEFAULT_TEXT_WAIT_TIMEOUT_MS = 30_000;
-const MAX_TEXT_SETTLE_MS = 5_000;
-const MAX_TEXT_WAIT_TIMEOUT_MS = 180_000;
 const MAX_ADDED_TEXT_LENGTH = 20_000;
 // Zen hands a new tab the container of the tab in front when tabs.create names none, so the
 // default container has to be named outright to be reached.
@@ -1023,7 +1020,7 @@ export class MessageHandler {
 
     const includeHidden = await isHiddenElementsIncluded();
     const snapshot = {
-      maxElements: Math.max(1, req.maxElements ?? DEFAULT_ELEMENT_LIMIT),
+      maxElements: Math.max(1, req.maxElements ?? READ_ELEMENTS_DEFAULT),
       includeHidden,
       full: req.full === true || offset > 0,
       controlsOnly: req.controlsOnly === true,
@@ -1213,7 +1210,7 @@ export class MessageHandler {
     }
 
     await this.guardDialogs(tabId);
-    const budget = Math.max(1, Math.min(MAX_FIND_MATCHES, req.maxMatches ?? MAX_FIND_MATCHES));
+    const budget = Math.max(1, Math.min(FIND_MATCHES.max, req.maxMatches ?? FIND_MATCHES.default));
     const frames = await this.detachedFrames(tabId);
     const pass = (byName: boolean, reach: DetachedFrame[]) =>
       this.findInDocuments(tabId, reach, budget, (maxMatches) =>
@@ -1283,8 +1280,8 @@ export class MessageHandler {
   ): Promise<void> {
     const { correlationId, tabId } = req;
     const format = req.format ?? "jpeg";
-    const quality = req.quality ?? 70;
-    const scale = req.scale ?? 1;
+    const quality = req.quality ?? CAPTURE.quality;
+    const scale = req.scale ?? CAPTURE.scale;
     const tab = await browser.tabs.get(tabId);
 
     await ensureTabAccess(tab);
@@ -1302,7 +1299,7 @@ export class MessageHandler {
     try {
       const maxSlices = Math.max(
         1,
-        Math.min(req.maxSlices ?? 1, MAX_CAPTURE_SLICES)
+        Math.min(req.maxSlices ?? CAPTURE.slices, CAPTURE.maxSlices)
       );
       const box = isElementTargeted(req)
         ? await this.measureElement(tabId, req, await this.resolveTargetFrame(req))
@@ -2456,11 +2453,11 @@ export class MessageHandler {
     req: WaitForPageServerMessage & { correlationId: string }
   ): Promise<void> {
     const timeoutMs = Math.min(
-      req.selector ? MAX_WAIT_TIMEOUT_MS : MAX_TEXT_WAIT_TIMEOUT_MS,
+      WAIT_TIMEOUT_MS.max,
       Math.max(
         0,
         req.timeoutMs ??
-          (req.selector ? DEFAULT_WAIT_TIMEOUT_MS : DEFAULT_TEXT_WAIT_TIMEOUT_MS)
+          (req.selector ? WAIT_TIMEOUT_MS.selector : WAIT_TIMEOUT_MS.text)
       )
     );
     const startedAt = Date.now();
@@ -2519,8 +2516,8 @@ export class MessageHandler {
     );
 
     const timeoutMs = Math.min(
-      MAX_WAIT_TIMEOUT_MS,
-      Math.max(0, req.timeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS)
+      WAIT_TIMEOUT_MS.max,
+      Math.max(0, req.timeoutMs ?? WAIT_TIMEOUT_MS.selector)
     );
     const code = buildWaitProbeCode({ selector, state: req.state, within });
     const startedAt = Date.now();
@@ -2581,12 +2578,12 @@ export class MessageHandler {
     );
 
     const timeoutMs = Math.min(
-      MAX_TEXT_WAIT_TIMEOUT_MS,
-      Math.max(0, req.timeoutMs ?? DEFAULT_TEXT_WAIT_TIMEOUT_MS)
+      WAIT_TIMEOUT_MS.max,
+      Math.max(0, req.timeoutMs ?? WAIT_TIMEOUT_MS.text)
     );
     const settleMs = Math.min(
-      MAX_TEXT_SETTLE_MS,
-      Math.max(0, req.settleMs ?? DEFAULT_TEXT_SETTLE_MS)
+      TEXT_SETTLE_MS.max,
+      Math.max(0, req.settleMs ?? TEXT_SETTLE_MS.default)
     );
     const startedAt = Date.now();
 
@@ -2709,7 +2706,7 @@ function sliceRects(
   const rects = [];
   let top = box.fullTop;
   while (top < box.fullBottom && rects.length < maxSlices) {
-    const height = Math.min(MAX_CAPTURE_HEIGHT_PX, box.fullBottom - top);
+    const height = Math.min(CAPTURE.sliceHeightPx, box.fullBottom - top);
     rects.push({ x: box.rect.x, y: top, width: box.rect.width, height });
     if (top + height >= box.fullBottom) {
       break;

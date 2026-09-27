@@ -11,6 +11,7 @@ import type {
   TypeTextServerMessage,
   ElementWaitState,
 } from "@browser-control-mcp/common/server-messages";
+import { CAPTURE, CLICK_COUNT, KEY_REPEAT } from "@browser-control-mcp/common/limits";
 import {
   ELEMENT_RESOLVER_SOURCE,
   PAGE_READ_SOURCE,
@@ -74,7 +75,6 @@ export interface MediaFetchResult {
 }
 
 export const CAPTURE_PADDING_PX = 8;
-export const MAX_CAPTURE_HEIGHT_PX = 2000;
 
 const VALUE_SETTER_SOURCE = `
 function __bcmSetValue(el, value) {
@@ -478,7 +478,7 @@ function __bcmDispatchClick(el, buttonIndex, clickCount, modifiers) {
 export function buildClickCode(request: ClickElementServerMessage): string {
   const button = request.button ?? "left";
   const buttonIndex = button === "middle" ? 1 : button === "right" ? 2 : 0;
-  const clickCount = Math.max(1, Math.min(3, request.clickCount ?? 1));
+  const clickCount = Math.max(1, Math.min(CLICK_COUNT.max, request.clickCount ?? CLICK_COUNT.default));
   const modifiers = request.modifiers ?? [];
   const combo = modifiers.length ? `${modifiers.join("+")}+` : "";
 
@@ -783,7 +783,7 @@ ${KEY_DEFAULT_ACTION_SOURCE}
     try { el.focus({ preventScroll: true }); } catch (err) { /* focus is best effort */ }
   }
 
-  var repeat = ${jsValue(Math.max(1, Math.min(100, request.repeat ?? 1)))};
+  var repeat = ${jsValue(Math.max(1, Math.min(KEY_REPEAT.max, request.repeat ?? KEY_REPEAT.default)))};
   var allowed = true;
   var submitted = false;
   var performed = [];
@@ -1166,7 +1166,6 @@ const TEXT_SCOPE_SOURCE = (target: ElementTarget | undefined) =>
     ? `__bcmResolve(${targetLiteral(target!)})`
     : "document.body";
 
-export const DEFAULT_TEXT_SETTLE_MS = 800;
 export const TEXT_STABLE_SAMPLES = 3;
 
 export function buildTextWatchCode(
@@ -1314,7 +1313,6 @@ export interface FindMatchResult {
   moreControls?: number;
 }
 
-export const MAX_FIND_MATCHES = 20;
 const FIND_CONTEXT_CHARS = 120;
 const MAX_FIND_CONTROLS = 12;
 
@@ -1501,7 +1499,7 @@ ${ELEMENT_RESOLVER_SOURCE}
 
   var el = ${resolver};
   var pad = ${jsValue(CAPTURE_PADDING_PX)};
-  var maxHeight = ${jsValue(MAX_CAPTURE_HEIGHT_PX)};
+  var maxHeight = ${jsValue(CAPTURE.sliceHeightPx)};
 
   var box = __bcmRect(el);
   if (box.width <= 0 || box.height <= 0) {

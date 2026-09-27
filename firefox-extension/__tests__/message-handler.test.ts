@@ -1850,6 +1850,7 @@ describe("MessageHandler", () => {
             correlationId: "test-correlation-id",
             selector: "#list",
             index: 0,
+            maxSlices: 1,
           } as ServerMessageRequest);
         };
 

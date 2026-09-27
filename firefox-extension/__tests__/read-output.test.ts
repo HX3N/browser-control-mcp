@@ -9,6 +9,7 @@ import {
   outlineText,
   readHeader,
 } from "../../mcp-server/read-output";
+import { FIND_MATCHES } from "../../mcp-server/limits";
 
 function page(overrides: Partial<PageExtensionMessage> = {}): PageExtensionMessage {
   return {
@@ -151,10 +152,13 @@ describe("find summary", () => {
     expect(
       findText(found({ noOfResults: 1, matches: [match, byName, byName], moreMatches: true }), "Search", 3).split("\n")[0]
     ).toBe('find "Search": highlighted=1 refs=3 (maxMatches reached, raise it for more)');
-    const twenty = Array.from({ length: 20 }, () => byName);
+    const ceiling = Array.from({ length: FIND_MATCHES.max }, () => byName);
     expect(
-      findText(found({ noOfResults: 0, matches: twenty, moreMatches: true }), "Search", 20).split("\n")[0]
-    ).toBe('find "Search": highlighted=0 refs=20 (maxMatches reached, narrow the query for more)');
+      findText(found({ noOfResults: 0, matches: ceiling, moreMatches: true }), "Search", FIND_MATCHES.max).split("\n")[0]
+    ).toBe(`find "Search": highlighted=0 refs=${FIND_MATCHES.max} (maxMatches reached, narrow the query for more)`);
+    expect(
+      findText(found({ noOfResults: 0, matches: [byName], moreMatches: true }), "Search", 20).split("\n")[0]
+    ).toBe('find "Search": highlighted=0 refs=1 (maxMatches reached, raise it for more)');
   });
 
   it("says plainly when nothing matched", () => {

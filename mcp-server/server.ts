@@ -20,6 +20,16 @@ import type {
 } from "@browser-control-mcp/common";
 import { consoleSummary, dialogSummary } from "./util";
 import { collapsedNotice, findText, frameNotice, outlineText, readHeader } from "./read-output";
+import {
+  CAPTURE,
+  CLICK_COUNT,
+  FIND_MATCHES,
+  KEY_REPEAT,
+  NETWORK_REQUESTS,
+  READ_ELEMENTS_DEFAULT,
+  TEXT_SETTLE_MS,
+  WAIT_TIMEOUT_MS,
+} from "./limits";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 
@@ -488,7 +498,7 @@ defineTool(
       .int()
       .min(1)
       .max(2000)
-      .default(500)
+      .default(READ_ELEMENTS_DEFAULT)
       .describe("Maximum elements stamped with a ref"),
     includeSelectors: z
       .boolean()
@@ -553,8 +563,8 @@ defineTool(
       .number()
       .int()
       .min(1)
-      .max(20)
-      .default(10)
+      .max(FIND_MATCHES.max)
+      .default(FIND_MATCHES.default)
       .describe("Maximum matches to return"),
     caseSensitive: z
       .boolean()
@@ -598,22 +608,22 @@ defineTool(
       .int()
       .min(10)
       .max(100)
-      .default(70)
+      .default(CAPTURE.quality)
       .describe("JPEG quality, ignored for png"),
     scale: z
       .number()
       .min(0.1)
       .max(2)
-      .default(1)
+      .default(CAPTURE.scale)
       .describe("Scale relative to CSS pixels; lower is smaller"),
     maxSlices: z
       .number()
       .int()
       .min(1)
-      .max(8)
-      .default(3)
+      .max(CAPTURE.maxSlices)
+      .default(CAPTURE.slices)
       .describe(
-        "How many images an element taller than 2000px may be split into, top to bottom with a small overlap; 1 crops to the slice near the scroll position"
+        `How many images an element taller than ${CAPTURE.sliceHeightPx}px may be split into, top to bottom with a small overlap; 1 crops to the slice near the scroll position`
       ),
     region: z
       .array(z.number())
@@ -843,8 +853,8 @@ defineTool(
       .number()
       .int()
       .min(1)
-      .max(3)
-      .default(1)
+      .max(CLICK_COUNT.max)
+      .default(CLICK_COUNT.default)
       .describe("Use 2 for a double click"),
     modifiers: z
       .array(z.enum(["Control", "Shift", "Alt", "Meta"]))
@@ -1054,8 +1064,8 @@ defineTool(
       .number()
       .int()
       .min(1)
-      .max(500)
-      .default(100)
+      .max(NETWORK_REQUESTS.max)
+      .default(NETWORK_REQUESTS.default)
       .describe("Maximum requests to list, most recent first"),
   },
   async ({ tabId, urlPattern, clear, limit }) => {
@@ -1183,8 +1193,8 @@ defineTool(
       .number()
       .int()
       .min(1)
-      .max(100)
-      .default(1)
+      .max(KEY_REPEAT.max)
+      .default(KEY_REPEAT.default)
       .describe(
         "How many times to press the key; the presses stop early once one submits a form or the page cancels one"
       ),
@@ -1338,17 +1348,17 @@ defineTool(
       .number()
       .int()
       .min(0)
-      .max(180000)
+      .max(WAIT_TIMEOUT_MS.max)
       .optional()
       .describe(
-        "5000 by default with a selector, 30000 without; 0 without a selector returns at once with whatever arrived since the last call"
+        `${WAIT_TIMEOUT_MS.selector} by default with a selector, ${WAIT_TIMEOUT_MS.text} without; 0 without a selector returns at once with whatever arrived since the last call`
       ),
     settleMs: z
       .number()
       .int()
       .min(0)
-      .max(5000)
-      .default(800)
+      .max(TEXT_SETTLE_MS.max)
+      .default(TEXT_SETTLE_MS.default)
       .describe("Text wait only: how far apart the samples are"),
     withinRef: z
       .string()
@@ -1383,7 +1393,7 @@ defineTool(
             index: withinIndex,
           })
         : undefined;
-    const waitMs = timeoutMs ?? (selector ? 5000 : 30000);
+    const waitMs = timeoutMs ?? (selector ? WAIT_TIMEOUT_MS.selector : WAIT_TIMEOUT_MS.text);
     const result = await browserApi.waitForPage(tabId, {
       selector,
       state,
