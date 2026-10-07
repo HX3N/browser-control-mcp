@@ -1279,9 +1279,11 @@ defineTool(
   "execute-javascript-in-tab",
   `
     Run JavaScript in a tab. The code is a function body: only what a return statement hands back
-    comes out. It runs in the extension's content script sandbox: the DOM is available, the page's
-    own globals are not - reach those through window.wrappedJSObject. The result is serialised to
-    text, and DOM nodes are summarised rather than dumped.
+    comes out. Await is available, and returned Promises are settled before serialisation. It runs
+    in the extension's content script sandbox: the DOM is available, the page's own globals are not
+    - reach those through window.wrappedJSObject. The result is serialised to text, and DOM nodes
+    are summarised rather than dumped. Code still running after the 10-second command budget is not
+    cancelled and may finish later.
   `,
   { title: "Run JavaScript", readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   {
@@ -1290,7 +1292,7 @@ defineTool(
     code: z
       .string()
       .describe(
-        "Function body, such as: return document.title;"
+        "Async-capable function body, such as: await Promise.resolve(); return document.title;"
       ),
     frameRef: z
       .string()

@@ -982,7 +982,7 @@ ${VALUE_SETTER_SOURCE}
 }
 
 export function buildExecuteJsCode(code: string, maxLength: number): string {
-  return `(function () {
+  return `(async function () {
   function __bcmSerialize(value, depth) {
     if (value === null || value === undefined) { return String(value); }
     var kind = typeof value;
@@ -1010,9 +1010,15 @@ export function buildExecuteJsCode(code: string, maxLength: number): string {
     }
   }
 
-  var result = (function () {
+  var result;
+  try {
+    result = await (async function () {
 ${code}
-  })();
+    })();
+  } catch (err) {
+    // Firefox reports a thrown value that is not an Error only as "An unexpected error occurred".
+    throw err && typeof err.message === 'string' ? err : new Error(__bcmSerialize(err, 0));
+  }
 
   var serialized = __bcmSerialize(result, 0);
   var limit = ${jsValue(maxLength)};

@@ -46,6 +46,15 @@ import { DEFAULT_OVERLAY_COLORS } from "../extension-config";
 const target = { ref: "e7", selector: undefined, index: 0 };
 const bySelector = { ref: undefined, selector: "#list", index: 2 };
 
+interface ExecuteJsOutput {
+  result: string;
+  isTruncated: boolean;
+}
+
+function runExecuteJs(code: string, maxLength = 20000): Promise<ExecuteJsOutput> {
+  return new Function(`return ${buildExecuteJsCode(code, maxLength)}`)();
+}
+
 const cases: [string, string][] = [
   ["page read, whole page", buildSnapshotCode({ maxElements: 200, includeHidden: false })],
   ["page read, hidden included", buildSnapshotCode({ maxElements: 5, includeHidden: true })],
@@ -389,6 +398,56 @@ describe("injected script builders emit parsable JavaScript", () => {
       expect(() => new Function(code)).not.toThrow();
     });
   }
+});
+
+describe("execute js results", () => {
+  it("allows await in the function body", async () => {
+    await expect(
+      runExecuteJs("await Promise.resolve(1); return 42;")
+    ).resolves.toEqual({ result: "42", isTruncated: false });
+  });
+
+  it("awaits a returned promise", async () => {
+    await expect(
+      runExecuteJs("return Promise.resolve({ answer: 42 });")
+    ).resolves.toEqual({
+      result: JSON.stringify({ answer: 42 }, null, 2),
+      isTruncated: false,
+    });
+  });
+
+  it("rejects when the returned promise rejects", async () => {
+    await expect(
+      runExecuteJs('return Promise.reject(new Error("async boom"));')
+    ).rejects.toThrow("async boom");
+  });
+
+  it("turns a thrown value that is not an Error into one", async () => {
+    await expect(
+      runExecuteJs('await Promise.resolve(); throw "plain reason";')
+    ).rejects.toThrow("plain reason");
+  });
+
+  it("preserves synchronous returns", async () => {
+    document.title = "Browser Control";
+    await expect(runExecuteJs("return document.title;")).resolves.toEqual({
+      result: "Browser Control",
+      isTruncated: false,
+    });
+  });
+
+  it("preserves DOM summaries", async () => {
+    document.body.innerHTML = "<button>Run now</button>";
+    await expect(
+      runExecuteJs("return document.querySelector('button');")
+    ).resolves.toEqual({ result: '[button "Run now"]', isTruncated: false });
+  });
+
+  it("truncates the resolved value", async () => {
+    await expect(
+      runExecuteJs('return Promise.resolve("abcdef");', 3)
+    ).resolves.toEqual({ result: "abc", isTruncated: true });
+  });
 });
 
 describe("injected source contracts", () => {

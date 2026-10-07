@@ -1860,7 +1860,7 @@ export class MessageHandler {
       ]);
     } catch (error) {
       if (error instanceof Error && error.message === SCRIPT_STALLED) {
-        throw new StalledPageError(await this.describeStalledTab(tabId));
+        throw new StalledPageError(await this.describeStalledTab(tabId, stallMs));
       }
       throw error;
     } finally {
@@ -1868,7 +1868,7 @@ export class MessageHandler {
     }
   }
 
-  private async describeStalledTab(tabId: number): Promise<string> {
+  private async describeStalledTab(tabId: number, stallMs: number): Promise<string> {
     let title = "";
     try {
       const tab = await browser.tabs.get(tabId);
@@ -1878,6 +1878,12 @@ export class MessageHandler {
     }
 
     const readyState = await this.probeStalledTab(tabId);
+    if (readyState && readyState !== "loading") {
+      return (
+        `Tab ${tabId}${title} is responding, but the command's script did not finish within ` +
+        `${stallMs / 1000} seconds. It was not cancelled and may still finish in the page.`
+      );
+    }
     if (readyState) {
       return (
         `Tab ${tabId}${title} is not frozen, but the command's script never got to run: the document ` +

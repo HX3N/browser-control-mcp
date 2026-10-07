@@ -285,6 +285,31 @@ describe("stalled pages", () => {
     await settled;
   });
 
+  it("reports a loaded page whose script runs long as slow, not as loading", async () => {
+    jest.useFakeTimers();
+    (browser.tabs.executeScript as jest.Mock).mockImplementation(
+      (_tabId, details) =>
+        SUPPORT_MARKERS.some((marker) => String(details.code).includes(marker))
+          ? Promise.resolve(ANY_RESULT)
+          : String(details.code) === "document.readyState"
+          ? Promise.resolve(["complete"])
+          : new Promise(() => undefined)
+    );
+
+    const pending = messageHandler.handleDecodedMessage({
+      cmd: "execute-js",
+      tabId: TAB_ID,
+      correlationId: "c15",
+      code: "await new Promise(() => undefined);",
+    } as ServerMessageRequest);
+    const settled = expect(pending).rejects.toThrow(
+      /script did not finish within 10 seconds/
+    );
+
+    await jest.advanceTimersByTimeAsync(12_500);
+    await settled;
+  });
+
   it("carries the dialogs and console messages out on the failure", async () => {
     jest.useFakeTimers();
     recordPageEvent(TAB_ID, "dialog", "confirm: leave this page?");

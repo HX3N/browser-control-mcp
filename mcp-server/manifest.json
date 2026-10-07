@@ -117,7 +117,7 @@
         },
         {
             "name": "execute-javascript-in-tab",
-            "description": "Run JavaScript in a browser tab and return the value of its last expression"
+            "description": "Run an async-capable JavaScript function body in a browser tab and return its resolved value"
         },
         {
             "name": "drag-page-element",
