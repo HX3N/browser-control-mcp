@@ -85,9 +85,11 @@ const mcpServer = new McpServer(
 
 interface RegisteredTool {
   run: (input: Record<string, unknown>) => Promise<CallToolResult>;
+  takesTabId: boolean;
 }
 
 const toolRegistry = new Map<string, RegisteredTool>();
+const openedTabOf = new WeakMap<CallToolResult, number>();
 
 type ToolMeta = { title: string } & Omit<
   ToolAnnotations,
@@ -116,6 +118,7 @@ function defineTool<Shape extends ZodRawShapeCompat>(
   const schema = z.object(shape as unknown as z.ZodRawShape);
   toolRegistry.set(name, {
     run: (input) => handler(schema.parse(input) as ShapeOutput<Shape>),
+    takesTabId: "tabId" in shape,
   });
 }
 
@@ -278,7 +281,7 @@ defineTool(
   async ({ url, container }) => {
     const opened = await browserApi.openTab(url, container);
     if (opened.tabId !== undefined) {
-      return {
+      const result: CallToolResult = {
         content: [
           {
             type: "text",
@@ -291,6 +294,8 @@ defineTool(
           ...dialogNotice(opened),
         ],
       };
+      openedTabOf.set(result, opened.tabId);
+      return result;
     } else {
       return {
         content: [
@@ -1484,7 +1489,7 @@ defineTool(
     "wait" with {ms} pauses up to ${MAX_BATCH_WAIT_MS}ms between steps.
     Actions stop at the first failure. A step cannot use a ref that an earlier step of the same
     batch produced: read before the batch, and use the refs of a read taken inside it only in the
-    next call.
+    next call. A step without tabId works in the tab the latest open-browser-tab step opened.
   `,
   { title: "Run several actions", readOnlyHint: false, destructiveHint: true, idempotentHint: false },
   {
@@ -1504,6 +1509,7 @@ defineTool(
   async ({ actions }) => {
     const content: CallToolResult["content"] = [];
     const total = actions.length;
+    let openedTabId: number | undefined;
     for (let index = 0; index < total; index++) {
       const { tool, input } = actions[index];
       const label = `[${index + 1}/${total}] ${tool}`;
@@ -1523,7 +1529,12 @@ defineTool(
           if (!registered) {
             throw new Error(`No tool named "${tool}" on this server`);
           }
-          result = await registered.run(input);
+          result = await registered.run(
+            registered.takesTabId && input.tabId === undefined && openedTabId !== undefined
+              ? { ...input, tabId: openedTabId }
+              : input
+          );
+          openedTabId = openedTabOf.get(result) ?? openedTabId;
         }
       } catch (error) {
         result = {
