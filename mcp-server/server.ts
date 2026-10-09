@@ -96,6 +96,20 @@ type ToolMeta = { title: string } & Omit<
   "title" | "openWorldHint"
 >;
 
+// Clients hand consecutive text blocks to the model with no separator between them.
+function joinTextBlocks(result: CallToolResult): CallToolResult {
+  const content: CallToolResult["content"] = [];
+  for (const block of result.content) {
+    const last = content[content.length - 1];
+    if (block.type === "text" && last?.type === "text") {
+      content[content.length - 1] = { ...last, text: `${last.text}\n${block.text}` };
+    } else {
+      content.push(block);
+    }
+  }
+  return { ...result, content };
+}
+
 function defineTool<Shape extends ZodRawShapeCompat>(
   name: string,
   description: string,
@@ -113,7 +127,7 @@ function defineTool<Shape extends ZodRawShapeCompat>(
       // Every tool here drives the user's own browser against the live web.
       annotations: { ...hints, openWorldHint: true },
     },
-    handler as unknown as ToolCallback<Shape>
+    (async (input: ShapeOutput<Shape>) => joinTextBlocks(await handler(input))) as unknown as ToolCallback<Shape>
   );
   const schema = z.object(shape as unknown as z.ZodRawShape);
   toolRegistry.set(name, {
