@@ -799,7 +799,7 @@ ${OUTLINE_SOURCE}
 
       var style = __bcmStyle(child);
       var ownCursor = style ? style.cursor : '';
-      if (!__bcmShown(style)) {
+      if (!__bcmShown(style) || __bcmInClosedDetails(child)) {
         hiddenDepth++;
         walk(child, frame, true, ownCursor);
         hiddenDepth--;

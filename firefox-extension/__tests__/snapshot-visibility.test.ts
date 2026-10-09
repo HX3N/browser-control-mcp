@@ -117,6 +117,25 @@ describe("what a snapshot counts as on screen", () => {
     expect(result.text).not.toMatch(/Hidden heading|hidden pre|hidden alt|hidden prose/);
   });
 
+  it("keeps the content of a closed details out of the text, but not its summary", () => {
+    document.body.innerHTML = `
+      <details>
+        <summary>More <b>options</b></summary>
+        <p>collapsed prose</p>
+        <button id="inner">inside a closed details</button>
+      </details>
+      <details open><summary>Open one</summary><p>open prose</p></details>
+    `;
+    boxes({});
+
+    expect(snapshot(false).hiddenElements).toBe(1);
+    const result = snapshot(true);
+    expect(result.text).not.toContain("collapsed prose");
+    expect(result.text).toContain("open prose");
+    expect(result.elements.find((e) => e.name === "More options")?.hidden).toBeFalsy();
+    expect(result.elements.find((e) => e.name === "inside a closed details")?.hidden).toBe(true);
+  });
+
   it("counts a hidden element even when it is not listed", () => {
     boxes({ parked: { left: -9999, width: 60 } });
     const result = snapshot(false);

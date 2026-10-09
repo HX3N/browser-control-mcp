@@ -270,6 +270,7 @@ function __bcmVisible(el) {
   var rect = el.getBoundingClientRect();
   if (rect.width <= 0 || rect.height <= 0) { return false; }
   if (el.hasAttribute('hidden') || el.getAttribute('aria-hidden') === 'true') { return false; }
+  if (__bcmInClosedDetails(el)) { return false; }
   // Elements from a frame belong to another document, and the top window's getComputedStyle
   // rejects them.
   var view = el.ownerDocument && el.ownerDocument.defaultView;
@@ -277,6 +278,16 @@ function __bcmVisible(el) {
   if (!style) { return false; }
   if (style.visibility === 'hidden' || style.display === 'none' || style.opacity === '0') { return false; }
   return __bcmWithinPage(el, rect, view);
+}
+
+// Firefox gives the content of a closed details boxes of its full size; only rendering is skipped.
+function __bcmInClosedDetails(el) {
+  var parent = el.parentElement;
+  for (var d = parent && parent.closest('details:not([open])'); d; d = d.parentElement && d.parentElement.closest('details:not([open])')) {
+    var summary = d.querySelector(':scope > summary');
+    if (!summary || !summary.contains(el)) { return true; }
+  }
+  return false;
 }
 
 // A rect is measured against the viewport, so it goes negative for anything the page has merely
