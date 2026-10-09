@@ -64,9 +64,8 @@ export function outlineText(page: PageExtensionMessage): string {
   });
   return [
     `${page.title} - ${page.url}`,
-    `Outline: the page is too large to read whole (${page.totalLength} characters, ${page.totalElements} elements). ` +
-      "Read a region by its ref; an indented line sits inside the one above; ch = characters, ctl = controls. " +
-      "Pass full: true only when no region fits.",
+    `Outline, the page is too large to read whole (${page.totalLength}ch, ${page.totalElements} elements). ` +
+      "Read a region by its ref; indented = inside the line above; ch = characters, ctl = controls. full: true only if no region fits.",
     scrollField(page),
     "",
     ...regions,
@@ -96,8 +95,8 @@ export function collapsedNotice(sections?: CollapsedSection[]): string | null {
     return `- ${JSON.stringify(section.label || "(no label)")} ${section.kind}${size}${times}`;
   });
   return (
-    `${sections.length} collapsed section(s) are NOT in the text above: the page does not render a closed <details> ` +
-    `or a control with aria-expanded="false". If one may hold what the user asked for, click its toggle by ref and read again:\n` +
+    `${sections.length} collapsed section(s) are NOT in the text above. ` +
+    `If one may hold what the user asked for, click its toggle by ref and read again:\n` +
     lines.join("\n")
   );
 }
@@ -112,8 +111,8 @@ export function frameNotice(frames?: UnreachableFrame[]): string | null {
     return `- ${frame.src || "(no src)"}${name} ${size}`;
   });
   return (
-    `${frames.length} frame(s) could not be read; none of their content is above. Open a frame's own URL in a tab ` +
-    "to work inside it - a page whose content sits in one large frame shows almost nothing outside it:\n" +
+    `${frames.length} frame(s) could not be read and are not above; open one's URL in a tab to work inside it ` +
+    "(a page held in one large frame shows almost nothing outside it):\n" +
     lines.join("\n")
   );
 }

@@ -106,7 +106,7 @@ function defineTool<Shape extends ZodRawShapeCompat>(
     name,
     {
       title,
-      description,
+      description: dedent(description),
       inputSchema: shape,
       // Every tool here drives the user's own browser against the live web.
       annotations: { ...hints, openWorldHint: true },
@@ -229,28 +229,24 @@ const elementTargetShape = {
   ref: z
     .string()
     .optional()
-    .describe(
-      "A ref such as e12; prefer this over selector"
-    ),
+    .describe("Element ref; preferred over selector"),
   selector: z
     .string()
     .optional()
-    .describe("CSS selector fallback, ignored when ref is set"),
+    .describe("CSS selector if ref absent"),
   index: z
     .number()
     .int()
     .min(0)
     .default(0)
-    .describe("Which match of the selector to use, zero based"),
+    .describe("Zero-based selector match"),
 };
 
 const originGuardShape = {
   expectedOrigin: z
     .string()
     .optional()
-    .describe(
-      "The address read-page reported for this tab, or just its origin. The action is refused when the tab has moved elsewhere since, instead of acting on a page you have not seen"
-    ),
+    .describe("URL read-page reported, or its origin; refused if the tab has left it"),
 };
 
 function elementTarget(input: {
@@ -438,7 +434,7 @@ defineTool(
       const hasMore = offset + limit < total;
       const paginationInfo = {
         type: "text" as const,
-        text: `Showing visits ${offset + 1}-${offset + page.length} of ${total}${hasMore ? ` (use offset=${offset + limit} to see more)` : ""}`,
+        text: `Showing visits ${offset + 1}-${offset + page.length} of ${total}${hasMore ? ` (use offset=${offset + limit} to see more)` : ""}, each as url | title | last visit`,
       };
       return {
         content: [
@@ -450,7 +446,7 @@ defineTool(
             }
             return {
               type: "text" as const,
-              text: `url=${item.url}, title="${item.title}", lastVisitTime=${lastVisited}`,
+              text: `${item.url} | ${item.title} | ${lastVisited}`,
             };
           }),
         ],
@@ -596,7 +592,7 @@ defineTool(
   `
     Screenshot a tab. A full-screen capture shows what is on screen and may foreground the tab
     momentarily. "ref" or "selector" captures one element instead: cheaper, no scroll or
-    foregrounding, and the part below the fold is in the image too.
+    foregrounding, and the part below the fold is in the image too, up to maxSlices slices.
     "region" zooms into a viewport rectangle, in the pixel coordinates of an earlier full-screen
     capture at scale 1: for an icon, a chart label or a table cell the full shot rendered too small.
   `,
@@ -1564,6 +1560,15 @@ browserApi.init().catch((err) => {
 });
 
 const transport = new StdioServerTransport();
+const sendMessage = transport.send.bind(transport);
+// The SDK builds tools/list itself and stamps "$schema" on every inputSchema: dropped on the way out.
+transport.send = (message) => {
+  const listed = message as { result?: { tools?: { inputSchema?: Record<string, unknown> }[] } };
+  for (const tool of listed.result?.tools ?? []) {
+    delete tool.inputSchema?.$schema;
+  }
+  return sendMessage(message);
+};
 mcpServer.connect(transport).catch((err) => {
   console.error("MCP Server connection error", err);
   process.exit(1);
