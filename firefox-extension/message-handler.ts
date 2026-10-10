@@ -271,6 +271,7 @@ export class MessageHandler {
   private claimedTabs: Map<number, ReturnType<typeof setTimeout>> = new Map();
   private openedTabs: Set<number> = new Set();
   private textBaselines: Map<number, Map<string, string>> = new Map();
+  private behindTabsNoticed: Set<number> = new Set();
   private knownMediaUrls: Map<number, Set<string>> = new Map();
   private lastMarkReclaim: Map<number, number> = new Map();
   private shownOutlines: Map<number, PageRegion[]> = new Map();
@@ -1968,6 +1969,22 @@ export class MessageHandler {
     if (seen.console.length > 0) {
       message.consoleMessages = seen.console;
     }
+    if (message.resource !== "upload-chunk-ack") {
+      let tab: browser.tabs.Tab | undefined;
+      try {
+        tab = await browser.tabs.get(tabId);
+      } catch {
+        tab = undefined;
+      }
+      if (tab?.active === false) {
+        if (!this.behindTabsNoticed.has(tabId)) {
+          this.behindTabsNoticed.add(tabId);
+          message.tabBehind = true;
+        }
+      } else {
+        this.behindTabsNoticed.delete(tabId);
+      }
+    }
     await this.client.sendResourceToServer(message);
   }
 
@@ -2124,6 +2141,7 @@ export class MessageHandler {
     this.openedTabs.delete(tabId);
     this.knownMediaUrls.delete(tabId);
     this.textBaselines.delete(tabId);
+    this.behindTabsNoticed.delete(tabId);
     this.lastMarkReclaim.delete(tabId);
     this.shownOutlines.delete(tabId);
     if (this.attendedTabId === tabId) {

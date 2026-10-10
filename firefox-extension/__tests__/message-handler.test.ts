@@ -1611,6 +1611,71 @@ describe("MessageHandler", () => {
         });
       });
 
+      it("says once, until it comes to the front, that the tab sits behind another tab", async () => {
+        (browser.permissions.contains as jest.Mock).mockResolvedValue(true);
+        (browser.tabs.executeScript as jest.Mock).mockResolvedValue([
+          { items: [], totalElements: 0, listedElements: 0, hiddenElements: 0 },
+        ]);
+        const read = async (active: boolean) => {
+          (browser.tabs.get as jest.Mock).mockResolvedValue({
+            id: 123,
+            url: "https://example.com",
+            active,
+          });
+          await messageHandler.handleDecodedMessage({
+            cmd: "read-page",
+            tabId: 123,
+            correlationId: "test-correlation-id",
+          });
+          const sent = mockClient.sendResourceToServer.mock.calls;
+          return sent[sent.length - 1][0].tabBehind;
+        };
+
+        expect(await read(false)).toBe(true);
+        expect(await read(false)).toBeUndefined();
+        expect(await read(true)).toBeUndefined();
+        expect(await read(false)).toBe(true);
+      });
+
+      it("does not spend the behind-another-tab notice on an upload chunk ack", async () => {
+        defaultConfig.toolSettings = {
+          ...defaultConfig.toolSettings,
+          "upload-files": true,
+        };
+        (browser.permissions.contains as jest.Mock).mockResolvedValue(true);
+        (browser.tabs.get as jest.Mock).mockResolvedValue({
+          id: 123,
+          url: "https://example.com",
+          active: false,
+        });
+        (browser.tabs.executeScript as jest.Mock).mockImplementation(
+          async (_tabId: number, details: { code?: string }) =>
+            (details.code ?? "").includes("__bcmUploadParts")
+              ? [{ stagedBytes: 3 }]
+              : [{ items: [], totalElements: 0, listedElements: 0, hiddenElements: 0 }]
+        );
+
+        await messageHandler.handleDecodedMessage({
+          cmd: "upload-chunk",
+          correlationId: "test-correlation-id",
+          tabId: 123,
+          uploadId: "u1",
+          base64: "AAAA",
+        });
+        expect(mockClient.sendResourceToServer).toHaveBeenLastCalledWith(
+          expect.objectContaining({ resource: "upload-chunk-ack" })
+        );
+        expect(mockClient.sendResourceToServer.mock.calls[0][0].tabBehind).toBeUndefined();
+
+        await messageHandler.handleDecodedMessage({
+          cmd: "read-page",
+          tabId: 123,
+          correlationId: "test-correlation-id",
+        });
+        const sent = mockClient.sendResourceToServer.mock.calls;
+        expect(sent[sent.length - 1][0].tabBehind).toBe(true);
+      });
+
       const injectedCode = (needle: string): string => {
         const calls = (browser.tabs.executeScript as jest.Mock).mock.calls;
         const call = calls.find(([, details]) =>

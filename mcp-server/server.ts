@@ -18,7 +18,7 @@ import type {
   ElementTarget,
   UploadFile,
 } from "@browser-control-mcp/common";
-import { consoleSummary, dialogSummary } from "./util";
+import { consoleSummary, dialogSummary, behindTabSummary } from "./util";
 import { collapsedNotice, findText, frameNotice, outlineText, readHeader } from "./read-output";
 import {
   CAPTURE,
@@ -236,8 +236,9 @@ function notice(text: string | null): { type: "text"; text: string }[] {
 function dialogNotice(message: {
   dialogs?: string[];
   consoleMessages?: string[];
+  tabBehind?: boolean;
 }): { type: "text"; text: string }[] {
-  return [dialogSummary(message), consoleSummary(message)]
+  return [behindTabSummary(message), dialogSummary(message), consoleSummary(message)]
     .filter((line): line is string => line !== null)
     .map((text) => ({ type: "text" as const, text }));
 }
@@ -736,12 +737,14 @@ function formatInteraction(result: {
   scrollMax: number;
   dialogs?: string[];
   consoleMessages?: string[];
+  tabBehind?: boolean;
 }): string {
   return [
     `${result.action} on ${result.target}`,
     result.detail,
     `Page is now at ${result.url}`,
     scrollLine(result),
+    behindTabSummary(result),
     dialogSummary(result),
     consoleSummary(result),
   ]

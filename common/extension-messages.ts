@@ -3,6 +3,7 @@ export interface ExtensionMessageBase {
   correlationId: string;
   dialogs?: string[];
   consoleMessages?: string[];
+  tabBehind?: boolean;
 }
 
 export interface PageExtensionMessage extends ExtensionMessageBase {

@@ -3,6 +3,20 @@ import * as net from 'net';
 export interface PageEvents {
   dialogs?: string[];
   consoleMessages?: string[];
+  tabBehind?: boolean;
+}
+
+export function behindTabSummary(message: PageEvents): string | null {
+  if (!message.tabBehind) {
+    return null;
+  }
+  return (
+    `This tab is behind another tab in its window, so the page's animation frames, lazy ` +
+    `loading and CSS animations may pause or slow. If the page needs to animate or lazy-load ` +
+    `content while you work, open its URL with open-browser-tab newWindow: true if the user's ` +
+    `tab opening policy allows it; this creates ` +
+    `a new tab with new refs, and unsaved in-page state may be lost.`
+  );
 }
 
 export function dialogSummary(message: PageEvents): string | null {
