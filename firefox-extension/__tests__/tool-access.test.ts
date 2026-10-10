@@ -1,6 +1,5 @@
 import {
   DISABLED_BY_DEFAULT_TOOL_IDS,
-  INTERACTION_TOOL_IDS,
   getAllToolSettings,
   getConfig,
   getTabOpenPolicy,
@@ -9,10 +8,6 @@ import {
 import { hasAllUrlsPermission } from "../tab-access";
 
 describe("popup tool switches", () => {
-  it("exposes screenshots next to the other interaction switches", () => {
-    expect(INTERACTION_TOOL_IDS).toContain("capture-tab-screenshot");
-  });
-
   it("leaves screenshots on by default", () => {
     expect(DISABLED_BY_DEFAULT_TOOL_IDS).not.toContain("capture-tab-screenshot");
   });

@@ -83,16 +83,6 @@ export const AVAILABLE_TOOLS: ToolInfo[] = [
   }
 ];
 
-export const INTERACTION_TOOL_IDS = [
-  "capture-tab-screenshot",
-  "interact-click",
-  "interact-type",
-  "execute-javascript",
-  "get-media-content",
-  "download-file",
-  "upload-files",
-] as const;
-
 // The extension holds a blanket host permission, so the browser no longer stands between the
 // server and a page. Arbitrary scripting is the one tool that has to be switched on by hand.
 export const DISABLED_BY_DEFAULT_TOOL_IDS: readonly string[] = [

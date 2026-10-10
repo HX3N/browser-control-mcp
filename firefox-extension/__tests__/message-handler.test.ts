@@ -89,7 +89,7 @@ describe("MessageHandler", () => {
       await expect(
         messageHandler.handleDecodedMessage(request)
       ).rejects.toThrow(
-        "Command 'open-tab' is disabled in extension settings: 'toolOpenBrowserTabName' in the extension options page is off."
+        "Command 'open-tab' is disabled in extension settings: 'toolOpenBrowserTabName' in the extension popup is off."
       );
     });
 

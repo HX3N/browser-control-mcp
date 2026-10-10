@@ -39,7 +39,6 @@ import {
   isCommandAllowed,
   isDomainInDenyList,
   COMMAND_TO_TOOL_ID,
-  INTERACTION_TOOL_IDS,
   getToolNameById,
   addAuditLogEntry,
   isAuroraEnabled,
@@ -395,11 +394,8 @@ export class MessageHandler {
       (req.cmd === "resize-window" && (await this.isOwnPopupWindow(req.tabId)));
     if (!isAllowed) {
       const toolId = COMMAND_TO_TOOL_ID[req.cmd];
-      const where = (INTERACTION_TOOL_IDS as readonly string[]).includes(toolId)
-        ? "the extension popup"
-        : "the extension options page";
       throw new Error(
-        `Command '${req.cmd}' is disabled in extension settings: '${getToolNameById(toolId)}' in ${where} is off.`
+        `Command '${req.cmd}' is disabled in extension settings: '${getToolNameById(toolId)}' in the extension popup is off.`
       );
     }
 
