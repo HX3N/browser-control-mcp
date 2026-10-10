@@ -1343,7 +1343,8 @@ defineTool(
     because the page had not rendered. Matched inside same-origin frames and shadow roots too.
     Without "selector": block until the page's text changes, then return only the text that
     arrived - the way to follow a chat, a feed or a job reporting progress in one round trip.
-    Nothing is lost between calls: each picks up where the last stopped. timeoutMs 0 answers off
+    Nothing is lost between calls: each picks up where the last stopped, and read-page does not
+    move that point, so a line a read already showed can arrive again. timeoutMs 0 answers off
     a single sample: use it right before sending a reply, and rewrite the reply if the answer is
     not empty - a single sample cannot tell a clock from an answer and hands back both.
     The wait ends once new text has held still; text that keeps changing never ends it and never
@@ -1469,7 +1470,7 @@ defineTool(
                 ? result.fresh
                   ? `No earlier wait was held on ${where}, so this call only took the baseline. Call again to receive what arrives from now on.`
                   : `Nothing new on ${where} since the last wait.`
-                : `No new text on ${where} held still within ${waitMs}ms; anything that appeared kept changing.`,
+                : `No new text on ${where} held still within ${waitMs}ms. Text that kept changing is left out; text that arrived too late to settle comes with the next call.`,
           },
           ...dialogNotice(result),
         ],

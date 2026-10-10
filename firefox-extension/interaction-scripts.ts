@@ -1264,10 +1264,15 @@ ${TEXT_LINES_SOURCE}
     var stableGone = settledArrivals ? steady(erasedLedger) : [];
     if (!stableAdded.length && !stableGone.length) { return; }
     stop();
+    var reported = baseline.split('\\n');
+    stableGone.forEach(function (line) {
+      var at = reported.indexOf(line);
+      if (at >= 0) { reported.splice(at, 1); }
+    });
     window.__bcmWatchResult = {
       added: stableAdded.join('\\n'),
       removed: stableGone.join('\\n'),
-      text: latest
+      text: reported.concat(stableAdded).join('\\n')
     };
     try {
       browser.runtime.sendMessage({

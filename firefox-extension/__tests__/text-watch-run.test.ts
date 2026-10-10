@@ -160,6 +160,22 @@ describe("text watch script", () => {
     expect(outcome()?.added).toBe("B: one two three");
   });
 
+  it("leaves a line that had not settled when the wait ended to the next wait", async () => {
+    install(null);
+    append(log, "B: one");
+    await jest.advanceTimersByTimeAsync(SETTLE_MS);
+    append(log, "C: two");
+    await jest.advanceTimersByTimeAsync(SETTLE_MS * 2);
+
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(outcome()?.added).toBe("B: one");
+
+    install(outcome()!.text);
+    await samples(4);
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(outcome()?.added).toBe("C: two");
+  });
+
   it("reports a line the page took away", async () => {
     install(null);
 
