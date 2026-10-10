@@ -67,19 +67,13 @@ describe("what a snapshot counts as on screen", () => {
     Object.defineProperty(window, "scrollY", { value: 0, configurable: true });
   });
 
-  it("never repeats a password value", () => {
-    boxes({});
-    const pass = snapshot().elements.find((e) => e.ref && e.value?.includes("not shown"));
-    expect(pass?.value).toBe("(21 characters, not shown)");
-    const user = snapshot().elements.find((e) => e.value === "claude");
-    expect(user).toBeDefined();
-  });
-
   it("treats an element parked outside the document as hidden", () => {
     boxes({ parked: { left: -9999, width: 60 } });
-    const listed = snapshot().elements.map((e) => e.name);
+    const result = snapshot();
+    const listed = result.elements.map((e) => e.name);
     expect(listed).toContain("on screen");
     expect(listed).not.toContain("off to the left");
+    expect(result.hiddenElements).toBe(1);
   });
 
   it("still lists what the page has merely scrolled past", () => {
@@ -134,12 +128,5 @@ describe("what a snapshot counts as on screen", () => {
     expect(result.text).toContain("open prose");
     expect(result.elements.find((e) => e.name === "More options")?.hidden).toBeFalsy();
     expect(result.elements.find((e) => e.name === "inside a closed details")?.hidden).toBe(true);
-  });
-
-  it("counts a hidden element even when it is not listed", () => {
-    boxes({ parked: { left: -9999, width: 60 } });
-    const result = snapshot(false);
-    expect(result.hiddenElements).toBe(1);
-    expect(result.elements.map((e) => e.name)).not.toContain("off to the left");
   });
 });

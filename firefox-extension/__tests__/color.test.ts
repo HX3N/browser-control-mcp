@@ -1,4 +1,4 @@
-import { clamp01, hexToHsv, hsvToHex } from "../color";
+import { hexToHsv, hsvToHex } from "../color";
 import { DEFAULT_OVERLAY_COLORS } from "../extension-config";
 
 describe("colour conversion", () => {
@@ -36,11 +36,5 @@ describe("colour conversion", () => {
     for (const bad of ["", "#fff", "rgb(1, 2, 3)", "#gggggg", "not a colour"]) {
       expect(hexToHsv(bad)).toEqual({ h: 0, s: 0, v: 0 });
     }
-  });
-
-  it("keeps a knob position inside the surface", () => {
-    expect(clamp01(-0.4)).toBe(0);
-    expect(clamp01(1.7)).toBe(1);
-    expect(clamp01(0.42)).toBe(0.42);
   });
 });

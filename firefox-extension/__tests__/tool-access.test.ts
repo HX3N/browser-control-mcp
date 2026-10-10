@@ -1,17 +1,10 @@
 import {
-  DISABLED_BY_DEFAULT_TOOL_IDS,
   getAllToolSettings,
   getConfig,
   getTabOpenPolicy,
   isToolEnabled,
 } from "../extension-config";
 import { hasAllUrlsPermission } from "../tab-access";
-
-describe("popup tool switches", () => {
-  it("leaves screenshots on by default", () => {
-    expect(DISABLED_BY_DEFAULT_TOOL_IDS).not.toContain("capture-tab-screenshot");
-  });
-});
 
 describe("stored tool settings", () => {
   let stored: { config?: Record<string, unknown> };

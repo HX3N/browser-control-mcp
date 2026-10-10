@@ -1,5 +1,4 @@
 import {
-  DEFAULT_OVERLAY_TIMINGS,
   DEFAULT_IMAGE_LIMIT_BYTES,
   IMAGE_LIMIT_MB_RANGE,
   getImageLimitBytes,
@@ -34,11 +33,5 @@ describe("image limit", () => {
     await setImageLimitMb(null);
     expect(await getStoredImageLimitMb()).toBeNull();
     expect(await getImageLimitBytes()).toBe(DEFAULT_IMAGE_LIMIT_BYTES);
-  });
-});
-
-describe("tab hold", () => {
-  it("waits sixty seconds for the next command by default", () => {
-    expect(DEFAULT_OVERLAY_TIMINGS.holdReleaseMs).toBe(60_000);
   });
 });

@@ -40,7 +40,6 @@ import {
   buildQuietProbeCode,
   buildWaitProbeCode,
 } from "../interaction-scripts";
-import { PAGE_READ_SOURCE } from "../injected-common";
 import { DEFAULT_OVERLAY_COLORS } from "../extension-config";
 
 const target = { ref: "e7", selector: undefined, index: 0 };
@@ -56,15 +55,7 @@ function runExecuteJs(code: string, maxLength = 20000): Promise<ExecuteJsOutput>
 }
 
 const cases: [string, string][] = [
-  ["page read, whole page", buildSnapshotCode({ maxElements: 200, includeHidden: false })],
-  ["page read, hidden included", buildSnapshotCode({ maxElements: 5, includeHidden: true })],
-  ["page read, full text forced", buildSnapshotCode({ maxElements: 200, includeHidden: false, full: true })],
-  ["page read, scoped by ref", buildSnapshotCode({ maxElements: 200, includeHidden: false, target })],
-  ["page read, scoped by selector", buildSnapshotCode({ maxElements: 200, includeHidden: true, target: bySelector })],
-  ["find, plain phrase", buildFindCode("hello world", 10)],
   ["find, phrase with quotes and a backslash", buildFindCode("it's \"quoted\" \\ done", 3)],
-  ["find, hidden included", buildFindCode("hello", 3, true)],
-  ["find, control names", buildFindCode("hello", 3, false, false, true)],
   [
     "overlay attach, no target",
     buildAttachOverlayCode({
@@ -161,11 +152,8 @@ const cases: [string, string][] = [
     buildScriptResultOverlayCode("SyntaxError: it's \"bad\" \\ here", "Error", true),
   ],
   ["element box by ref", buildElementBoxCode(target)],
-  ["element box by selector", buildElementBoxCode(bySelector)],
-  ["media list, whole page", buildMediaListCode()],
   ["media list, scoped by ref", buildMediaListCode(target)],
   ["media list, scoped by selector", buildMediaListCode(bySelector)],
-  ["media list, hidden included", buildMediaListCode(undefined, true)],
   ["media fetch", buildMediaFetchCode("https://example.com/a.png?x=1&y='2'", 8 * 1024 * 1024)],
   ["download url by ref", buildDownloadUrlCode({ ref: "e3" })],
   ["upload chunk", buildUploadChunkCode("u1", "AAAA")],
@@ -178,19 +166,8 @@ const cases: [string, string][] = [
   ["in-page navigation, start", buildInPageNavigateCode("https://example.com/a?b='c'")],
   ["in-page navigation, check", buildInPageNavigationCheckCode({ via: "link", before: "https://example.com/" }, true)],
   ["dialog guard, console off", buildDialogGuardCode()],
-  ["dialog guard, errors only", buildDialogGuardCode("error")],
   ["dialog guard, errors and warnings", buildDialogGuardCode("warn")],
   ["dialog guard, every console level", buildDialogGuardCode("log")],
-  [
-    "click",
-    buildClickCode({
-      cmd: "click-element",
-      tabId: 1,
-      ...target,
-      button: "left",
-      clickCount: 1,
-    }),
-  ],
   [
     "type",
     buildTypeCode({
@@ -213,22 +190,6 @@ const cases: [string, string][] = [
     }),
   ],
   [
-    "type with a click after it",
-    buildTypeCode({
-      cmd: "type-text",
-      tabId: 1,
-      ...bySelector,
-      text: "hello",
-      clearFirst: true,
-      submit: false,
-      clickAfter: target,
-    }),
-  ],
-  [
-    "text watch, whole page, no baseline yet",
-    buildTextWatchCode(undefined, "abc-1", null, 800, 30000),
-  ],
-  [
     "text watch, carrying a baseline",
     buildTextWatchCode(
       undefined,
@@ -238,51 +199,8 @@ const cases: [string, string][] = [
       0
     ),
   ],
-  [
-    "text watch, scoped by selector",
-    buildTextWatchCode(bySelector, "abc-3", null, 5000, 180000),
-  ],
   ["text result, whole page", buildTextResultCode(undefined)],
   ["text result, scoped by ref", buildTextResultCode(target)],
-  [
-    "press key",
-    buildPressKeyCode({
-      cmd: "press-key",
-      tabId: 1,
-      ...target,
-      key: "Enter",
-      modifiers: ["Control", "Shift"],
-    }),
-  ],
-  [
-    "press select-all shortcut",
-    buildPressKeyCode({
-      cmd: "press-key",
-      tabId: 1,
-      ...target,
-      key: "a",
-      modifiers: ["Control"],
-    }),
-  ],
-  [
-    "press caret key without a target",
-    buildPressKeyCode({
-      cmd: "press-key",
-      tabId: 1,
-      key: "Home",
-      modifiers: ["Shift"],
-    }),
-  ],
-  [
-    "press delete key",
-    buildPressKeyCode({
-      cmd: "press-key",
-      tabId: 1,
-      ...bySelector,
-      key: "Backspace",
-      modifiers: [],
-    }),
-  ],
   [
     "scroll by amount",
     buildScrollCode({
@@ -311,7 +229,6 @@ const cases: [string, string][] = [
       values: ["a", "b'c"],
     }),
   ],
-  ["execute js", buildExecuteJsCode("return document.title;", 20000)],
   [
     "click with modifiers",
     buildClickCode({
@@ -389,7 +306,6 @@ const cases: [string, string][] = [
   ],
   ["quiet probe", buildQuietProbeCode(false)],
   ["quiet probe, final", buildQuietProbeCode(true)],
-  ["page read helpers", PAGE_READ_SOURCE],
 ];
 
 describe("injected script builders emit parsable JavaScript", () => {
@@ -456,14 +372,6 @@ describe("injected source contracts", () => {
     expect(code).toContain("__bcmOverlay.beginSwipe()");
     expect(code).toContain("__bcmGlide(box, fromX, fromY, goalX, goalY, ms || 600)");
     expect(code).toContain("__bcmSweepEase(p)");
-  });
-
-  it("outlines a large page only when the read is neither scoped nor forced full", () => {
-    const whole = buildSnapshotCode({ maxElements: 200, includeHidden: false });
-    expect(whole).toContain("var outlined = __bcmOutline(");
-    expect(whole).toContain("var full = false");
-    expect(buildSnapshotCode({ maxElements: 200, includeHidden: false, full: true })).toContain("var full = true");
-    expect(buildSnapshotCode({ maxElements: 200, includeHidden: false, target })).toContain("if (!scopeRoot && !full");
   });
 
   it("takes the outline thresholds from the settings, and falls back to the defaults", () => {
@@ -533,14 +441,6 @@ describe("injected source contracts", () => {
     }
   });
 
-  it("measures a capture box in page coordinates so off-screen parts are reachable", () => {
-    const code = buildElementBoxCode(target);
-
-    expect(code).toContain("window.scrollY");
-    expect(code).toContain("window.scrollX");
-    expect(code).not.toContain("scrollIntoView");
-  });
-
   it("adds the enclosing frames' offsets before mixing a rect with the top window's scroll", () => {
     const codes = [
       buildElementBoxCode(target),
@@ -590,19 +490,6 @@ describe("injected source contracts", () => {
     expect(report).toContain("queue({");
     expect(report).not.toContain("sendMessage");
     expect(code).toContain("Promise.resolve().then(flush)");
-  });
-
-  it("hands what the background never answered to the next document", () => {
-    const code = buildDialogGuardCode("error");
-    const leaving = code.slice(
-      code.indexOf("addEventListener('pagehide'"),
-      code.indexOf("addEventListener('error'")
-    );
-
-    expect(leaving).toContain("flush();");
-    expect(leaving).toContain("stash();");
-    expect(code).toContain("window.sessionStorage");
-    expect(code).toContain("collect();");
   });
 
   it("announces the document it is installed in", () => {

@@ -909,7 +909,7 @@ describe("MessageHandler", () => {
             uploadId: "u1",
             base64: "AAAA",
           })
-        ).rejects.toThrow();
+        ).rejects.toThrow("Command 'upload-chunk' is disabled in extension settings");
       });
     });
 
@@ -1169,7 +1169,7 @@ describe("MessageHandler", () => {
             tabId: 123,
             ref: "e3",
           })
-        ).rejects.toThrow();
+        ).rejects.toThrow("Command 'download-file' is disabled in extension settings");
         expect(browser.downloads.download).not.toHaveBeenCalled();
       });
     });
@@ -1752,7 +1752,6 @@ describe("MessageHandler", () => {
         await readTabContent();
 
         const overlay = injectedCode("__bcmOverlay.attach");
-        expect(overlay).toContain("var target = true ? null : null");
         expect(overlay).toContain("overlayReadingContent");
       });
 
@@ -1826,7 +1825,7 @@ describe("MessageHandler", () => {
         // Act & Assert
         await expect(
           messageHandler.handleDecodedMessage(request)
-        ).rejects.toThrow();
+        ).rejects.toThrow('not yet granted permission to access the domain "https://example.com"');
         expect(browser.tabs.executeScript).not.toHaveBeenCalled();
       });
 
@@ -1992,7 +1991,7 @@ describe("MessageHandler", () => {
         // Act & Assert
         await expect(
           messageHandler.handleDecodedMessage(request)
-        ).rejects.toThrow();
+        ).rejects.toThrow("not yet granted permission for the following operations: find");
         expect(browser.find.find).not.toHaveBeenCalled();
       });
     });

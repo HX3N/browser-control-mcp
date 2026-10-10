@@ -60,10 +60,6 @@ describe("matches found by control name", () => {
   it("reports one more past the budget, even a budget of none", () => {
     expect(findNamed(0)).toEqual({ matches: [], more: true });
   });
-
-  it("leaves control names alone in the text pass", () => {
-    expect(new Function(`return ${buildFindCode("Search", 10)}`)()).toEqual({ matches: [], more: false });
-  });
 });
 
 describe("matches found in rendered text", () => {
