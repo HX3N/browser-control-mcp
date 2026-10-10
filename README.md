@@ -57,7 +57,8 @@ addressed by a `ref` from a page read or by a CSS selector.
 - **Permission** — access scope and its site list; `+ Current tab` adds the tab in front
 - **Browser permissions** — opening, closing and listing tabs, browsing history, window size
 - **Interaction permissions** — one switch per capability, hidden-content reads, background work
-- **New tabs** — which container a tab this session opens lands in
+- **New tabs** — container and window placement for tabs this session opens
+- **Agent window display** — leave its window in front or place it behind yours
 - **Display** — tab icon, aurora, action highlight, badge, region box size, tab hold time
 
 | Scope                   | Behaviour                                                              |
@@ -110,6 +111,14 @@ doubt. Experimental; use at your own risk.
   container `open-browser-tab` asks for and follows the tab in front when it asks for none.
   **Current** always follows the tab in front, **Fixed** pins one container by name; both ignore
   the parameter, and the answer says the container the tab landed in.
+- The popup's **Open new tabs** setting chooses the window: **Auto** (default) follows
+  `newWindow`, **My window** always uses your browser window, and **Agent window** always opens
+  a separate popup. **My window** ignores `newWindow: true` and the tool response says so.
+  An agent window opens centred on your browser window. **Agent window display** puts it behind
+  your window by default or leaves it in front; it has no effect with **My window**. A tab behind
+  another tab may pause animation frames and lazy loading, while a separate, unminimized window
+  keeps running. `resize-browser-window` sizes and places the agent window even with that tool's
+  switch off.
 
 ## Installation
 

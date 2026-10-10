@@ -14,6 +14,8 @@ import {
   isAuroraEnabled,
   isBadgeEnabled,
   isBackgroundMode,
+  getTabOpenPolicy,
+  getAgentWindowDisplay,
   getContainerChoice,
   DEFAULT_COOKIE_STORE,
   isHiddenElementsIncluded,
@@ -25,6 +27,8 @@ import {
   setAuroraEnabled,
   setBadgeEnabled,
   setBackgroundMode,
+  setTabOpenPolicy,
+  setAgentWindowDisplay,
   setContainerChoice,
   setHiddenElementsIncluded,
   getOutlineBoxDepth,
@@ -354,6 +358,8 @@ async function buildStatus(): Promise<PopupStatus> {
     container,
     containers: await listKnownContainers(container.cookieStoreId),
     backgroundMode: await isBackgroundMode(),
+    tabOpenPolicy: await getTabOpenPolicy(),
+    agentWindowDisplay: await getAgentWindowDisplay(),
     includeHidden: await isHiddenElementsIncluded(),
     outlineBoxDepth: await getOutlineBoxDepth(),
     outlineCharThreshold: await getOutlineCharThreshold(),
@@ -424,6 +430,12 @@ async function handlePopupRequest(request: PopupRequest): Promise<PopupStatus> {
       break;
     case "set-background-mode":
       await setBackgroundMode(request.enabled);
+      break;
+    case "set-tab-open-policy":
+      await setTabOpenPolicy(request.policy);
+      break;
+    case "set-agent-window-display":
+      await setAgentWindowDisplay(request.display);
       break;
     case "set-url-scope":
       await setUrlScope(request.scope);

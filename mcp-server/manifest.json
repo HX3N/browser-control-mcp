@@ -133,7 +133,7 @@
         },
         {
             "name": "resize-browser-window",
-            "description": "Resize the window that holds a tab"
+            "description": "Resize or move the window that holds a tab"
         },
         {
             "name": "read-network-requests",

@@ -93,6 +93,104 @@ describe("MessageHandler", () => {
       );
     });
 
+    describe("resize-window with its switch off", () => {
+      const resizeRequest = (tabId: number): ServerMessageRequest => ({
+        cmd: "resize-window",
+        tabId,
+        width: 800,
+        left: 10,
+        correlationId: "test-correlation-id",
+      });
+
+      beforeEach(() => {
+        (browser.storage.local.get as jest.Mock).mockResolvedValue({
+          config: {
+            ...defaultConfig,
+            toolSettings: { ...defaultConfig.toolSettings, "resize-browser-window": false },
+          },
+        });
+        (browser.tabs.get as jest.Mock).mockResolvedValue({ windowId: 9 });
+        (browser.windows.update as jest.Mock).mockResolvedValue({
+          width: 800,
+          height: 600,
+          left: 10,
+          top: 20,
+        });
+      });
+
+      it("resizes and moves the popup window of a tab this session opened", async () => {
+        (
+          messageHandler as unknown as { openedTabs: Set<number> }
+        ).openedTabs.add(5);
+        (browser.windows.get as jest.Mock).mockResolvedValue({ type: "popup" });
+
+        await messageHandler.handleDecodedMessage(resizeRequest(5));
+
+        expect(browser.windows.update).toHaveBeenCalledWith(9, {
+          width: 800,
+          left: 10,
+          state: "normal",
+        });
+        expect(mockClient.sendResourceToServer).toHaveBeenCalledWith({
+          resource: "window-resized",
+          correlationId: "test-correlation-id",
+          tabId: 5,
+          width: 800,
+          height: 600,
+          left: 10,
+          top: 20,
+        });
+      });
+
+      it("refuses the session's popup window once the agent window is switched off", async () => {
+        (browser.storage.local.get as jest.Mock).mockResolvedValue({
+          config: {
+            ...defaultConfig,
+            toolSettings: { ...defaultConfig.toolSettings, "resize-browser-window": false },
+            agentWindow: false,
+          },
+        });
+        (
+          messageHandler as unknown as { openedTabs: Set<number> }
+        ).openedTabs.add(5);
+        (browser.windows.get as jest.Mock).mockResolvedValue({ type: "popup" });
+
+        await expect(
+          messageHandler.handleDecodedMessage(resizeRequest(5))
+        ).rejects.toThrow("is disabled in extension settings");
+        expect(browser.windows.update).not.toHaveBeenCalled();
+      });
+
+      it("allows the session's popup window with the agent-window policy", async () => {
+        (browser.storage.local.get as jest.Mock).mockResolvedValue({
+          config: {
+            ...defaultConfig,
+            toolSettings: { ...defaultConfig.toolSettings, "resize-browser-window": false },
+            tabOpenPolicy: "agent-window",
+          },
+        });
+        (messageHandler as unknown as { openedTabs: Set<number> }).openedTabs.add(5);
+        (browser.windows.get as jest.Mock).mockResolvedValue({ type: "popup" });
+
+        await messageHandler.handleDecodedMessage(resizeRequest(5));
+
+        expect(browser.windows.update).toHaveBeenCalledWith(9, {
+          width: 800,
+          left: 10,
+          state: "normal",
+        });
+      });
+
+      it("refuses a window the user owns", async () => {
+        (browser.windows.get as jest.Mock).mockResolvedValue({ type: "normal" });
+
+        await expect(
+          messageHandler.handleDecodedMessage(resizeRequest(6))
+        ).rejects.toThrow("is disabled in extension settings");
+        expect(browser.windows.update).not.toHaveBeenCalled();
+      });
+    });
+
     describe("expectedOrigin", () => {
       const clickRequest: ServerMessageRequest = {
         cmd: "click-element",
@@ -313,6 +411,98 @@ describe("MessageHandler", () => {
           url: "about:blank",
           active: true,
         });
+      });
+
+      it("opens the tab in a window of its own, centred on the browser window and behind it", async () => {
+        (browser.tabs.create as jest.Mock).mockResolvedValue({ id: 321 });
+        (browser.windows.getLastFocused as jest.Mock).mockResolvedValue({
+          id: 1, left: 100, top: 20, width: 2000, height: 1000, focused: false,
+        });
+        (browser.windows.create as jest.Mock).mockResolvedValue({ id: 9, width: 1600, height: 900 });
+
+        await driveOpen({
+          cmd: "open-tab",
+          url: "https://example.com",
+          newWindow: true,
+          correlationId: "test-correlation-id",
+        }, 321);
+
+        expect(browser.windows.getLastFocused).toHaveBeenCalledWith({ windowTypes: ["normal"] });
+        expect(browser.windows.create).toHaveBeenCalledWith({
+          tabId: 321,
+          type: "popup",
+          focused: false,
+        });
+        expect(browser.windows.update).toHaveBeenNthCalledWith(1, 9, { left: 300, top: 70 });
+        expect(browser.windows.update).toHaveBeenNthCalledWith(2, 9, { focused: true });
+        expect(browser.windows.update).toHaveBeenNthCalledWith(3, 1, { focused: true });
+        expect(browser.windows.update).toHaveBeenCalledTimes(3);
+        expect(browser.tabs.update).toHaveBeenCalledWith(321, {
+          url: "https://example.com",
+        });
+        expect(mockClient.sendResourceToServer).toHaveBeenCalledWith({
+          resource: "opened-tab-id",
+          correlationId: "test-correlation-id",
+          tabId: 321,
+          agentWindow: true,
+        });
+      });
+
+      it.each([
+        ["autonomous", false, false, false],
+        ["autonomous", true, true, false],
+        ["existing", false, false, false],
+        ["existing", true, false, true],
+        ["agent-window", false, true, false],
+        ["agent-window", true, true, false],
+      ] as const)("opens with %s policy and newWindow %s", async (policy, newWindow, own, ignored) => {
+        (browser.storage.local.get as jest.Mock).mockResolvedValue({
+          config: { ...defaultConfig, tabOpenPolicy: policy },
+        });
+        (browser.tabs.create as jest.Mock).mockResolvedValue({ id: 321 });
+        (browser.windows.getLastFocused as jest.Mock).mockResolvedValue({
+          id: 1, left: 100, top: 20, width: 2000, height: 1000,
+        });
+        (browser.windows.create as jest.Mock).mockResolvedValue({ id: 9, width: 1600, height: 900 });
+        (browser.tabs.query as jest.Mock).mockResolvedValue([]);
+
+        await driveOpen({
+          cmd: "open-tab",
+          url: "https://example.com",
+          ...(newWindow ? { newWindow: true } : {}),
+          correlationId: "test-correlation-id",
+        }, 321);
+
+        expect(browser.windows.create).toHaveBeenCalledTimes(own ? 1 : 0);
+        expect(browser.windows.update).toHaveBeenCalledTimes(own ? 3 : 0);
+        expect(mockClient.sendResourceToServer).toHaveBeenCalledWith({
+          resource: "opened-tab-id",
+          correlationId: "test-correlation-id",
+          tabId: 321,
+          ...(own ? { agentWindow: true } : {}),
+          ...(ignored ? { newWindowIgnored: true } : {}),
+        });
+      });
+
+      it("leaves an agent window in front when display is front", async () => {
+        (browser.storage.local.get as jest.Mock).mockResolvedValue({
+          config: { ...defaultConfig, tabOpenPolicy: "agent-window", agentWindowDisplay: "front" },
+        });
+        (browser.tabs.create as jest.Mock).mockResolvedValue({ id: 321 });
+        (browser.windows.getLastFocused as jest.Mock).mockResolvedValue({
+          id: 1, left: 100, top: 20, width: 2000, height: 1000,
+        });
+        (browser.windows.create as jest.Mock).mockResolvedValue({ id: 9, width: 1600, height: 900 });
+        (browser.tabs.query as jest.Mock).mockResolvedValue([]);
+
+        await driveOpen({
+          cmd: "open-tab",
+          url: "https://example.com",
+          correlationId: "test-correlation-id",
+        }, 321);
+
+        expect(browser.windows.update).toHaveBeenCalledTimes(1);
+        expect(browser.windows.update).toHaveBeenCalledWith(9, { left: 300, top: 70 });
       });
 
       describe("container inheritance", () => {

@@ -226,12 +226,14 @@ export class BrowserAPI {
 
   async openTab(
     url: string,
-    cookieStoreId?: string
+    cookieStoreId?: string,
+    newWindow?: boolean
   ): Promise<OpenedTabIdExtensionMessage> {
     const correlationId = this.sendMessageToExtension({
       cmd: "open-tab",
       url,
       ...(cookieStoreId ? { cookieStoreId } : {}),
+      ...(newWindow ? { newWindow } : {}),
     });
     return await this.waitForResponse(
       correlationId,
@@ -486,14 +488,12 @@ export class BrowserAPI {
 
   async resizeWindow(
     tabId: number,
-    width: number,
-    height: number
+    bounds: { width?: number; height?: number; left?: number; top?: number }
   ): Promise<WindowResizedExtensionMessage> {
     const correlationId = this.sendMessageToExtension({
       cmd: "resize-window",
       tabId,
-      width,
-      height,
+      ...bounds,
     });
     return await this.waitForResponse(correlationId, "window-resized");
   }

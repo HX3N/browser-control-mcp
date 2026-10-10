@@ -17,6 +17,12 @@ const mockBrowser = {
     onUpdated: { addListener: jest.fn(), removeListener: jest.fn() },
     onRemoved: { addListener: jest.fn() },
   },
+  windows: {
+    create: jest.fn(),
+    get: jest.fn(),
+    getLastFocused: jest.fn(),
+    update: jest.fn(),
+  },
   contentScripts: {
     register: jest.fn(),
   },

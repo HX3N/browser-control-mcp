@@ -2,6 +2,8 @@ import {
   DISABLED_BY_DEFAULT_TOOL_IDS,
   INTERACTION_TOOL_IDS,
   getAllToolSettings,
+  getConfig,
+  getTabOpenPolicy,
   isToolEnabled,
 } from "../extension-config";
 import { hasAllUrlsPermission } from "../tab-access";
@@ -38,6 +40,32 @@ describe("stored tool settings", () => {
 
     expect((await getAllToolSettings())["upload-files"]).toBe(true);
     expect(await isToolEnabled("upload-files")).toBe(true);
+  });
+});
+
+describe("tab opening settings", () => {
+  it("defaults to autonomous opening with hidden agent windows", async () => {
+    (browser.storage.local.get as jest.Mock).mockResolvedValue({ config: { secret: "s" } });
+
+    const config = await getConfig();
+    expect(config.tabOpenPolicy).toBe("autonomous");
+    expect(config.agentWindowDisplay).toBe("hidden");
+  });
+
+  it("carries a disabled legacy agent window setting into existing-window opening", async () => {
+    (browser.storage.local.get as jest.Mock).mockResolvedValue({
+      config: { secret: "s", agentWindow: false },
+    });
+
+    expect(await getTabOpenPolicy()).toBe("existing");
+  });
+
+  it("lets a selected policy supersede the retired switch", async () => {
+    (browser.storage.local.get as jest.Mock).mockResolvedValue({
+      config: { secret: "s", agentWindow: false, tabOpenPolicy: "agent-window" },
+    });
+
+    expect(await getTabOpenPolicy()).toBe("agent-window");
   });
 });
 

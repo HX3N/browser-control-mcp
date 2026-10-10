@@ -285,24 +285,36 @@ defineTool(
   `
     Open a new tab. container names the Firefox container to open in, spelled as list-open-tabs
     prints it; without it the tab follows the one the user is on. The user's popup setting can
-    take that choice back, so the answer names the container the tab landed in.
+    take that choice back, so the answer names the container the tab landed in. Use newWindow
+    when the page has to animate, lazy-load or scroll smoothly while you work: a tab behind
+    another tab may pause or slow those. The user's popup setting decides the window as well: it
+    can keep every tab in the user's window, ignoring newWindow, or open every tab in an agent
+    window without it. The answer says when the tab is in an agent window.
   `,
   { title: "Open a new tab", readOnlyHint: false, destructiveHint: false, idempotentHint: false },
   {
     url: z.string(),
     container: z.string().optional(),
+    newWindow: z
+      .boolean()
+      .optional()
+      .describe("Ask for an agent window of your own, running even behind others; the user's setting may override it"),
   },
-  async ({ url, container }) => {
-    const opened = await browserApi.openTab(url, container);
+  async ({ url, container, newWindow }) => {
+    const opened = await browserApi.openTab(url, container, newWindow);
     if (opened.tabId !== undefined) {
       const result: CallToolResult = {
         content: [
           {
             type: "text",
             text: `${url} opened in tab id ${opened.tabId}${
+              opened.agentWindow ? " in an agent window" : ""
+            }${
               opened.cookieStoreId ? `, container ${opened.cookieStoreId}` : ""
             }${
               opened.containerIgnored ? ", the user's setting over the one asked for" : ""
+            }${
+              opened.newWindowIgnored ? ", the user's tab opening setting overrode newWindow" : ""
             }`,
           },
           ...dialogNotice(opened),
@@ -1035,24 +1047,35 @@ defineTool(
 defineTool(
   "resize-browser-window",
   `
-    Resize the window holding a tab, to check a layout at a given width or give a page more
-    room. The size is the outer window in CSS pixels, so the viewport is a little smaller; read
-    the exact viewport from the next screenshot. A maximized or full-screen window is put back to
-    a normal window first, and the browser may clamp the size to the screen.
+    Resize or move the window holding a tab, to check a layout at a given width, give a page more
+    room, or set your own window aside on the screen. Give any of width, height, left and top;
+    what is left out stays. The size is the outer window in CSS pixels, so the viewport is a little
+    smaller; read the exact viewport from the next screenshot. left and top are screen
+    coordinates of the window's corner. A maximized or full-screen window is put back to a normal
+    window first, and the browser may clamp the size and place to the screen. Your own window
+    from open-browser-tab newWindow can be resized and moved even with this tool switched off.
   `,
   { title: "Resize the window", readOnlyHint: false, destructiveHint: false, idempotentHint: true },
   {
     tabId: z.number(),
-    width: z.number().int().min(200).max(10000),
-    height: z.number().int().min(200).max(10000),
+    width: z.number().int().min(200).max(10000).optional(),
+    height: z.number().int().min(200).max(10000).optional(),
+    left: z.number().int().optional(),
+    top: z.number().int().optional(),
   },
-  async ({ tabId, width, height }) => {
-    const result = await browserApi.resizeWindow(tabId, width, height);
+  async ({ tabId, width, height, left, top }) => {
+    if (width === undefined && height === undefined && left === undefined && top === undefined) {
+      return {
+        content: [{ type: "text", text: "Give at least one of width, height, left and top." }],
+        isError: true,
+      };
+    }
+    const result = await browserApi.resizeWindow(tabId, { width, height, left, top });
     return {
       content: [
         {
           type: "text",
-          text: `The window of tab ${tabId} is now ${result.width}x${result.height}px.`,
+          text: `The window of tab ${tabId} is now ${result.width}x${result.height}px at (${result.left}, ${result.top}).`,
         },
       ],
     };

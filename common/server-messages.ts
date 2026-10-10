@@ -6,6 +6,7 @@ export interface OpenTabServerMessage extends ServerMessageBase {
   cmd: "open-tab";
   url: string;
   cookieStoreId?: string;
+  newWindow?: boolean;
 }
 
 export interface NavigateTabServerMessage extends ServerMessageBase {
@@ -158,8 +159,10 @@ export interface DownloadFileServerMessage
 export interface ResizeWindowServerMessage extends ServerMessageBase {
   cmd: "resize-window";
   tabId: number;
-  width: number;
-  height: number;
+  width?: number;
+  height?: number;
+  left?: number;
+  top?: number;
 }
 
 export interface GetNetworkRequestsServerMessage extends ServerMessageBase {

@@ -434,6 +434,30 @@
       transform: translateX(200%);
     }
 
+    #tab-open-policy {
+      grid-template-columns: 1fr 1fr 1fr;
+    }
+
+    #tab-open-policy .seg-thumb {
+      width: calc(33.333% - 2px);
+    }
+
+    #tab-open-policy:has(#tab-open-existing:checked) .seg-thumb {
+      transform: translateX(100%);
+    }
+
+    #tab-open-policy:has(#tab-open-agent-window:checked) .seg-thumb {
+      transform: translateX(200%);
+    }
+
+    #agent-window-display:has(#agent-display-front:checked) .seg-thumb {
+      transform: translateX(100%);
+    }
+
+    #agent-window-display-field.is-disabled {
+      opacity: 0.55;
+    }
+
     #container-target {
       display: flex;
       align-items: center;
@@ -883,6 +907,40 @@
         <span class="toggle-hint" data-i18n="popupToggleBackgroundHint"></span>
       </span>
     </label>
+    <div class="field">
+      <span class="field-label" data-i18n="popupTabOpenPolicyName"></span>
+      <div id="tab-open-policy" class="segmented" style="margin-top: 6px;">
+        <span class="seg-thumb" aria-hidden="true"></span>
+        <label class="seg" for="tab-open-autonomous">
+          <input type="radio" id="tab-open-autonomous" name="tab-open-policy" value="autonomous">
+          <span data-i18n="popupTabOpenAutonomous"></span>
+        </label>
+        <label class="seg" for="tab-open-existing">
+          <input type="radio" id="tab-open-existing" name="tab-open-policy" value="existing">
+          <span data-i18n="popupTabOpenExisting"></span>
+        </label>
+        <label class="seg" for="tab-open-agent-window">
+          <input type="radio" id="tab-open-agent-window" name="tab-open-policy" value="agent-window">
+          <span data-i18n="popupTabOpenAgentWindow"></span>
+        </label>
+      </div>
+      <div class="mode-hint" data-i18n="popupTabOpenPolicyHint"></div>
+    </div>
+    <div id="agent-window-display-field" class="field">
+      <span class="field-label" data-i18n="popupAgentDisplayName"></span>
+      <div id="agent-window-display" class="segmented" style="margin-top: 6px;">
+        <span class="seg-thumb" aria-hidden="true"></span>
+        <label class="seg" for="agent-display-hidden">
+          <input type="radio" id="agent-display-hidden" name="agent-window-display" value="hidden">
+          <span data-i18n="popupAgentDisplayHidden"></span>
+        </label>
+        <label class="seg" for="agent-display-front">
+          <input type="radio" id="agent-display-front" name="agent-window-display" value="front">
+          <span data-i18n="popupAgentDisplayFront"></span>
+        </label>
+      </div>
+      <div id="agent-window-display-hint" class="mode-hint"></div>
+    </div>
     <div class="field">
     <span class="field-label" data-i18n="popupContainerPolicyName"></span>
     <span class="mode-hint" data-i18n="popupContainerPolicyHint"></span>

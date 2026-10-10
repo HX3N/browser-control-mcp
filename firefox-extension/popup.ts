@@ -1,6 +1,8 @@
 import type {
   ConsoleCaptureLevel,
   ContainerPolicy,
+  TabOpenPolicy,
+  AgentWindowDisplay,
   PermissionMode,
   UrlScope,
 } from "./extension-config";
@@ -108,6 +110,18 @@ const holdSecondsInput = document.getElementById(
 const backgroundModeToggle = document.getElementById(
   "toggle-background-mode"
 ) as HTMLInputElement;
+const tabOpenPolicyRadios = Array.from(
+  document.querySelectorAll<HTMLInputElement>("input[name='tab-open-policy']")
+);
+const agentWindowDisplayRadios = Array.from(
+  document.querySelectorAll<HTMLInputElement>("input[name='agent-window-display']")
+);
+const agentWindowDisplayField = document.getElementById(
+  "agent-window-display-field"
+) as HTMLDivElement;
+const agentWindowDisplayHint = document.getElementById(
+  "agent-window-display-hint"
+) as HTMLDivElement;
 const containerPolicyRadios = Array.from(
   document.querySelectorAll<HTMLInputElement>("input[name='container-policy']")
 );
@@ -532,6 +546,17 @@ function render(status: PopupStatus): void {
   badgeToggle.checked = status.badgeEnabled;
   renderContainerPolicy(status);
   backgroundModeToggle.checked = status.backgroundMode;
+  for (const radio of tabOpenPolicyRadios) {
+    radio.checked = radio.value === status.tabOpenPolicy;
+  }
+  for (const radio of agentWindowDisplayRadios) {
+    radio.checked = radio.value === status.agentWindowDisplay;
+    radio.disabled = status.tabOpenPolicy === "existing";
+  }
+  agentWindowDisplayField.classList.toggle("is-disabled", status.tabOpenPolicy === "existing");
+  agentWindowDisplayHint.textContent = status.tabOpenPolicy === "existing"
+    ? t("popupAgentDisplayUnavailable")
+    : t("popupAgentDisplayHint");
   includeHiddenToggle.checked = status.includeHidden;
 
   renderSiteList(status);
@@ -820,6 +845,22 @@ backgroundModeToggle.addEventListener("change", async () => {
       : t("popupFeedbackBackgroundOff")
   );
 });
+
+for (const radio of tabOpenPolicyRadios) {
+  radio.addEventListener("change", async () => {
+    if (!radio.checked) return;
+    await refresh({ kind: "set-tab-open-policy", policy: radio.value as TabOpenPolicy });
+    showFeedback(t("popupFeedbackTabOpenPolicy"));
+  });
+}
+
+for (const radio of agentWindowDisplayRadios) {
+  radio.addEventListener("change", async () => {
+    if (!radio.checked) return;
+    await refresh({ kind: "set-agent-window-display", display: radio.value as AgentWindowDisplay });
+    showFeedback(t("popupFeedbackAgentDisplay"));
+  });
+}
 
 includeHiddenToggle.addEventListener("change", async () => {
   await refresh({

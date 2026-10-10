@@ -54,6 +54,8 @@ import {
   getOverlayColors,
   getOverlayTimings,
   isBackgroundMode,
+  getTabOpenPolicy,
+  getAgentWindowDisplay,
   getUrlScope,
   isUrlInScope,
   describeUrlScope,
@@ -387,7 +389,9 @@ export class MessageHandler {
   }
 
   private async dispatch(req: ServerMessageRequest): Promise<void> {
-    const isAllowed = await isCommandAllowed(req.cmd);
+    const isAllowed =
+      (await isCommandAllowed(req.cmd)) ||
+      (req.cmd === "resize-window" && (await this.isOwnPopupWindow(req.tabId)));
     if (!isAllowed) {
       const toolId = COMMAND_TO_TOOL_ID[req.cmd];
       const where = (INTERACTION_TOOL_IDS as readonly string[]).includes(toolId)
@@ -410,7 +414,7 @@ export class MessageHandler {
 
     switch (req.cmd) {
       case "open-tab":
-        await this.openUrl(req.correlationId, req.url, req.cookieStoreId);
+        await this.openUrl(req.correlationId, req.url, req.cookieStoreId, req.newWindow);
         break;
       case "navigate-tab":
         await this.navigateTab(req);
@@ -544,8 +548,11 @@ export class MessageHandler {
   private async openUrl(
     correlationId: string,
     url: string,
-    requested?: string
+    requested?: string,
+    newWindow?: boolean
   ): Promise<void> {
+    const policy = await getTabOpenPolicy();
+    const ownWindow = policy === "agent-window" || (policy === "autonomous" && newWindow === true);
     await this.ensureUrlInScope(url);
 
     if (await isDomainInDenyList(url)) {
@@ -567,6 +574,28 @@ export class MessageHandler {
 
     if (tab.id !== undefined) {
       this.openedTabs.add(tab.id);
+      if (ownWindow) {
+        const display = await getAgentWindowDisplay();
+        const browserWindow = await browser.windows.getLastFocused({ windowTypes: ["normal"] });
+        const { left = 0, top = 0, width = 0, height = 0 } = browserWindow;
+        // Zen copies the pinned tabs and workspace into a normal window and focuses it;
+        // a popup it leaves alone.
+        const own = await browser.windows.create({ tabId: tab.id, type: "popup", focused: false });
+        if (own.id !== undefined) {
+          await browser.windows.update(own.id, {
+            left: Math.round(left + (width - (own.width ?? 0)) / 2),
+            top: Math.round(top + (height - (own.height ?? 0)) / 2),
+          });
+          if (display === "hidden") {
+            await browser.windows.update(own.id, { focused: true });
+          }
+        }
+        // Firefox still counts the browser window as focused, so focusing it alone does nothing
+        // and the unfocused popup stays on top; focus the popup first, then hand focus back.
+        if (display === "hidden" && browserWindow.id !== undefined) {
+          await browser.windows.update(browserWindow.id, { focused: true });
+        }
+      }
     }
 
     let registration = await registerDialogGuard(
@@ -606,6 +635,8 @@ export class MessageHandler {
       tabId: tab.id,
       cookieStoreId: tab.cookieStoreId,
       ...(ignored ? { containerIgnored: true } : {}),
+      ...(ownWindow ? { agentWindow: true } : {}),
+      ...(policy === "existing" && newWindow ? { newWindowIgnored: true } : {}),
     };
     if (tab.id === undefined) {
       await this.client.sendResourceToServer(opened);
@@ -2277,6 +2308,18 @@ export class MessageHandler {
     );
   }
 
+  private async isOwnPopupWindow(tabId: number): Promise<boolean> {
+    if (!this.openedTabs.has(tabId) || (await getTabOpenPolicy()) === "existing") {
+      return false;
+    }
+    const tab = await browser.tabs.get(tabId);
+    if (tab.windowId === undefined) {
+      return false;
+    }
+    const window = await browser.windows.get(tab.windowId);
+    return window.type === "popup";
+  }
+
   private async resizeWindow(
     req: ResizeWindowServerMessage & { correlationId: string }
   ): Promise<void> {
@@ -2284,17 +2327,22 @@ export class MessageHandler {
     if (tab.windowId === undefined) {
       throw new Error(`Tab ${req.tabId} does not belong to a window`);
     }
+    const { width, height, left, top } = req;
     const updated = await browser.windows.update(tab.windowId, {
-      width: req.width,
-      height: req.height,
+      ...(width !== undefined ? { width } : {}),
+      ...(height !== undefined ? { height } : {}),
+      ...(left !== undefined ? { left } : {}),
+      ...(top !== undefined ? { top } : {}),
       state: "normal",
     });
     await this.client.sendResourceToServer({
       resource: "window-resized",
       correlationId: req.correlationId,
       tabId: req.tabId,
-      width: updated.width ?? req.width,
-      height: updated.height ?? req.height,
+      width: updated.width ?? width ?? 0,
+      height: updated.height ?? height ?? 0,
+      left: updated.left ?? left ?? 0,
+      top: updated.top ?? top ?? 0,
     });
   }
 

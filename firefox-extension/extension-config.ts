@@ -171,6 +171,9 @@ export type UrlScope = "https" | "loopback" | "any";
 
 export type ContainerPolicy = "auto" | "inherit" | "fixed";
 
+export type TabOpenPolicy = "autonomous" | "existing" | "agent-window";
+export type AgentWindowDisplay = "hidden" | "front";
+
 export const DEFAULT_COOKIE_STORE = "firefox-default";
 
 export interface ContainerChoice {
@@ -242,6 +245,9 @@ export interface ExtensionConfig {
   containerPolicy?: ContainerPolicy | "default";
   containerFixedId?: string;
   backgroundMode?: boolean;
+  tabOpenPolicy?: TabOpenPolicy;
+  agentWindowDisplay?: AgentWindowDisplay;
+  agentWindow?: boolean;
   includeHiddenElements?: boolean;
   outlineBoxDepth?: number;
   outlineCharThreshold?: number;
@@ -439,6 +445,17 @@ export async function getConfig(): Promise<ExtensionConfig> {
   const config: ExtensionConfig = configObj.config || { secret: "" };
   
   config.toolSettings = { ...getDefaultToolSettings(), ...config.toolSettings };
+
+  config.tabOpenPolicy =
+    config.tabOpenPolicy === "existing" || config.tabOpenPolicy === "agent-window"
+      ? config.tabOpenPolicy
+      : config.tabOpenPolicy === "autonomous"
+      ? "autonomous"
+      : config.agentWindow === false
+      ? "existing"
+      : "autonomous";
+  config.agentWindowDisplay = config.agentWindowDisplay === "front" ? "front" : "hidden";
+  delete config.agentWindow;
 
   if (!config.ports) {
     config.ports = [DEFAULT_WS_PORT];
@@ -653,6 +670,26 @@ export async function isBackgroundMode(): Promise<boolean> {
 export async function setBackgroundMode(enabled: boolean): Promise<void> {
   const config = await getConfig();
   config.backgroundMode = enabled;
+  await saveConfig(config);
+}
+
+export async function getTabOpenPolicy(): Promise<TabOpenPolicy> {
+  return (await getConfig()).tabOpenPolicy!;
+}
+
+export async function setTabOpenPolicy(policy: TabOpenPolicy): Promise<void> {
+  const config = await getConfig();
+  config.tabOpenPolicy = policy;
+  await saveConfig(config);
+}
+
+export async function getAgentWindowDisplay(): Promise<AgentWindowDisplay> {
+  return (await getConfig()).agentWindowDisplay!;
+}
+
+export async function setAgentWindowDisplay(display: AgentWindowDisplay): Promise<void> {
+  const config = await getConfig();
+  config.agentWindowDisplay = display;
   await saveConfig(config);
 }
 

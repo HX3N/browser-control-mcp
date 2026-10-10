@@ -2,6 +2,8 @@ import type {
   ConsoleCaptureLevel,
   ContainerChoice,
   ContainerPolicy,
+  TabOpenPolicy,
+  AgentWindowDisplay,
   PermissionMode,
   ToolSettings,
   UrlScope,
@@ -42,6 +44,8 @@ export interface PopupStatus {
   container: ContainerChoice;
   containers: string[];
   backgroundMode: boolean;
+  tabOpenPolicy: TabOpenPolicy;
+  agentWindowDisplay: AgentWindowDisplay;
   includeHidden: boolean;
   outlineBoxDepth: number;
   outlineCharThreshold: number;
@@ -72,6 +76,8 @@ export type PopupRequest =
       cookieStoreId?: string;
     }
   | { kind: "set-background-mode"; enabled: boolean }
+  | { kind: "set-tab-open-policy"; policy: TabOpenPolicy }
+  | { kind: "set-agent-window-display"; display: AgentWindowDisplay }
   | { kind: "set-include-hidden"; enabled: boolean }
   | { kind: "set-outline-depth"; depth: number }
   | { kind: "set-outline-chars"; chars: number }

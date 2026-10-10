@@ -251,6 +251,36 @@
     "popupToggleBackgroundHint": {
         "message": "Keeps the focus on the current screen while acting"
     },
+    "popupTabOpenPolicyName": {
+        "message": "Open new tabs"
+    },
+    "popupTabOpenPolicyHint": {
+        "message": "Choose which window receives new tabs"
+    },
+    "popupTabOpenAutonomous": {
+        "message": "Auto"
+    },
+    "popupTabOpenExisting": {
+        "message": "My window"
+    },
+    "popupTabOpenAgentWindow": {
+        "message": "Agent window"
+    },
+    "popupAgentDisplayName": {
+        "message": "Agent window display"
+    },
+    "popupAgentDisplayHidden": {
+        "message": "Behind"
+    },
+    "popupAgentDisplayFront": {
+        "message": "In front"
+    },
+    "popupAgentDisplayHint": {
+        "message": "Place the window without minimizing it"
+    },
+    "popupAgentDisplayUnavailable": {
+        "message": "Does not apply when tabs stay in your window"
+    },
     "popupToggleConsoleName": {
         "message": "Console messages"
     },
@@ -280,6 +310,12 @@
     },
     "popupFeedbackBackgroundOff": {
         "message": "Work may take the foreground"
+    },
+    "popupFeedbackTabOpenPolicy": {
+        "message": "New tab setting updated"
+    },
+    "popupFeedbackAgentDisplay": {
+        "message": "Agent window display updated"
     },
     "popupPermissionWarning": {
         "message": "Without full web access the extension cannot run. Grant it with the button below."
@@ -852,7 +888,7 @@
         "message": "Window size"
     },
     "popupToggleResizeHint": {
-        "message": "Resize the browser window"
+        "message": "Resize or move the browser window"
     },
     "popupToggleReadPageName": {
         "message": "Read the page"

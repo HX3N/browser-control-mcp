@@ -73,6 +73,8 @@ export interface WindowResizedExtensionMessage extends ExtensionMessageBase {
   tabId: number;
   width: number;
   height: number;
+  left: number;
+  top: number;
 }
 
 export interface NetworkRequestRecord {
@@ -103,6 +105,8 @@ export interface OpenedTabIdExtensionMessage extends ExtensionMessageBase {
   tabId: number | undefined;
   cookieStoreId?: string;
   containerIgnored?: boolean;
+  agentWindow?: boolean;
+  newWindowIgnored?: boolean;
 }
 
 export interface TabNavigatedExtensionMessage extends ExtensionMessageBase {
