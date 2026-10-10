@@ -387,7 +387,7 @@ defineTool(
     List the open tabs, paged. "held" marks a tab this session opened or is driving; the others
     are the user's.
   `,
-  { title: "List open tabs", readOnlyHint: true },
+  { title: "List open tabs", readOnlyHint: true, destructiveHint: false, idempotentHint: true },
   {
     offset: z.number().int().min(0).default(0).describe("Starting index, zero based"),
     limit: z.number().int().min(1).max(500).default(100).describe("Maximum number of tabs to return"),
@@ -434,7 +434,7 @@ defineTool(
     List recently visited pages with titles and how long ago, paged. Use it to find a page the
     user mentioned without an address, then open it with open-browser-tab.
   `,
-  { title: "Recent history", readOnlyHint: true },
+  { title: "Recent history", readOnlyHint: true, destructiveHint: false, idempotentHint: true },
   {
     searchQuery: z
       .string()
@@ -493,7 +493,7 @@ defineTool(
     page under a "## frame host/path" heading and its refs read f3e12.
     A large page read whole comes back as an outline of its regions.
   `,
-  { title: "Read a page", readOnlyHint: true },
+  { title: "Read a page", readOnlyHint: true, destructiveHint: false, idempotentHint: true },
   {
     tabId: z.number(),
     full: z
@@ -574,7 +574,7 @@ defineTool(
     title, alt, name - which is how a search box named only by its placeholder is found; those
     matches say which attribute carried the phrase.
   `,
-  { title: "Find text on a page", readOnlyHint: true },
+  { title: "Find text on a page", readOnlyHint: true, destructiveHint: false, idempotentHint: true },
   {
     tabId: z.number(),
     queryPhrase: z.string().describe("The exact text to look for"),
@@ -615,7 +615,7 @@ defineTool(
     "region" zooms into a viewport rectangle, in the pixel coordinates of an earlier full-screen
     capture at scale 1: for an icon, a chart label or a table cell the full shot rendered too small.
   `,
-  { title: "Screenshot a tab", readOnlyHint: true },
+  { title: "Screenshot a tab", readOnlyHint: true, destructiveHint: false, idempotentHint: true },
   {
     tabId: z.number(),
     format: z
@@ -746,7 +746,7 @@ defineTool(
     would lose resolution. Only listed URLs can be fetched, and the list is forgotten when the tab
     navigates.
   `,
-  { title: "List media on a page", readOnlyHint: true },
+  { title: "List media on a page", readOnlyHint: true, destructiveHint: false, idempotentHint: true },
   {
     tabId: z.number(),
     ...elementTargetShape,
@@ -817,7 +817,7 @@ defineTool(
     Only jpeg, png, gif and webp are returned, capped by the limit next to "Read images" in the
     extension popup, 8MB by default.
   `,
-  { title: "View an image", readOnlyHint: true },
+  { title: "View an image", readOnlyHint: true, destructiveHint: false, idempotentHint: true },
   {
     tabId: z.number(),
     url: z
@@ -1068,7 +1068,7 @@ defineTool(
     own. urlPattern keeps the list short - "/api/", or a host name; clear drops what was listed so
     the next call shows only new requests. The list is emptied when the tab navigates.
   `,
-  { title: "Read network requests", readOnlyHint: true },
+  { title: "Read network requests", readOnlyHint: true, destructiveHint: false, idempotentHint: true },
   {
     tabId: z.number(),
     urlPattern: z
@@ -1352,7 +1352,7 @@ defineTool(
     same selector matches elsewhere, or keeping a clock elsewhere on the page from ending a text
     wait. The watched element is outlined on screen.
   `,
-  { title: "Wait for a page", readOnlyHint: true },
+  { title: "Wait for a page", readOnlyHint: true, destructiveHint: false, idempotentHint: true },
   {
     tabId: z.number(),
     selector: z
