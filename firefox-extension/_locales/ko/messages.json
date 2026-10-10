@@ -690,19 +690,10 @@
         "message": "확장만으로는 동작하지 않습니다. 로컬 MCP 서버를 함께 띄워야 합니다. 저장소 루트에서 <code>npm install &amp;&amp; npm run build</code>를 먼저 실행하세요."
     },
     "optionsInstallCodeSnippet": {
-        "message": "claude mcp add browser-control \\n  --env EXTENSION_SECRET=<SECRET KEY> \\n  -- node /path/to/repo/mcp-server/dist/server.js"
+        "message": "claude mcp add browser-control \\\n  --env EXTENSION_SECRET=<SECRET KEY> \\\n  -- node /path/to/repo/mcp-server/dist/server.js"
     },
-    "optionsInstallDesktopBody": {
-        "message": "<code>claude_desktop_config.json</code>의 <code>mcpServers</code>에 아래를 추가합니다."
-    },
-    "optionsInstallDesktopSnippet": {
-        "message": "\"browser-control\": {\n  \"command\": \"node\",\n  \"args\": [\"/path/to/repo/mcp-server/dist/server.js\"],\n  \"env\": {\n    \"EXTENSION_SECRET\": \"<SECRET KEY>\"\n  }\n}"
-    },
-    "optionsInstallDxtHeading": {
-        "message": "DXT 패키지"
-    },
-    "optionsInstallDxtBody": {
-        "message": "Claude Desktop에 클릭 한 번으로 설치하고 싶을 때만 필요합니다. Claude Code에는 쓰이지 않습니다. <code>cd mcp-server &amp;&amp; npm run pack-dxt</code>로 직접 만드세요 — 원본 저장소가 배포한 DXT에는 이 포크의 조작 도구가 들어 있지 않습니다."
+    "optionsInstallCodexSnippet": {
+        "message": "codex mcp add browser-control \\\n  --env EXTENSION_SECRET=<SECRET KEY> \\\n  -- node /path/to/repo/mcp-server/dist/server.js"
     },
     "optionsAppearanceHeading": {
         "message": "오버레이 색상"

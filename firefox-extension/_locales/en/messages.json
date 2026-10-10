@@ -690,19 +690,10 @@
         "message": "The extension does nothing on its own; a local MCP server has to run alongside it. Run <code>npm install &amp;&amp; npm run build</code> in the repository root first."
     },
     "optionsInstallCodeSnippet": {
-        "message": "claude mcp add browser-control \\n  --env EXTENSION_SECRET=<SECRET KEY> \\n  -- node /path/to/repo/mcp-server/dist/server.js"
+        "message": "claude mcp add browser-control \\\n  --env EXTENSION_SECRET=<SECRET KEY> \\\n  -- node /path/to/repo/mcp-server/dist/server.js"
     },
-    "optionsInstallDesktopBody": {
-        "message": "Add the following under <code>mcpServers</code> in <code>claude_desktop_config.json</code>."
-    },
-    "optionsInstallDesktopSnippet": {
-        "message": "\"browser-control\": {\n  \"command\": \"node\",\n  \"args\": [\"/path/to/repo/mcp-server/dist/server.js\"],\n  \"env\": {\n    \"EXTENSION_SECRET\": \"<SECRET KEY>\"\n  }\n}"
-    },
-    "optionsInstallDxtHeading": {
-        "message": "DXT package"
-    },
-    "optionsInstallDxtBody": {
-        "message": "Only needed to install into Claude Desktop in one click. Claude Code does not use it. Build it yourself with <code>cd mcp-server &amp;&amp; npm run pack-dxt</code> — the DXT published by the upstream repository does not carry this fork's interaction tools."
+    "optionsInstallCodexSnippet": {
+        "message": "codex mcp add browser-control \\\n  --env EXTENSION_SECRET=<SECRET KEY> \\\n  -- node /path/to/repo/mcp-server/dist/server.js"
     },
     "optionsAppearanceHeading": {
         "message": "Overlay colours"

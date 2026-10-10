@@ -135,16 +135,17 @@ npm run package     # firefox-extension/web-ext-artifacts/browser_control_mcp-<v
 
 ### 서버 연결
 
-하는 일마다 스크립트가 하나씩 있습니다. `setup.ps1`은 빠진 것을 설치하고 빌드한 뒤 zip까지
-만들고 끝납니다. 확장을 설치하기 전에는 비밀 키가 존재하지 않기 때문입니다.
+하는 일마다 스크립트가 하나씩 있습니다. `setup.ps1`은 Claude Code와 Codex가 없으면 설치할 수
+있고, 빌드한 뒤 zip까지 만들고 끝납니다. 확장을 설치하기 전에는 비밀 키가 존재하지 않기
+때문입니다.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1
 ```
 
 그 zip을 `about:addons`에서 설치하고 설정에서 비밀 키를 복사한 뒤 클라이언트에 넘깁니다.
-`sync-secret.ps1`이 Claude Code, Codex, Claude Desktop 중 설치된 곳에 등록하며, Desktop
-설정을 쓰기 전에 앱을 닫습니다. 키가 바뀔 때마다 이것만 다시 실행하면 됩니다.
+`sync-secret.ps1`이 설치된 Claude Code와 Codex에 등록합니다. 주 클라이언트는 Claude Code이고,
+Codex도 같은 서버를 함께 쓸 수 있습니다. 키가 바뀔 때마다 이것만 다시 실행하면 됩니다.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\sync-secret.ps1
@@ -166,22 +167,7 @@ codex mcp add browser-control \
   -- node /path/to/repo/mcp-server/dist/server.js
 ```
 
-Claude Desktop은 `claude_desktop_config.json`에 같은 항목:
-
-```json
-{
-  "mcpServers": {
-    "browser-control": {
-      "command": "node",
-      "args": ["/path/to/repo/mcp-server/dist/server.js"],
-      "env": { "EXTENSION_SECRET": "<SECRET KEY>" }
-    }
-  }
-}
-```
-
 세션은 여러 개 열어도 됩니다. 서버마다 다음 빈 포트를 잡고 확장은 예비 슬롯을 둡니다.
-`cd mcp-server && npm run pack-dxt`가 Claude Desktop용 DXT 패키지를 만듭니다.
 
 ## 개발
 

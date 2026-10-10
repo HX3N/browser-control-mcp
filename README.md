@@ -140,17 +140,18 @@ The settings page shows the secret key the server needs.
 
 ### Connect the server
 
-Two scripts, one per job. `setup.ps1` installs what is missing, builds, and packages the zip;
-it stops there, since the secret key does not exist until the extension is installed.
+Two scripts, one per job. `setup.ps1` can install Claude Code and Codex when they are missing,
+then builds and packages the zip; it stops there, since the secret key does not exist until the
+extension is installed.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1
 ```
 
 Install that zip from `about:addons`, copy the Secret Key from its preferences, then hand it to
-the clients. `sync-secret.ps1` registers with Claude Code, Codex and Claude Desktop, whichever
-are installed, closing Claude Desktop before writing its config. Run it again whenever the key
-changes.
+the clients. `sync-secret.ps1` registers with Claude Code and Codex, whichever are installed.
+Claude Code is the primary client; Codex can use the same server alongside it. Run the script
+again whenever the key changes.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\sync-secret.ps1
@@ -172,22 +173,8 @@ codex mcp add browser-control \
   -- node /path/to/repo/mcp-server/dist/server.js
 ```
 
-For Claude Desktop, the same entry in `claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "browser-control": {
-      "command": "node",
-      "args": ["/path/to/repo/mcp-server/dist/server.js"],
-      "env": { "EXTENSION_SECRET": "<SECRET KEY>" }
-    }
-  }
-}
-```
-
 Several sessions can run at once: each server takes the next free port and the extension keeps
-a spare slot. `cd mcp-server && npm run pack-dxt` builds the DXT package for Claude Desktop.
+a spare slot.
 
 ## Development
 

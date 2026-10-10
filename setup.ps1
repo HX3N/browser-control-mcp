@@ -22,14 +22,15 @@ $Strings = Merge-Strings @{
         CodeInstallNpm   = "  winget did not work, falling back to npm -g..."
         CodeInstallFail  = "[error] Claude Code is still not on PATH. Open a new terminal and run this again."
         CodeReady        = "  Claude Code      found"
-        DesktopInstAsk   = "Install Claude Desktop now? (y/N)"
-        DesktopInstSkip  = "  Claude Desktop   skipped"
-        DesktopInstNow   = "  Installing Claude Desktop with winget..."
-        DesktopLaunch    = "[warning] Claude Desktop has to be started once before its config folder exists."
-        DesktopLaunch2   = "          Launch it, close it, then run this again."
-        DesktopReady     = "  Claude Desktop   found"
+        CodexInstallAsk  = "Install Codex now? (y/N)"
+        CodexMissing     = "  Codex            the CLI is not on PATH"
+        CodexInstallSkip = "  Codex            skipped"
+        CodexInstalling  = "  Installing Codex with npm..."
+        CodexInstallFail = "[error] Codex is still not on PATH. Open a new terminal and run this again."
+        CodexReady       = "  Codex            found"
+        StatusCodexNone  = "  Codex            not available, it will be skipped"
         NoWinget         = "[error] winget was not found, so nothing can be installed automatically."
-        NoWingetHint     = "        Install from https://claude.ai/download and run this again."
+        NoWingetHint     = "        Install Node.js LTS from https://nodejs.org/ and run this again."
         StatusBuildReady = "  Build            already built, it will be rebuilt to match this checkout"
         StatusBuildTodo  = "  Build            not built yet, it will be built in a moment"
         InstallHeading   = "  Build"
@@ -41,7 +42,7 @@ $Strings = Merge-Strings @{
         NextHeading      = "  Next"
         NextStep1        = "  1. Install or update that zip from about:addons."
         NextStep2        = "  2. Copy the Secret Key from the extension preferences."
-        NextStep3        = "  3. Run this to hand that key to Claude Code, Codex and Claude Desktop:"
+        NextStep3        = "  3. Run this to hand that key to Claude Code and Codex:"
         NextStep4        = "     powershell -NoProfile -ExecutionPolicy Bypass -File .\sync-secret.ps1"
     }
     ko = @{
@@ -62,14 +63,15 @@ $Strings = Merge-Strings @{
         CodeInstallNpm   = "  winget 이 안 되어 npm -g 로 다시 시도합니다..."
         CodeInstallFail  = "[오류] Claude Code 가 여전히 PATH 에 없습니다. 새 터미널에서 다시 실행하세요."
         CodeReady        = "  Claude Code      찾았습니다"
-        DesktopInstAsk   = "Claude Desktop 을 지금 설치할까요? (y/N)"
-        DesktopInstSkip  = "  Claude Desktop   건너뜁니다"
-        DesktopInstNow   = "  winget 으로 Claude Desktop 을 설치하는 중..."
-        DesktopLaunch    = "[경고] Claude Desktop 은 한 번 실행해야 설정 폴더가 만들어집니다."
-        DesktopLaunch2   = "       한 번 켰다 끈 뒤에 이 스크립트를 다시 실행하세요."
-        DesktopReady     = "  Claude Desktop   찾았습니다"
+        CodexInstallAsk  = "Codex 를 지금 설치할까요? (y/N)"
+        CodexMissing     = "  Codex            CLI 를 PATH 에서 찾지 못했습니다"
+        CodexInstallSkip = "  Codex            건너뜁니다"
+        CodexInstalling  = "  npm 으로 Codex 를 설치하는 중..."
+        CodexInstallFail = "[오류] Codex 가 여전히 PATH 에 없습니다. 새 터미널에서 다시 실행하세요."
+        CodexReady       = "  Codex            찾았습니다"
+        StatusCodexNone  = "  Codex            쓸 수 없어 건너뜁니다"
         NoWinget         = "[오류] winget 을 찾지 못해 자동 설치를 할 수 없습니다."
-        NoWingetHint     = "       https://claude.ai/download 에서 설치한 뒤 다시 실행하세요."
+        NoWingetHint     = "       https://nodejs.org/ 에서 Node.js LTS 를 설치한 뒤 다시 실행하세요."
         StatusBuildReady = "  빌드             빌드돼 있습니다. 현재 소스에 맞춰 다시 빌드합니다"
         StatusBuildTodo  = "  빌드             아직 빌드되지 않아 곧 빌드합니다"
         InstallHeading   = "  빌드"
@@ -81,7 +83,7 @@ $Strings = Merge-Strings @{
         NextHeading      = "  다음 순서"
         NextStep1        = "  1. about:addons 에서 이 zip 을 설치(또는 갱신)합니다."
         NextStep2        = "  2. 확장 설정에서 Secret Key 를 복사합니다."
-        NextStep3        = "  3. 아래를 실행해 그 키를 Claude Code, Codex, Claude Desktop 에 넘깁니다."
+        NextStep3        = "  3. 아래를 실행해 그 키를 Claude Code 와 Codex 에 넘깁니다."
         NextStep4        = "     powershell -NoProfile -ExecutionPolicy Bypass -File .\sync-secret.ps1"
     }
 }
@@ -131,6 +133,7 @@ if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
         }
         else {
             Write-Host $T.NoWinget -ForegroundColor Red
+            Write-Host $T.NoWingetHint
         }
         Update-PathFromRegistry
     }
@@ -173,38 +176,26 @@ if (-not $hasCodeCli) {
     }
 }
 
-$desktopPaths = Resolve-DesktopPaths
-$hasDesktop = Test-DesktopPresent $desktopPaths
+$hasCodexCli = [bool](Get-Command codex -ErrorAction SilentlyContinue)
 
-if (-not $hasDesktop) {
-    Write-Host $T.DesktopMissing -ForegroundColor Yellow
-    if (Confirm-Yes $T.DesktopInstAsk) {
-        if ($hasWinget) {
-            Write-Host $T.DesktopInstNow
-            Invoke-Native "winget" @(
-                "install", "--id", "Anthropic.Claude", "-e",
-                "--accept-package-agreements", "--accept-source-agreements"
-            ) | Out-Null
-            $desktopPaths = Resolve-DesktopPaths
-            $hasDesktop = Test-DesktopPresent $desktopPaths
-            Write-Host ""
-            if (-not $hasDesktop) {
-                Write-Host $T.DesktopLaunch -ForegroundColor Yellow
-                Write-Host $T.DesktopLaunch2
-            }
-        }
-        else {
-            Write-Host ""
-            Write-Host $T.NoWinget -ForegroundColor Red
-            Write-Host $T.NoWingetHint
+if (-not $hasCodexCli) {
+    Write-Host $T.CodexMissing -ForegroundColor Yellow
+    if (Confirm-Yes $T.CodexInstallAsk) {
+        Write-Host $T.CodexInstalling
+        Invoke-Native "npm" @("install", "-g", "@openai/codex@latest") | Out-Null
+        Update-PathFromRegistry
+        $hasCodexCli = [bool](Get-Command codex -ErrorAction SilentlyContinue)
+        Write-Host ""
+        if (-not $hasCodexCli) {
+            Write-Host $T.CodexInstallFail -ForegroundColor Red
         }
     }
     else {
-        Write-Host $T.DesktopInstSkip -ForegroundColor DarkGray
+        Write-Host $T.CodexInstallSkip -ForegroundColor DarkGray
     }
 }
 
-$claudeProcesses = Get-ClaudeProcesses
+$claudeProcesses = Get-ClaudeCodeProcesses
 
 Write-Host ""
 Write-Rule
@@ -221,26 +212,22 @@ else {
 
 if ($hasCodeCli) {
     Write-Host $T.CodeReady -ForegroundColor Green
-    if ($claudeProcesses.Code.Count -gt 0) {
-        Write-Host ($T.StatusRunning -f $claudeProcesses.Code.Count) -ForegroundColor Yellow
+    if ($claudeProcesses.Count -gt 0) {
+        Write-Host ($T.StatusRunning -f $claudeProcesses.Count) -ForegroundColor Yellow
     }
 }
 else {
     Write-Host $T.StatusCodeNone -ForegroundColor DarkGray
 }
 
-if ($hasDesktop) {
-    Write-Host $T.DesktopReady -ForegroundColor Green
-    Write-Host ($T.DesktopConfigAt -f $desktopPaths.Config) -ForegroundColor DarkGray
-    if ($claudeProcesses.Desktop.Count -gt 0) {
-        Write-Host ($T.StatusRunning -f $claudeProcesses.Desktop.Count) -ForegroundColor Yellow
-    }
+if ($hasCodexCli) {
+    Write-Host $T.CodexReady -ForegroundColor Green
 }
 else {
-    Write-Host $T.StatusDeskNone -ForegroundColor DarkGray
+    Write-Host $T.StatusCodexNone -ForegroundColor DarkGray
 }
 
-if (-not $hasCodeCli -and -not $hasDesktop) {
+if (-not $hasCodeCli -and -not $hasCodexCli) {
     Write-Host ""
     Write-Host $T.NothingToDo -ForegroundColor Yellow
     Write-Host $T.NothingHint

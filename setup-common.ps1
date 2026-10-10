@@ -12,14 +12,11 @@ $CommonStrings = @{
         PressEnter      = "Press Enter to close this window"
         DetectHeading   = "  Looking for the clients"
         CodeMissing     = "  Claude Code      the CLI is not on PATH"
-        DesktopMissing  = "  Claude Desktop   the app is not installed"
-        DesktopConfigAt = "                   config: {0}"
         StatusHeading   = "  Current state"
         StatusRunning   = "                   running right now ({0} process(es))"
         StatusCodeNone  = "  Claude Code      not available, it will be skipped"
-        StatusDeskNone  = "  Claude Desktop   not available, it will be skipped"
         NothingToDo     = "  Neither client is available, so there is nothing to register."
-        NothingHint     = "  Install Claude Code or Claude Desktop first, then run this again."
+        NothingHint     = "  Install Claude Code or Codex first, then run this again."
         DoneHeading     = "  Finished."
     }
     ko = @{
@@ -27,14 +24,11 @@ $CommonStrings = @{
         PressEnter      = "엔터를 누르면 창이 닫힙니다"
         DetectHeading   = "  클라이언트를 찾는 중"
         CodeMissing     = "  Claude Code      CLI 를 PATH 에서 찾지 못했습니다"
-        DesktopMissing  = "  Claude Desktop   앱이 설치되어 있지 않습니다"
-        DesktopConfigAt = "                   설정 파일: {0}"
         StatusHeading   = "  현재 상태"
         StatusRunning   = "                   지금 실행 중입니다 (프로세스 {0}개)"
         StatusCodeNone  = "  Claude Code      쓸 수 없어 건너뜁니다"
-        StatusDeskNone  = "  Claude Desktop   쓸 수 없어 건너뜁니다"
         NothingToDo     = "  쓸 수 있는 클라이언트가 없어 등록할 것이 없습니다."
-        NothingHint     = "  Claude Code 나 Claude Desktop 을 먼저 설치한 뒤 다시 실행하세요."
+        NothingHint     = "  Claude Code 나 Codex 를 먼저 설치한 뒤 다시 실행하세요."
         DoneHeading     = "  끝났습니다."
     }
 }
@@ -115,48 +109,7 @@ function Invoke-Native {
     return $code
 }
 
-# The Store build is MSIX, and MSIX redirects %APPDATA% into the package container: a file
-# written to the plain %APPDATA%\Claude path is shadowed and the app never reads it.
-function Resolve-DesktopPaths {
-    $package = Get-ChildItem (Join-Path $env:LOCALAPPDATA "Packages") -Directory -Force -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -like "Claude_*" } |
-        Select-Object -First 1
-
-    if ($package) {
-        $dir = Join-Path $package.FullName "LocalCache\Roaming\Claude"
-        return [PSCustomObject]@{ Packaged = $true; Dir = $dir; Config = (Join-Path $dir "claude_desktop_config.json") }
-    }
-
-    $dir = Join-Path $env:APPDATA "Claude"
-    return [PSCustomObject]@{ Packaged = $false; Dir = $dir; Config = (Join-Path $dir "claude_desktop_config.json") }
-}
-
-function Test-DesktopPresent($paths) {
-    if ($paths.Packaged) {
-        return $true
-    }
-    if (Test-Path $paths.Config) {
-        return $true
-    }
-    $exes = @(
-        (Join-Path $env:LOCALAPPDATA "AnthropicClaude\claude.exe"),
-        (Join-Path $env:LOCALAPPDATA "AnthropicClaude\app-*\claude.exe"),
-        (Join-Path $env:LOCALAPPDATA "Programs\Claude\Claude.exe")
-    )
-    foreach ($exe in $exes) {
-        if (Test-Path $exe) {
-            return $true
-        }
-    }
-    return $false
-}
-
-function Get-ClaudeProcesses {
-    $all = @(Get-Process -Name claude -ErrorAction SilentlyContinue)
-    return [PSCustomObject]@{
-        Code    = @($all | Where-Object { $_.Path -notlike "*WindowsApps*" })
-        Desktop = @($all | Where-Object {
-                $_.Path -like "*WindowsApps*" -or $_.Path -like "*AnthropicClaude*" -or $_.Path -like "*Programs\Claude*"
-            })
-    }
+function Get-ClaudeCodeProcesses {
+    return @(Get-Process -Name claude -ErrorAction SilentlyContinue |
+        Where-Object { $_.Path -notlike "*WindowsApps*" })
 }

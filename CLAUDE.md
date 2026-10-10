@@ -11,7 +11,6 @@ npm run build                          # nx: tsc (mcp-server), esbuild (firefox-
 npm run package                        # build + web-ext build → firefox-extension/web-ext-artifacts/*.zip
 cd firefox-extension && npm test       # jest, extension only
 cd mcp-server && npm start
-cd mcp-server && npm run pack-dxt      # Claude Desktop only
 ```
 
 ## Structure
@@ -168,7 +167,7 @@ server takes the next free port and the extension keeps one spare slot.
 
 `common/server-messages.ts` → `common/extension-messages.ts` → `extension-config.ts`
 (`COMMAND_TO_TOOL_ID`, `PAGE_ACCESS_COMMANDS`) → `message-handler.ts` → `mcp-server/browser-api.ts`
-→ `mcp-server/server.ts` → `mcp-server/manifest.json`. A numeric bound both sides apply goes in
+→ `mcp-server/server.ts`. A numeric bound both sides apply goes in
 `common/limits.ts` and `mcp-server/limits.ts`.
 
 Injected scripts are strings in template literals: escape backslashes (`\\s`), embed values
@@ -188,8 +187,8 @@ option.
 - Target is Zen Browser (Gecko). Compact mode hides the toolbar (`Alt+Shift+B` opens the popup);
   split view puts both tabs in `captureVisibleTab`.
 - `default_popup` means `browserAction.onClicked` never fires.
-- `setup.ps1` installs, builds and packages the zip, then stops: the secret key does not exist
-  until the extension is installed. `sync-secret.ps1` takes that key and registers Claude Code,
-  Codex and Claude Desktop, whichever are installed, closing Claude Desktop before writing its
-  config, resolving the MSIX path first. Shared
+- `setup.ps1` can install Claude Code and Codex, builds and packages the zip, then stops: the
+  secret key does not exist until the extension is installed. `sync-secret.ps1` takes that key
+  and registers Claude Code and Codex, whichever are installed. Claude Code is the primary
+  client and Codex may run alongside it. Shared
   helpers, paths and strings live in `setup-common.ps1`, dot-sourced by both.

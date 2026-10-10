@@ -7,8 +7,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "start": "node dist/server.js",
-    "pack-dxt": "npx @anthropic-ai/dxt pack"
+    "start": "node dist/server.js"
   },
   "license": "MIT",
   "description": "Browser Control MCP Server",
