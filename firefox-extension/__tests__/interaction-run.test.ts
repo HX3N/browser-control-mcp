@@ -1,4 +1,8 @@
-import { buildClickCode, buildTypeCode } from "../interaction-scripts";
+import {
+  buildClickCode,
+  buildScrollCode,
+  buildTypeCode,
+} from "../interaction-scripts";
 
 interface ClickResult {
   target: string;
@@ -76,5 +80,38 @@ describe("interaction scripts run against a document", () => {
 
     expect(focus).toHaveBeenCalledWith(document.getElementById("send"), "click");
     delete (window as unknown as { __bcmOverlay?: unknown }).__bcmOverlay;
+  });
+
+  it("scrolls at once in a hidden document, where animation frames never run", () => {
+    const root = document.documentElement;
+    Object.defineProperty(document, "hidden", {
+      configurable: true,
+      get: () => true,
+    });
+    Object.defineProperty(root, "scrollHeight", {
+      configurable: true,
+      get: () => 5000,
+    });
+    const raf = jest.spyOn(window, "requestAnimationFrame");
+
+    try {
+      const result = run<{ scrollY: number; scrollMax: number }>(
+        buildScrollCode({ cmd: "scroll-page", tabId: 1, direction: "bottom" })
+      );
+
+      expect(result.scrollY).toBeGreaterThan(0);
+      expect(result.scrollY).toBe(result.scrollMax);
+      expect(window.scrollTo).toHaveBeenCalledTimes(1);
+      expect(window.scrollTo).toHaveBeenCalledWith({
+        left: 0,
+        top: result.scrollY,
+        behavior: "instant",
+      });
+      expect(raf).not.toHaveBeenCalled();
+    } finally {
+      raf.mockRestore();
+      delete (root as unknown as { scrollHeight?: number }).scrollHeight;
+      delete (document as unknown as { hidden?: boolean }).hidden;
+    }
   });
 });

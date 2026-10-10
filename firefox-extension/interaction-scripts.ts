@@ -858,6 +858,7 @@ ${SWEEP_EASE_SOURCE}
   function __bcmGlide(target, x0, y0, x1, y1, ms) {
     var set = function (x, y) { if (target) { target.scrollLeft = x; target.scrollTop = y; } else { window.scrollTo(x, y); } };
     if (x0 === x1 && y0 === y1) { return; }
+    if (document.hidden) { (target || window).scrollTo({ left: x1, top: y1, behavior: 'instant' }); return; }
     var started = null;
     var frame = function (now) {
       if (started === null) { started = now; }
